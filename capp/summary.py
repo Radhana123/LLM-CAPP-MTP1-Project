@@ -8,7 +8,8 @@ Metrics reported (Table 3 of the report)
   M3  failure kinds of the invalid raw LLM routes (a route can have several kinds)
   M4  plan similarity: against expert reference routes if the part has them, otherwise against the Route Builder
       variants (labelled "proxy_rb": agreement with the rule-based routes, not with an expert)
-  M5  repair minimality of v1's whole-route replacement (edit distance, share of LLM operations that survive)
+  M5  repair minimality: edit distance LLM route -> final route and share of LLM operations that survive, separately for
+      v1's whole-route replacement (R0) and for localized repair (R1)
   M6  plan quality of the final routes and the gap to the best Route Builder variant (negative gap = better than all of them).
       Scored fairly: every route gets one changeover marker per machine switch first (v1 charges only markers that are in
       the route, and LLM routes never contain any)
@@ -56,7 +57,8 @@ def part_rows(records: list) -> list:
             "material": part["material"], "tolerance": part.get("tolerance", ""), "batch_size": part.get("batch_size", ""),
             "attempts": info["attempts"], "llm_parsed": sum(1 for c in cands if c["llm_ok"]),
             "raw_v1_valid": info["raw_v1_valid"], "raw_strict_valid": info.get("raw_strict_valid", 0),
-            "replaced": info["replaced"], "deduped": info["deduped"], "safety_net": info["safety_net"],
+            "replaced": info["replaced"], "repaired": info.get("repaired", 0), "r1_failed": info.get("r1_failed", 0),
+            "deduped": info["deduped"], "safety_net": info["safety_net"],
             "population": info["population"], "front_size": len(rec["front"]),
             "final_name": fin["name"], "final_provenance": fin["provenance"],
             "final_strict_valid": fin["check"]["valid"], "final_v1_valid": fin["check"]["v1_valid"],
@@ -73,6 +75,13 @@ def part_rows(records: list) -> list:
     return rows
 
 
+def _repair_label(c):
+    r = c.get("repair")
+    if not r:
+        return ""
+    return r["strategy"] + ("->" + r["fallback"] if r.get("fallback") else "")
+
+
 def candidate_rows(records: list) -> list:
     rows = []
     for rec in records:
@@ -83,12 +92,13 @@ def candidate_rows(records: list) -> list:
                 "system": rec["system"], "repeat": rec["repeat"], "part_id": rec["part_id"],
                 "sample_id": c["sample_id"], "name": c["name"], "provenance": c["provenance"],
                 "llm_ok": c["llm_ok"], "in_pool": c["in_pool"], "deduped": c["deduped"], "replaced": c["replaced"],
+                "repaired": c.get("repaired", False), "repair_strategy": _repair_label(c),
                 "v1_valid": c["v1_valid"], "strict_valid": None if fp is None else fp["valid"],
                 "kinds": "" if fp is None else ";".join(fp["kinds"]),
                 "llm_route": "" if not llm else " > ".join(llm), "route": " > ".join(
                     s for s in fin if not s.startswith("---")),
-                "edit_distance": M.edit_distance(llm, fin) if (c["replaced"] and llm) else None,
-                "survived_share": M.survived_share(llm, fin) if (c["replaced"] and llm) else None,
+                "edit_distance": M.edit_distance(llm, fin) if ((c["replaced"] or c.get("repaired")) and llm) else None,
+                "survived_share": M.survived_share(llm, fin) if ((c["replaced"] or c.get("repaired")) and llm) else None,
                 "finish_reason": c["meta"].get("finish_reason", ""), "prompt_tokens": c["meta"].get("prompt_tokens"),
                 "completion_tokens": c["meta"].get("completion_tokens"), "latency_s": c["meta"].get("latency_s"),
                 "cached": c["meta"].get("cached"),
@@ -144,6 +154,7 @@ def summarize_set(records: list) -> dict:
     for f in finals:
         prov[f["provenance"]] = prov.get(f["provenance"], 0) + 1
     replaced = [c for r in records for c in r["candidates"] if c["replaced"] and c["llm_steps"]]
+    repaired = [c for r in records for c in r["candidates"] if c.get("repaired") and c["llm_steps"]]
     ok_finals = [(r, r["final"]) for r in records if r["final"]["check"]["valid"]]
     gaps = [_gap_to_rb_best(f["scores_eval"], r["best_scores"]) for r, f in ok_finals]
     gaps = [g for g in gaps if g]
@@ -166,6 +177,9 @@ def summarize_set(records: list) -> dict:
             "whole_route_replacements_total": sum(r["info"]["replaced"] for r in records),
             "whole_route_replacements_per_part": sum(r["info"]["replaced"] for r in records) / n,
             "replacement_failed_total": sum(r["info"].get("replacement_failed", 0) for r in records),
+            "localized_repairs_total": sum(r["info"].get("repaired", 0) for r in records),
+            "localized_repairs_per_part": sum(r["info"].get("repaired", 0) for r in records) / n,
+            "r1_failed_total": sum(r["info"].get("r1_failed", 0) for r in records),
             "safety_net_parts": sum(1 for r in records if r["info"]["safety_net"]),
             "incomplete_fallback_parts": sum(1 for r in records if r["info"]["fallback_incomplete"]),
             "raw_llm_finals_strict_invalid": sum(1 for f in finals if f["provenance"] == "raw_llm" and not f["check"]["valid"]),
@@ -177,6 +191,14 @@ def summarize_set(records: list) -> dict:
             "n_replaced": len(replaced),
             "edit_distance_mean": M.mean_std([M.edit_distance(c["llm_steps"], c["steps"]) for c in replaced])[0],
             "survived_share_mean": M.mean_std([M.survived_share(c["llm_steps"], c["steps"]) for c in replaced])[0]},
+        "M5_localized_repair": {
+            "n_repaired": len(repaired),
+            "edit_distance_mean": M.mean_std([M.edit_distance(c["llm_steps"], c["steps"]) for c in repaired])[0],
+            "survived_share_mean": M.mean_std([M.survived_share(c["llm_steps"], c["steps"]) for c in repaired])[0],
+            "discordant_pairs_mean": M.mean_std([c["repair"]["discordant_pairs"] for c in repaired])[0],
+            "operations_inserted_mean": M.mean_std([len(c["repair"]["inserted"]) for c in repaired])[0],
+            "operations_removed_mean": M.mean_std([len(c["repair"]["removed_unknown"]) + len(c["repair"]["removed_duplicates"])
+                                                   for c in repaired])[0]},
         "M6": {
             "n_valid_finals": len(ok_finals),
             "time_min_mean": M.mean_std([f["scores_eval"]["time_min"] for _, f in ok_finals])[0],
@@ -249,6 +271,7 @@ def format_summary(system: str, s: dict) -> str:
     if s["n_records"] == 0:
         return f"{system}: no records"
     m1, m2, m3, m5, m6, m7 = s["M1"], s["M2"], s["M3"], s["M5_whole_route_replacement"], s["M6"], s["M7"]
+    m5r = s["M5_localized_repair"]
     L = [f"=== {system}: {s['n_parts']} parts, {s['n_records']} runs ==="]
     L.append(f"M1 first pass   : LLM calls {m1['llm_calls']}, parsed {m1['parsed_routes']} (parse rate {_fmt(m1['parse_rate'])}); "
              f"v1-valid {_fmt(m1['v1_valid_of_parsed'])}, strict-valid {_fmt(m1['strict_valid_of_parsed'])} "
@@ -266,6 +289,11 @@ def format_summary(system: str, s: dict) -> str:
                  f"LCS {_fmt(v['raw_llm']['lcs_ratio_mean'])}, tau {_fmt(v['raw_llm']['kendall_tau_mean'])}")
     L.append(f"M5 replacement  : {m5['n_replaced']} replaced; edit distance {_fmt(m5['edit_distance_mean'], 2)}, "
              f"LLM operations surviving {_fmt(m5['survived_share_mean'])}")
+    if m5r["n_repaired"] or m2["r1_failed_total"]:
+        L.append(f"M5 R1 repair    : {m5r['n_repaired']} repaired (R1 failed, fell back to R0: {m2['r1_failed_total']}); "
+                 f"edit distance {_fmt(m5r['edit_distance_mean'], 2)}, LLM operations surviving {_fmt(m5r['survived_share_mean'])}, "
+                 f"discordant pairs {_fmt(m5r['discordant_pairs_mean'], 2)}, ops inserted {_fmt(m5r['operations_inserted_mean'], 2)}, "
+                 f"ops removed {_fmt(m5r['operations_removed_mean'], 2)}")
     L.append(f"M6 quality      : efficiency {_fmt(m6['efficiency_mean'], 2)}, gap to best RB variant: efficiency "
              f"{_fmt(m6['efficiency_gap_to_rb_best_mean'], 2)} pts, time {_fmt(m6['time_gap_to_rb_best_mean'])}, "
              f"cost {_fmt(m6['cost_gap_to_rb_best_mean'])}, energy {_fmt(m6['energy_gap_to_rb_best_mean'])} (relative)")

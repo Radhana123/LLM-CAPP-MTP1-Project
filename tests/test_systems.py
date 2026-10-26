@@ -210,3 +210,71 @@ def test_b0_reproduces_v1_run_nsga2_and_ui_selection(monkeypatch, planner, featu
     assert rec.info["replaced"] == status["llm_corrected"]
     assert rec.info["safety_net"] == status["route_builder_fallback_used"]
     assert rec.info["fallback_incomplete"] == status["fallback_incomplete"]
+
+
+# ---- R1 variants (b0_r1, b1_r1) ---------------------------------------------------------------------------
+def invented_planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
+    """v1-valid but strict-invalid: a valid route with an invented operation and a repeated one."""
+    base = V.clean_steps(rb.generate_valid_routes(features, max_routes=1)[0]["steps"])
+    steps = base[:1] + ["Deburring"] + base[1:-1] + [base[1]] + base[-1:]
+    return {"success": True, "steps": steps, "raw_response": str(steps), "model": "fake", "meta": _meta()}
+
+
+def test_r1_variant_repairs_and_labels_provenance():
+    rec = S.run_b0_r1(part(["Hole", "Chamfer"]), planner=fake_planner)
+    by_name = {x.name: x for x in rec.candidates}
+    c2 = by_name["Route_LLM_2_repaired"]
+    assert c2.provenance == "repaired_llm" and c2.repaired and not c2.replaced
+    assert c2.repair["strategy"] == "r1" and c2.repair["ok"] and V.check_route(c2.steps, ["Hole", "Chamfer"]).valid
+    assert by_name["Route_LLM_3_repaired"].repaired and "Inspection" in by_name["Route_LLM_3_repaired"].repair["inserted"]
+    assert by_name["Route_LLM_1"].provenance == "raw_llm"
+    assert rec.info["repaired"] == 2 and rec.info["replaced"] == 0 and rec.info["r1_failed"] == 0
+    assert rec.info["raw_v1_valid"] == 2 and rec.final["check"]["valid"]
+
+
+def test_r1_variant_uses_the_strict_criterion_but_b0_keeps_v1s():
+    p = part(["Hole", "Chamfer"])
+    b0 = S.run_b0(p, planner=invented_planner)
+    r1 = S.run_b0_r1(p, planner=invented_planner)
+    assert b0.info["replaced"] == 0 and b0.final["provenance"] == "raw_llm"        # v1 accepts the invented operation
+    assert not b0.final["check"]["valid"] and b0.info["raw_strict_valid"] == 0
+    assert r1.info["repaired"] >= 1 and r1.final["check"]["valid"]                  # R1 does not
+    assert r1.final["provenance"] == "repaired_llm"
+    assert "Deburring" not in r1.final["steps"]
+
+
+def test_r1_falls_back_to_r0_when_r1_gives_up(monkeypatch):
+    monkeypatch.setattr(S.R, "r1", lambda steps, features: S.R.Repair(ok=False, reason="forced"))
+    rec = S.run_b0_r1(part(["Hole", "Chamfer"]), planner=fake_planner)
+    assert rec.info["repaired"] == 0 and rec.info["r1_failed"] == 2 and rec.info["replaced"] == 2
+    c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_corrected"]
+    assert c2.replaced and c2.provenance == "route_builder" and c2.repair["fallback"] == "r0" and c2.repair["reason"] == "forced"
+    assert rec.final["check"]["valid"]
+
+
+def test_r1_rescues_the_parts_where_r0_finds_no_route():
+    from capp import archetypes as AR
+    feats = next(a["features"] for a in AR.ARCHETYPES if a["name"] == "Valve Body")
+    assert rb.generate_valid_routes(feats, max_routes=1) == [] and rb.generate_valid_routes(feats, max_routes=30)
+    p = part(feats)
+    r0, r1 = S.run_b0(p, planner=all_bad_planner), S.run_b0_r1(p, planner=all_bad_planner)
+    assert r0.info["replacement_failed"] >= 1
+    assert r1.info["replacement_failed"] == 0 and r1.info["repaired"] >= 1
+    assert r1.final["check"]["valid"] and r1.final["provenance"] == "repaired_llm"
+
+
+def test_b0_r1_and_b0_see_the_same_llm_outputs_and_first_pass_numbers():
+    p = part(["Hole", "Chamfer", "Slot"])
+    a, b = S.run_b0(p, planner=fake_planner), S.run_b0_r1(p, planner=fake_planner)
+    assert [c.llm_steps for c in a.candidates] == [c.llm_steps for c in b.candidates]
+    assert a.info["raw_v1_valid"] == b.info["raw_v1_valid"] and a.info["raw_strict_valid"] == b.info["raw_strict_valid"]
+    assert a.references == b.references
+
+
+def test_unknown_repair_strategy_is_rejected():
+    with pytest.raises(ValueError):
+        S.run_llm_first(part(["Hole"]), planner=fake_planner, repair="r9")
+
+
+def test_system_registry_has_the_r1_variants():
+    assert {"rb", "b1", "b0", "b1_r1", "b0_r1"} == set(S.SYSTEMS) and set(S.LLM_SYSTEMS) == {"b1", "b0", "b1_r1", "b0_r1"}

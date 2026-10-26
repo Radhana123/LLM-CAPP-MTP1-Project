@@ -1,8 +1,17 @@
 """Route verifier with structured violations (error taxonomy of metric M3).
 
 v1 only answers yes/no ("FSM valid and complete"). Here every problem is a Violation object with a kind, the
-operations involved and, for missing coverage, the feature concerned. Step 6 (localized repair) uses these objects,
-and M3 is the distribution of their kinds.
+operations involved, the positions in the route, the identifier of the rule that failed and, for missing coverage, the
+feature concerned. The localized repair (capp/repair.py) works from these objects, and M3 is the distribution of their kinds.
+
+Rule ids (stable strings, used in reports and by repair)
+  ORD-FIRST / ORD-LAST    Facing first, Inspection last
+  ORD-EDGE:<a>><b>        precedence edge "a before b" (week1/precedence_graph.py) broken
+  COV:<feature>           the feature is not covered by any of its alternative operation chains
+  SET-UNKNOWN             operation outside the 41 canonical operations
+  SET-DUP                 operation repeated
+  MACH-GROUP              more machine changeovers than needed (soft)
+  PHYS:<name>             physical rules added in WP6 (they set rule_id themselves)
 
 Kinds
   order             Facing not first, Inspection not last, or a precedence rule (a must come before b) broken
@@ -42,6 +51,8 @@ class Violation:
     message: str
     ops: tuple = ()          # order: (a, b) with a required before b, or ("Facing",) / ("Inspection",); missing: ops still absent
     feature: str = ""        # missing: the feature that is not covered
+    rule_id: str = ""        # which rule failed (see module docstring)
+    positions: tuple = ()    # 0-based indices in the route without markers: order (pos of a, pos of b); invented/duplicate: every occurrence
 
     def __post_init__(self):
         if self.kind not in KINDS:
@@ -120,14 +131,17 @@ def check_route(route: list, features: list, part: dict = None) -> Check:
 
     # ---- order -------------------------------------------------------------------------------------------
     if steps[0] != pg.ALWAYS_FIRST:
+        pos = (steps.index(pg.ALWAYS_FIRST),) if pg.ALWAYS_FIRST in steps else ()
         out.violations.append(Violation("order", f"'{pg.ALWAYS_FIRST}' must be the first step, found '{steps[0]}'",
-                                        ops=(pg.ALWAYS_FIRST,)))
+                                        ops=(pg.ALWAYS_FIRST,), rule_id="ORD-FIRST", positions=pos))
     if steps[-1] != pg.ALWAYS_LAST:
+        pos = (steps.index(pg.ALWAYS_LAST),) if pg.ALWAYS_LAST in steps else ()
         out.violations.append(Violation("order", f"'{pg.ALWAYS_LAST}' must be the last step, found '{steps[-1]}'",
-                                        ops=(pg.ALWAYS_LAST,)))
+                                        ops=(pg.ALWAYS_LAST,), rule_id="ORD-LAST", positions=pos))
     for a, b in pg.PRECEDENCE_EDGES:                 # same rule and same index semantics as pg.validate_order
         if a in steps and b in steps and steps.index(a) > steps.index(b):
-            out.violations.append(Violation("order", f"'{a}' must come before '{b}'", ops=(a, b)))
+            out.violations.append(Violation("order", f"'{a}' must come before '{b}'", ops=(a, b),
+                                            rule_id=f"ORD-EDGE:{a}>{b}", positions=(steps.index(a), steps.index(b))))
 
     # ---- missing coverage --------------------------------------------------------------------------------
     present = set(steps)
@@ -137,7 +151,7 @@ def check_route(route: list, features: list, part: dict = None) -> Check:
             best = min(alts, key=lambda alt: len(set(alt) - present))
             absent = tuple(op for op in best if op not in present)
             out.violations.append(Violation("missing", f"feature '{f}' is not covered (absent: {', '.join(absent)})",
-                                            ops=absent, feature=f))
+                                            ops=absent, feature=f, rule_id=f"COV:{f}"))
 
     # v1's own notion of validity is exactly "no order violation and no missing coverage"
     out.v1_valid = not any(v.kind in ("order", "missing") for v in out.violations)
@@ -145,13 +159,15 @@ def check_route(route: list, features: list, part: dict = None) -> Check:
     # ---- invented, duplicate -----------------------------------------------------------------------------
     for op in dict.fromkeys(steps):
         if op not in CANONICAL_OPS:
-            out.violations.append(Violation("invented", f"'{op}' is not a known operation", ops=(op,)))
+            out.violations.append(Violation("invented", f"'{op}' is not a known operation", ops=(op,), rule_id="SET-UNKNOWN",
+                                            positions=tuple(i for i, x in enumerate(steps) if x == op)))
     seen = {}
     for op in steps:
         seen[op] = seen.get(op, 0) + 1
     for op, n in seen.items():
         if n > 1:
-            out.violations.append(Violation("duplicate", f"'{op}' appears {n} times", ops=(op,)))
+            out.violations.append(Violation("duplicate", f"'{op}' appears {n} times", ops=(op,), rule_id="SET-DUP",
+                                            positions=tuple(i for i, x in enumerate(steps) if x == op)))
 
     # ---- machine grouping (soft) -------------------------------------------------------------------------
     out.changeovers = implied_changeovers(steps)
@@ -159,7 +175,7 @@ def check_route(route: list, features: list, part: dict = None) -> Check:
     if needed is not None and out.changeovers > needed:
         out.violations.append(Violation(
             "machine_grouping",
-            f"{out.changeovers} machine changeovers implied, {needed} needed", ops=()))
+            f"{out.changeovers} machine changeovers implied, {needed} needed", ops=(), rule_id="MACH-GROUP"))
 
     # ---- physical feasibility (WP6) ----------------------------------------------------------------------
     for rule in PHYSICAL_RULES:

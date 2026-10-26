@@ -7,6 +7,11 @@ The logic of B0/B1 follows v1 exactly (week4/nsga2.py "llm_first" + the selectio
   4. duplicates removed; if nothing is left, the Route Builder's own routes are used (safety net)
   5. non-dominated sort on (time, cost, energy) with v1's default dimensions; the member of the first front with the
      highest Efficiency (scored with the part's real dimensions) is the final route
+With repair="r1" (systems b0_r1 and b1_r1) step 3 changes: a sample with a HARD violation under the strict verifier (this
+includes invented and duplicate operations, which v1 lets through) is repaired by R1 (capp/repair.py, minimal edit, keeps
+the LLM's work) instead of being replaced. Provenance repaired_llm. If R1 finds no valid route, R0 (the replacement above)
+is the fallback, so the validity guarantee is the same as in v1. Everything else (dedupe, safety net, selection) is unchanged,
+so the difference between b0 and b0_r1 is the repair strategy alone.
 What is new is only the bookkeeping: provenance, the first-pass check of every raw LLM route with the strict verifier
 (capp/verify.py), and the scores with the part's dimensions. tests/test_systems.py checks that B0 returns the same route
 as run_nsga2 + the UI selection on the same LLM outputs.
@@ -17,6 +22,7 @@ Here it is labelled route_builder (replaced=True).
 from dataclasses import asdict, dataclass, field
 
 from capp import legacy  # noqa: F401
+from capp import repair as R
 from capp import verify as V
 
 import agents
@@ -46,7 +52,9 @@ class Candidate:
     llm_ok: bool = False              # the LLM call succeeded and a route could be parsed
     llm_steps: list = None            # raw LLM route
     llm_raw: str = ""
-    replaced: bool = False            # whole-route replacement by the Route Builder happened
+    replaced: bool = False            # whole-route replacement by the Route Builder happened (R0)
+    repaired: bool = False            # localized repair of the LLM route happened (R1)
+    repair: dict = None               # details of the repair attempt: strategy, ok, reason, inserted, removed_*, discordant_pairs
     in_pool: bool = True              # entered selection (False: LLM failed, or an exact duplicate of an earlier route)
     deduped: bool = False             # dropped as a duplicate (its first-pass result still counts for M1)
     first_pass: dict = None           # strict check of the raw LLM route
@@ -86,8 +94,8 @@ def score_route(steps, material, batch_size, dims) -> dict:
 
 def check_to_dict(c: V.Check) -> dict:
     return {"valid": c.valid, "v1_valid": c.v1_valid, "kinds": c.kinds, "changeovers": c.changeovers,
-            "violations": [{"kind": v.kind, "message": v.message, "ops": list(v.ops), "feature": v.feature}
-                           for v in c.violations]}
+            "violations": [{"kind": v.kind, "message": v.message, "ops": list(v.ops), "feature": v.feature,
+                            "rule_id": v.rule_id, "positions": list(v.positions)} for v in c.violations]}
 
 
 def _rb_routes(features, pref, max_routes):
@@ -139,7 +147,8 @@ def _select(cands, p, front_dims):
 def _final(cand, features):
     chk = V.check_route(cand.steps, features)
     return {"name": cand.name, "steps": cand.steps, "provenance": cand.provenance, "scores": cand.scores,
-            "scores_eval": cand.scores_eval, "check": check_to_dict(chk), "replaced": cand.replaced}
+            "scores_eval": cand.scores_eval, "check": check_to_dict(chk), "replaced": cand.replaced,
+            "repaired": cand.repaired}
 
 
 def _references(features, p, max_routes=15):
@@ -162,22 +171,25 @@ def run_rb(part: dict, max_routes: int = 15, **_) -> RunRecord:
     refs, ref_scores = _references(p["features"], p)
     return RunRecord("rb", part["part_id"], cands, _final(cands[0], p["features"]), [], {
         "llm_calls": 0, "attempts": 0, "llm_failed": 0, "raw_v1_valid": 0, "replaced": 0, "replacement_failed": 0,
-        "safety_net": False, "fallback_incomplete": incomplete, "machine_pref_overridden": overridden,
+        "repaired": 0, "r1_failed": 0, "safety_net": False, "fallback_incomplete": incomplete, "machine_pref_overridden": overridden,
         "population": len(cands), "deduped": 0}, refs, ref_scores)
 
 
 def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int = 30,
-                  front_uses_dims: bool = False, system: str = None) -> RunRecord:
+                  front_uses_dims: bool = False, system: str = None, repair: str = "r0") -> RunRecord:
     """B0 (n_samples=5) and B1 (n_samples=1). `planner(material, features, tolerance, batch_size, sample_id=)`
-    defaults to week2's generate_process_plan, looked up at call time so tests can substitute it."""
+    defaults to week2's generate_process_plan, looked up at call time so tests can substitute it.
+    repair: "r0" (v1: replace an invalid sample by the Route Builder's route) or "r1" (minimal-edit repair, R0 as fallback)."""
+    if repair not in ("r0", "r1"):
+        raise ValueError(f"unknown repair strategy {repair!r}")
     if planner is None:
         import llm_planner
         planner = llm_planner.generate_process_plan
     p = part_inputs(part)
     features = p["features"]
     info = {"llm_calls": 0, "attempts": 0, "llm_failed": 0, "raw_v1_valid": 0, "raw_strict_valid": 0,
-            "replaced": 0, "replacement_failed": 0, "safety_net": False, "fallback_incomplete": False,
-            "machine_pref_overridden": False, "population": 0, "deduped": 0}
+            "replaced": 0, "replacement_failed": 0, "repaired": 0, "r1_failed": 0, "safety_net": False,
+            "fallback_incomplete": False, "machine_pref_overridden": False, "population": 0, "deduped": 0}
     pop = []
 
     for attempt in range(n_samples):
@@ -202,21 +214,34 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
                     first_pass=check_to_dict(chk), v1_valid=v1_ok, meta=res.get("meta", {}))
         info["raw_v1_valid"] += int(v1_ok)
         info["raw_strict_valid"] += int(chk.valid)
-        if v1_ok:
+        needs_repair = (not chk.valid) if repair == "r1" else (not v1_ok)    # r1 repairs what the strict verifier rejects
+        if not needs_repair:
             pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, **base))
         else:
+            attempt_info = None
+            if repair == "r1":
+                rep1 = R.r1(steps, features)
+                attempt_info = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
+                if rep1.ok:
+                    info["repaired"] += 1
+                    pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_repaired", provenance=PROV_REPAIRED,
+                                         steps=rep1.route, repaired=True, repair=attempt_info, **base))
+                    continue
+                info["r1_failed"] += 1
+                attempt_info["fallback"] = "r0"
             corrected = fsm_validator.fix_sequence_with_builder(features)
             if (corrected and fsm_validator.validate_sequence(corrected)["valid"]
                     and rb.is_complete(corrected, features)):
                 info["replaced"] += 1
                 pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_corrected", provenance=PROV_RB,
-                                     steps=corrected, replaced=True, **base))
+                                     steps=corrected, replaced=True, repair=attempt_info, **base))
             else:                                      # v1 replacement uses max_routes=1 and can find nothing (e.g. Valve Body)
                 info["llm_failed"] += 1
                 info["replacement_failed"] += 1
                 pop.append(Candidate(attempt, f"Route_LLM_{attempt + 1}_failed", PROV_RB, [], llm_ok=True,
                                      llm_steps=list(steps), llm_raw=res.get("raw_response", ""),
-                                     first_pass=base["first_pass"], v1_valid=False, meta=res.get("meta", {})))
+                                     first_pass=base["first_pass"], v1_valid=False, meta=res.get("meta", {}),
+                                     repair=attempt_info))
 
     seen, usable = set(), []
     for c in pop:                                      # v1 removes duplicate routes, keeping the first
@@ -258,5 +283,13 @@ def run_b1(part, **kw):
     return run_llm_first(part, n_samples=1, system="b1", **kw)
 
 
-SYSTEMS = {"rb": run_rb, "b1": run_b1, "b0": run_b0}
-LLM_SYSTEMS = ("b1", "b0")
+def run_b0_r1(part, **kw):
+    return run_llm_first(part, n_samples=5, system="b0_r1", repair="r1", **kw)
+
+
+def run_b1_r1(part, **kw):
+    return run_llm_first(part, n_samples=1, system="b1_r1", repair="r1", **kw)
+
+
+SYSTEMS = {"rb": run_rb, "b1": run_b1, "b0": run_b0, "b1_r1": run_b1_r1, "b0_r1": run_b0_r1}
+LLM_SYSTEMS = ("b1", "b0", "b1_r1", "b0_r1")

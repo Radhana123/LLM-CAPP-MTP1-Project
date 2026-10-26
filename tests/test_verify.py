@@ -133,3 +133,26 @@ def test_normalize_markers_matches_route_builder_changeover_count():
     for a in A.ARCHETYPES:
         for r in rb.generate_valid_routes(a["features"], max_routes=5):
             assert V.normalize_markers(r["steps"]).count(M) == r["changeovers"]
+
+
+def test_violations_carry_rule_ids_and_positions():
+    r = ["Facing", "Reaming", "Drilling", "Deburring", "Chamfering", "Chamfering", "Center Drilling"]
+    c = V.check_route(r, ["Reamed_Hole", "Hole"])
+    by_rule = {v.rule_id: v for v in c.violations}
+    assert by_rule["ORD-LAST"].positions == ()            # Inspection is absent from the route
+    e = by_rule["ORD-EDGE:Drilling>Reaming"]
+    assert e.positions == (2, 1) and e.ops == ("Drilling", "Reaming")
+    assert by_rule["SET-UNKNOWN"].positions == (3,)
+    assert by_rule["SET-DUP"].positions == (4, 5)
+    assert all(v.rule_id for v in c.violations)
+
+
+def test_missing_feature_rule_id_names_the_feature():
+    c = V.check_route(["Facing", "Inspection"], ["Hole"])
+    assert [v.rule_id for v in c.violations if v.kind == "missing"] == ["COV:Hole"]
+
+
+def test_first_and_last_positions_point_at_the_misplaced_operation():
+    c = V.check_route(["Drilling", "Facing", "Inspection", "Center Drilling"], ["Hole"])
+    ids = {v.rule_id: v.positions for v in c.violations}
+    assert ids["ORD-FIRST"] == (1,) and ids["ORD-LAST"] == (2,)

@@ -1,9 +1,13 @@
 """Run a reference system (rb, b1, b0) over a dataset and write results to results/<tag>_<system>/.
 
+Systems: rb (Route Builder), b1 / b0 (v1 baselines, 1 / 5 samples, R0 = whole-route replacement), b1_r1 / b0_r1 (same, but
+invalid samples are repaired by R1, minimal edit, R0 as fallback).
+
 Examples (repo root, PowerShell):
     python scripts/run_eval.py --system rb --dataset dev_v2                       # no API calls
     python scripts/run_eval.py --system b0 --dataset dev_v2 --limit 20 --tag dev  # first 20 parts, live API (cached)
     python scripts/run_eval.py --system b1 --dataset dev_v2 --limit 20 --tag dev  # same tag: B1 reuses B0's first sample
+    python scripts/run_eval.py --system b0_r1 --dataset dev_v2 --limit 20 --tag dev   # same tag: B0's samples from cache, no API
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 
@@ -16,12 +20,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from capp import dataset, harness, summary   # noqa: E402
+from capp import dataset, harness, summary, systems   # noqa: E402
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--system", choices=["rb", "b1", "b0"])
+    ap.add_argument("--system", choices=sorted(systems.SYSTEMS))
     ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default) or test_v2 (sealed)")
     ap.add_argument("--limit", type=int, default=None, help="only the first N parts")
     ap.add_argument("--offset", type=int, default=0)

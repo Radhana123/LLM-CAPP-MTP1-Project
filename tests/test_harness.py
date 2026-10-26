@@ -252,3 +252,26 @@ def test_cli_without_key_stops_with_a_clear_message(tmp_path):
            "--out", str(tmp_path), "--tag", "nokey"]
     res = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env=env, timeout=120)
     assert res.returncode == 2 and "STOPPED" in res.stderr and "GROQ_API_KEY" in res.stderr
+
+
+def test_b0_r1_reuses_b0_cache_and_reports_localized_repair(tmp_path):
+    log = []
+    llm_client.set_transport(_transport_factory(log))
+    ps = _hole_chamfer_parts(3)
+    b0 = H.run_experiment("b0", ps, tag="rr", progress=None, write=False)
+    n_calls = len(log)
+    out = H.run_experiment("b0_r1", ps, tag="rr", out_dir=str(tmp_path), progress=None)       # same tag: all from cache
+    assert len(log) == n_calls and out["summary"]["M7"]["cache_hit_rate"] == 1.0
+    s0, s1 = b0["summary"], out["summary"]
+    assert s1["M1"]["strict_valid_of_parsed"] == s0["M1"]["strict_valid_of_parsed"]            # same raw routes
+    assert s0["M5_localized_repair"]["n_repaired"] == 0 and s1["M5_localized_repair"]["n_repaired"] > 0
+    assert s1["M2"]["final_strict_valid"] == 1.0
+    assert s1["M2"]["localized_repairs_total"] == s1["M5_localized_repair"]["n_repaired"] > 0
+    assert s1["M2"]["whole_route_replacements_total"] == 0 and s0["M2"]["whole_route_replacements_total"] > 0
+    text = SM.format_summary("b0_r1", s1)
+    assert "M5 R1 repair" in text
+    rows = list(__import__("csv").DictReader(open(tmp_path / "rr_b0_r1" / "per_candidate.csv", encoding="utf-8")))
+    repaired = [r for r in rows if r["repaired"] == "True"]
+    assert repaired and all(r["repair_strategy"] == "r1" and r["edit_distance"] != "" for r in repaired)
+    run = json.loads((tmp_path / "rr_b0_r1" / "run.json").read_text())
+    assert run["system"] == "b0_r1" and run["model"]

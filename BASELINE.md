@@ -92,3 +92,33 @@ Test set (`test_v2`) abhi mat chalana, wo sealed hai.
 - Missing key, replay-mode cache miss, ya 20 API errors lagatar: run ruk jata hai (`STOPPED: ...`). Warna wo chupke se "LLM failed, Route Builder used" ban jata.
 - M4 abhi proxy hai (Route Builder variants se similarity, `m4_source=proxy_rb`). Expert `reference_routes` milte hi wo `expert` ban jata hai.
 - M9 (extraction) aur M10 (human-human) baad ke steps me.
+
+## Step 5 (WP3): violation objects aur R1 localized repair
+
+Code: `capp/repair.py` (R1), `capp/verify.py` (violation objects), `capp/systems.py` (`b0_r1`, `b1_r1`), `capp/compare.py` + `scripts/compare_runs.py`.
+Tests: 243 passed (naye: `tests/test_repair.py`, `tests/test_compare.py`, plus additions in test_verify/test_systems/test_harness).
+
+### Kya naya hai
+- **Violation objects:** har violation me ab `rule_id` (`ORD-FIRST`, `ORD-LAST`, `ORD-EDGE:a>b`, `COV:<feature>`, `SET-UNKNOWN`, `SET-DUP`, `MACH-GROUP`)
+  aur `positions` (route me index) hain. `records.jsonl` me ye sab dikhta hai.
+- **R1 (report 6.3):** LLM route ko pheko mat, minimum edit se theek karo.
+  1. *Set repair:* unknown aur repeated ops hatao (pehla occurrence rehta hai), missing ops insert karo (Facing, Inspection, aur jis feature ki koi chain poori nahi, uski sabse chhoti chain).
+     Valid extra ops delete nahi hote.
+  2. *Order repair:* precedence rules ke saath saare valid orderings me se wo jo LLM ke order se sabse kam discordant pairs (Kendall-tau) pe ho; tie me kam changeovers; phir canonical order (sirf determinism ke liye).
+     Dynamic programming hai, exact hai (test brute force se match karta hai), 15-op routes pe ~0.02 s.
+  3. Result strict verifier se check hota hai. R1 fail ho (precedence conflict ya search bahut bada) to R0 fallback, to validity guarantee v1 jaisa hi rehta hai.
+- **Systems:** `b0_r1` / `b1_r1` = B0 / B1 jaisa hi sab kuch, bas repair R1 hai. R1 *strict* criterion pe trigger hota hai (invented/duplicate ops bhi), jabki v1 (`b0`, `b1`) sirf v1-invalid ko replace karta hai.
+  Provenance label: `repaired_llm`. `b0` aur `b1` bilkul pehle jaise (faithful) hain.
+- **M5** ab R0 aur R1 ke liye alag report hota hai (edit distance, LLM ke kitne ops bache, discordant pairs, inserted/removed ops).
+
+### Chalane ka tareeka (same tag => B0 ke samples cache se, API nahi lagti)
+```
+python scripts/run_eval.py --system b0_r1 --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system b1_r1 --dataset dev_v2 --limit 20 --tag dev
+python scripts/compare_runs.py results/dev_rb results/dev_b1 results/dev_b0 results/dev_b0_r1
+```
+`compare_runs.py` table banata hai, pehle folder (rb) ke saath paired Efficiency comparison deta hai, aur R0 vs R1 ko *wahi raw LLM routes* pe compare karta hai.
+
+### Abhi kya nahi hai
+R2 (LLM re-prompt with violation report) aur R3 (hybrid) agle step me. Selection abhi bhi v1 jaisa hai (as-is scores), fair-scoring wala selection Step 7 (agents me changeover) ke saath aayega.
+Offline simulation (synthetic planner) se sirf pipeline check hua, asli numbers tumhare live cache se aayenge.
