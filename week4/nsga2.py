@@ -148,7 +148,7 @@ def run_nsga2(material: str, batch_size: int, features: list = None, max_routes:
             for attempt in range(llm_attempts):
                 llm_status["attempts"] += 1
                 try:
-                    llm_result = generate_process_plan(material, features, tolerance, batch_size)
+                    llm_result = generate_process_plan(material, features, tolerance, batch_size, sample_id=attempt)
                     if not llm_result["success"]:
                         llm_status["llm_failed"] += 1
                         continue

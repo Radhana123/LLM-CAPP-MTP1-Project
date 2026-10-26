@@ -24,3 +24,15 @@ Repo root se: `python -m pytest`  ->  72 passed (week1 24, week2 11, week3 11, w
   (provenance galat). MTP-1 me raw LLM / repaired / Route Builder alag track hoga.
 - Route Builder kabhi kabhi steps me marker string "--- Machine Changeover ---" daalta hai (ek valid operation nahi hai).
   Metrics aur repair me ise alag handle karna padega.
+
+## Step 2 (WP0): config, LLM client, cache
+
+- `capp/config.py`: model IDs (`qwen/qwen3.8-27b` etc.), `.env` loading, cache mode, run tag. Model ID ab sirf yahan badalta hai.
+- `capp/llm_client.py`: har LLM call yahin se jata hai (planner, extractor). Response cache (`cache/llm/`, gitignored),
+  `sample_id` + run tag cache key me (5 samples = 5 alag samples, par har ek reproducible), retries, call log (tokens, latency,
+  finish_reason), `CAPP_LLM_MODE=replay` se offline replay.
+- `week2/llm_planner.py`, `week1/image_feature_extractor.py`: Groq ko seedha call karne ki jagah `llm_client.chat`. Prompts aur
+  settings (T=0.3, max_tokens=200) bilkul v1 jaise, to baseline B0 nahi badla.
+- `week4/nsga2.py`: llm_first loop ab `sample_id=attempt` bhejta hai (warna cache 5 attempts ko ek hi jawab deta).
+- `scripts/smoke_llm.py`: real API ka chhota test (do baar chalao, doosri baar cached=True aana chahiye).
+- Tests: 92 passed (72 + 20 naye). Koi test network use nahi karta.

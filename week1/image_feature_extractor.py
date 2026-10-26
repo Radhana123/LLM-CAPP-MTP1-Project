@@ -19,12 +19,12 @@
 #     consistency / ensemble pattern).
 
 import os
+import sys
 import json
 import base64
 import re
 
 from dotenv import load_dotenv
-from groq import Groq
 from feature_vocab import GEOMETRY_FEATURES, is_valid_feature
 
 # .env dhoondne ke liye bare load_dotenv() bharosemand nahi tha -- wo current
@@ -45,11 +45,12 @@ for _env_path in _CANDIDATE_ENV_PATHS:
 else:
     load_dotenv()   # last resort -- purana CWD-based default behaviour
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+sys.path.insert(0, os.path.abspath(os.path.join(_THIS_DIR, "..")))   # repo root -> capp package
+from capp import config, llm_client      # MTP-1 WP0: model ID, .env loading and cache now live in capp/
 
-VISION_MODEL = "qwen/qwen3.8-27b"   # same model family as llm_planner.py,
-                                     # this one also accepts image input
+GROQ_API_KEY = config.get_api_key()
+
+VISION_MODEL = config.model("primary")   # qwen/qwen3.8-27b -- same model as llm_planner.py, also accepts image input
 
 # NOTE: qwen/qwen3.8-27b is a dual-mode (thinking/non-thinking) model. By
 # default it can spend completion tokens on internal reasoning before
@@ -158,14 +159,13 @@ def _encode_image(image_bytes: bytes) -> str:
     return base64.b64encode(image_bytes).decode("utf-8")
 
 
-def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str) -> dict:
+def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str, sample_id: int = 0) -> dict:
     """Ek single Groq API call karke parse + validate karta hai. Internal
     helper -- extract_features_from_image() isse N baar call karke union
     leta hai consistency ke liye."""
     try:
-        response = client.chat.completions.create(
-            model=VISION_MODEL,
-            messages=[
+        response = llm_client.chat(
+            [
                 {
                     "role": "user",
                     "content": [
@@ -176,6 +176,8 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
                     ],
                 }
             ],
+            model=VISION_MODEL,
+            sample_id=sample_id,
             temperature=0,     # was 0.2 -- 0 minimizes run-to-run sampling
                                # variance, jo same image pe har baar alag
                                # result aane ki main wajah thi
@@ -184,7 +186,7 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
             reasoning_effort=REASONING_EFFORT,
             reasoning_format="hidden",
         )
-        raw = response.choices[0].message.content.strip()
+        raw = response.text.strip()
         parsed = _parse_response(raw)
 
         valid_features = []
@@ -203,6 +205,12 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
             "confidence": parsed.get("confidence", "medium"),
             "notes": parsed.get("notes", ""),
             "raw_response": raw,
+        }
+    except llm_client.NoApiKey:
+        return {
+            "success": False, "features": [], "rejected_features": [],
+            "confidence": None, "notes": "",
+            "error": "GROQ_API_KEY not configured.",
         }
     except Exception as e:
         return {
@@ -235,13 +243,6 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
                                                           # samples mein dikha
         }
     """
-    if client is None:
-        return {
-            "success": False, "features": [], "rejected_features": [],
-            "confidence": None, "notes": "",
-            "error": "GROQ_API_KEY not configured.",
-        }
-
     size_mb = len(image_bytes) / (1024 * 1024)
     if size_mb > MAX_IMAGE_MB:
         return {
@@ -257,7 +258,7 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
 
     samples = [
         _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS[p])
-        for p in EXTRACTION_PASSES
+        for p in EXTRACTION_PASSES        # the two passes differ in their prompt text, so they get different cache keys
     ]
 
     successful = [s for s in samples if s["success"]]

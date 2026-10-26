@@ -77,7 +77,7 @@ def test_fixed_sequence_is_valid():
 
 def _fake_llm(monkeypatch, steps=None, success=True):
     """llm_planner.generate_process_plan ko fake karo."""
-    def fake(material, features, tolerance="0.05mm", batch_size=100):
+    def fake(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
         return {"success": success, "steps": list(steps) if steps else [], "error": "" if success else "fake failure"}
     monkeypatch.setattr(llm_planner, "generate_process_plan", fake)
 

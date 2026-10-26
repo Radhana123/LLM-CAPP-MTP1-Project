@@ -8,22 +8,13 @@ import sys
 import re
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../week1")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))   # repo root -> capp package
 
-from dotenv import load_dotenv
-from groq import Groq
 from feature_vocab import FEATURE_TO_OPERATIONS
+from capp import config, llm_client      # MTP-1 WP0: model ID, .env loading and cache now live in capp/
 
-load_dotenv()
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if not GROQ_API_KEY:
-    print("⚠️  GROQ_API_KEY not found in .env file!")
-
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-MODEL  = "qwen/qwen3.8-27b"   # migrated from deprecated llama-3.1-8b-instant
-                               # this model also supports vision (image input),
-                               # used by image_feature_extractor.py below
+GROQ_API_KEY = config.get_api_key()
+MODEL = config.model("primary")           # qwen/qwen3.8-27b (set in capp/config.py, not here)
 
 
 def _get_valid_operations_list() -> str:
@@ -50,19 +41,13 @@ Output: ["Facing", "Center Drilling", "Drilling", "Tapping", "Inspection"]"""
 
 def generate_process_plan(material: str, features: list,
                           tolerance: str = "0.05mm",
-                          batch_size: int = 100) -> dict:
+                          batch_size: int = 100,
+                          sample_id: int = 0) -> dict:
     """
-    Groq API (Llama-3.1-8B) se manufacturing process plan generate karo.
-    Returns: {"success": bool, "steps": [...], "raw_response": "...", "model": "..."}
+    LLM se manufacturing process plan generate karo (Groq, via capp.llm_client, cached).
+    sample_id: ek hi part ke N alag samples ke liye 0..N-1 (cache key me jata hai, warna N baar same cached jawab milta).
+    Returns: {"success": bool, "steps": [...], "raw_response": "...", "model": "...", "meta": {...}}
     """
-    if client is None:
-        return {
-            "success": False,
-            "steps": [],
-            "raw_response": "GROQ_API_KEY not configured",
-            "model": MODEL
-        }
-
     valid_ops  = _get_valid_operations_list()
     feat_str   = ", ".join(features)
     user_prompt = (
@@ -73,19 +58,25 @@ def generate_process_plan(material: str, features: list,
     )
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
+        resp = llm_client.chat(
+            [
                 {"role": "system", "content": SYSTEM_PROMPT.format(valid_ops=valid_ops)},
                 {"role": "user",   "content": user_prompt}
             ],
-            temperature=0.3,
-            max_tokens=200
+            model=MODEL,
+            sample_id=sample_id,
+            temperature=config.PLANNER_TEMPERATURE,
+            max_tokens=config.PLANNER_MAX_TOKENS,
         )
-        raw   = response.choices[0].message.content.strip()
+        raw   = resp.text.strip()
         steps = _parse_steps(raw)
-        return {"success": len(steps) > 0, "steps": steps, "raw_response": raw, "model": MODEL}
+        meta = {"cached": resp.cached, "finish_reason": resp.finish_reason,
+                "prompt_tokens": resp.prompt_tokens, "completion_tokens": resp.completion_tokens,
+                "latency_s": resp.latency_s}
+        return {"success": len(steps) > 0, "steps": steps, "raw_response": raw, "model": MODEL, "meta": meta}
 
+    except llm_client.NoApiKey:
+        return {"success": False, "steps": [], "raw_response": "GROQ_API_KEY not configured", "model": MODEL}
     except Exception as e:
         return {"success": False, "steps": [], "raw_response": f"API Error: {str(e)}", "model": MODEL}
 
