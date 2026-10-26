@@ -27,6 +27,25 @@ GEOMETRY_FEATURES = [
     "Turning",           # Plain cylindrical turning
     "Bore",              # Large precision bore (distinct from Hole)
     "Center_Drill",      # Explicit center drill callout
+    # --- New 3 (prismatic/milled parts: bracket, block, clevis drawings) ---
+    "Shoulder",          # Milled step/shoulder on a prismatic part (Step = LATHE shaft step, ye alag hai)
+    "Inclined_Face",     # Flat angled/sloped face (wedge, inclined block) — Taper se alag: wo gol conical hota hai
+    "Rib",               # Thin triangular/straight web joining two faces (bracket gusset)
+    # --- New 11 (12 unreachable operations ko feature se jodne ke liye) ---
+    # Milling
+    "T_Slot",            # T-shaped groove (T-Slot Milling)
+    "Dovetail",          # Dovetail slide groove (Dovetail Milling)
+    "Spotface",          # Flat seat around a hole for a bolt head (Spotfacing)
+    "Helical_Groove",    # Spiral groove / flute (Helical Milling)
+    # Lathe
+    "Parting_Off",       # Cut-off of the finished part from bar stock
+    "Undercut",          # Relief groove next to a thread/shoulder
+    "Contour_Turn",      # Curved/profiled turned contour (arc profile on a shaft)
+    "Eccentric",         # Offset cylinder (cam-like) turned eccentrically
+    # Both machines
+    "Reamed_Hole",       # Precision hole (H7-type) — drill + ream
+    "Internal_Thread",   # Tapped hole / internal thread (tap or thread mill)
+    "Face_Groove",       # Groove cut in a flat face (lathe face-grooving or milled slot)
 ]
 
 ALL_FEATURES = set(GEOMETRY_FEATURES)
@@ -175,6 +194,94 @@ FEATURE_TO_OPERATIONS = {
         "machine": "Both",
         "alternatives": [
             ["Center Drilling"],
+        ],
+    },
+    "Shoulder": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Profile Milling"],
+            ["Slab/Peripheral Milling"],
+        ],
+    },
+    "Inclined_Face": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Angular Milling"],
+        ],
+    },
+    "Rib": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Profile Milling"],
+            ["Pocket Milling"],
+        ],
+    },
+    "T_Slot": {
+        "machine": "Milling",
+        "alternatives": [
+            ["T-Slot Milling"],
+        ],
+    },
+    "Dovetail": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Dovetail Milling"],
+        ],
+    },
+    "Spotface": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Spotfacing"],
+        ],
+    },
+    "Helical_Groove": {
+        "machine": "Milling",
+        "alternatives": [
+            ["Helical Milling"],
+        ],
+    },
+    "Parting_Off": {
+        "machine": "Lathe",
+        "alternatives": [
+            ["Parting-off"],
+        ],
+    },
+    "Undercut": {
+        "machine": "Lathe",
+        "alternatives": [
+            ["Undercutting"],
+        ],
+    },
+    "Contour_Turn": {
+        "machine": "Lathe",
+        "alternatives": [
+            ["Contour Turning"],
+        ],
+    },
+    "Eccentric": {
+        "machine": "Lathe",
+        "alternatives": [
+            ["Eccentric Turning"],
+        ],
+    },
+    "Reamed_Hole": {
+        "machine": "Both",
+        "alternatives": [
+            ["Center Drilling", "Drilling", "Reaming"],
+        ],
+    },
+    "Internal_Thread": {
+        "machine": "Both",
+        "alternatives": [
+            ["Center Drilling", "Drilling", "Tapping"],
+            ["Center Drilling", "Drilling", "Thread Milling"],
+        ],
+    },
+    "Face_Groove": {
+        "machine": "Both",
+        "alternatives": [
+            ["Grooving/Necking"],
+            ["Slot Milling"],
         ],
     },
 }

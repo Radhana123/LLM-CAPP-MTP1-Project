@@ -11,6 +11,7 @@
 # CONSTRUCTION se aati hai, filtering se nahi.
 
 import random
+import zlib
 from itertools import product
 
 import feature_vocab as fv
@@ -73,13 +74,27 @@ def get_operation_combinations(features: list) -> list:
 # STEP 2: Topological ordering within a machine-phase
 # ════════════════════════════════════════════════════
 
+# Parting-off part ko bar se kaat deta hai -- us machine-phase mein iske baad
+# koi aur kaam nahi ho sakta. Ye precedence graph mein sirf "sink" hai (iska koi
+# successor nahi), isliye ise phase ke END mein khiskane se baaki rules nahi tootte.
+_LAST_IN_PHASE = ("Parting-off",)
+
+
 def _topological_orderings(operations: set, num_variants: int = 8, max_attempts: int = 60) -> list:
     """
     Randomized Kahn's algorithm — operations ke liye multiple DIFFERENT
     valid topological orderings nikalta hai.
+
+    REPRODUCIBLE (MTP-1 WP0): randomness ab ek local RNG se aati hai jiska seed
+    operations ke set se nikalta hai, aur set ko sorted karke iterate karte hain
+    (string-set ka order har Python process mein alag hota hai). Isse same input
+    hamesha same routes deta hai, global random state ya PYTHONHASHSEED se
+    independent. Orderings ka distribution pehle jaisa hi hai.
     """
     if not operations:
         return [[]]
+
+    rng = random.Random(zlib.crc32("|".join(sorted(operations)).encode("utf-8")))
 
     relevant_edges = [
         (a, b) for a, b in pg.PRECEDENCE_EDGES
@@ -97,12 +112,12 @@ def _topological_orderings(operations: set, num_variants: int = 8, max_attempts:
             graph[a].append(b)
             in_degree[b] += 1
 
-        available = [op for op in operations if in_degree[op] == 0]
+        available = sorted(op for op in operations if in_degree[op] == 0)
         in_degree_copy = in_degree.copy()
         order = []
 
         while available:
-            random.shuffle(available)
+            rng.shuffle(available)
             node = available.pop()
             order.append(node)
             for neighbor in graph[node]:
@@ -110,10 +125,16 @@ def _topological_orderings(operations: set, num_variants: int = 8, max_attempts:
                 if in_degree_copy[neighbor] == 0:
                     available.append(neighbor)
 
+        # Parting-off ko phase ke end mein rakho (agar uska koi successor nahi)
+        movable = [op for op in _LAST_IN_PHASE if op in order
+                   and not any(a == op for a, _b in relevant_edges)]
+        if movable:
+            order = [op for op in order if op not in movable] + movable
+
         if len(order) == len(operations) and order not in results:
             results.append(order)
 
-    return results if results else [list(operations)]
+    return results if results else [sorted(operations)]
 
 
 # ════════════════════════════════════════════════════

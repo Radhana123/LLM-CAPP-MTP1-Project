@@ -34,6 +34,7 @@ from agents import (time_agent, cost_agent, energy_agent, efficiency_agent,
 from nsga2 import run_nsga2
 from fsm_validator import validate_sequence
 from self_corrector import self_correct
+from precedence_graph import PRECEDENCE_EDGES
 from route_builder import (generate_valid_routes, is_complete,
                            LATHE_ONLY_OPS, MILLING_ONLY_OPS)
 
@@ -433,8 +434,8 @@ st.markdown('<p class="hero-sub">Dynamic Route Builder · Machine-Aware Grouping
 if not run_btn:
     cols = st.columns(5)
     for col, (n, l) in zip(cols, [
-        ("22","Features"), ("41","Operations"),
-        ("200","Dataset"), ("32","Precedence Rules"), ("₹95.595","Per USD")
+        (str(len(GEOMETRY_FEATURES)),"Features"), ("41","Operations"),
+        ("200","Dataset"), (str(len(PRECEDENCE_EDGES)),"Precedence Rules"), ("₹95.595","Per USD")
     ]):
         with col:
             st.markdown(f'<div class="stat-card"><div class="stat-num">{n}</div>'

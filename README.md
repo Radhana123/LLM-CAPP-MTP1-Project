@@ -45,7 +45,7 @@ Given a part's features, the system:
         │
         ▼
 ┌─────────────────────┐
-│  VLM Feature          │  Qwen3.6-27B Vision (via Groq) extracts machining
+│  VLM Feature          │  Qwen3.8-27B Vision (via Groq) extracts machining
 │  Extractor            │  features directly from uploaded engineering drawings
 └─────────┬─────────────┘
           ▼
@@ -76,7 +76,7 @@ Given a part's features, the system:
    Route flow · Time/Cost breakdown · Pareto front · Feature mapping
 ```
 
-An **LLM Planner** (Qwen3.6-27B via Groq) runs alongside the Route Builder as an additional candidate-route source, generating a plan directly from tokenized features. Its output passes through the identical FSM validation and self-correction path as every rule-based candidate — it is never trusted without verification.
+An **LLM Planner** (Qwen3.8-27B via Groq) runs alongside the Route Builder as an additional candidate-route source, generating a plan directly from tokenized features. Its output passes through the identical FSM validation and self-correction path as every rule-based candidate — it is never trusted without verification.
 
 ### Core Design Principles
 
@@ -96,7 +96,7 @@ The most distinctive user-facing feature of the system: instead of manually sele
 
 ### How It Works
 
-1. The uploaded image is sent to **Qwen3.6-27B Vision** (via Groq API) with a structured prompt listing all 22 valid feature names and asking the model to identify which are present.
+1. The uploaded image is sent to **Qwen3.8-27B Vision** (via Groq API) with a structured prompt listing all 36 valid feature names and asking the model to identify which are present.
 2. The model returns a structured JSON response listing detected features, a confidence level, and notes explaining what it saw in the drawing.
 3. The response is parsed and validated against the feature vocabulary — unrecognized terms are flagged and shown to the user separately.
 4. Detected features are pre-filled into a **confirmation multiselect** — the user can add, remove, or correct before running the pipeline.
@@ -161,13 +161,13 @@ Two distinct AI components are used in this system:
 
 ### 1. VLM Feature Extractor (Image Input)
 
-**Model:** Qwen3.6-27B Vision via Groq API
-**Role:** Reads an uploaded 2D engineering drawing and identifies which of the 22 machining features are present.
+**Model:** Qwen3.8-27B Vision via Groq API
+**Role:** Reads an uploaded 2D engineering drawing and identifies which of the 36 machining features are present.
 **File:** `week1/image_feature_extractor.py`
 
 ### 2. LLM Process Planner (Route Generation)
 
-**Model:** Qwen3.6-27B via Groq API
+**Model:** Qwen3.8-27B via Groq API
 **Role:** Generates a candidate process route directly from tokenized features, as a second independent path alongside the rule-based Route Builder.
 **File:** `week2/llm_planner.py`
 
@@ -178,12 +178,12 @@ Tokenized Features
         │
         ├──────────────────────────┐
         ▼                          ▼
-Dynamic Route Builder      LLM Planner (Qwen3.6-27B via Groq)
+Dynamic Route Builder      LLM Planner (Qwen3.8-27B via Groq)
 (rule-based construction)  (generates a candidate route directly)
         │                          │
         └────────────┬─────────────┘
                       ▼
-         FSM Validator (same 32-rule check for BOTH)
+         FSM Validator (same 44-rule check for BOTH)
                       ▼
          Self-Correction (if invalid) → Route Builder called directly
                       ▼
@@ -211,7 +211,7 @@ Model Output:
 
 | Aspect | Detail |
 | --- | --- |
-| Model | Qwen3.6-27B (Vision + Text) |
+| Model | Qwen3.8-27B (Vision + Text) |
 | Hosting | Cloud API (Groq) — no local GPU required |
 | Response time | ~1–3 seconds per request |
 | Output format | Structured JSON, reliably parseable |
@@ -234,7 +234,7 @@ Model Output:
 INTERN-PROJECT/
 │
 ├── week1/                       Feature Vocabulary, Tokenization, Dynamic Route Builder
-│   ├── feature_vocab.py         22 features, Feature→Operations mapping
+│   ├── feature_vocab.py         36 features, Feature→Operations mapping
 │   ├── image_feature_extractor.py  VLM-based feature extraction from 2D drawings
 │   ├── material_tokens.py       7 materials, tolerance & batch categories
 │   ├── token_map.json           Token ID mapping (features, materials, 41 operations)
@@ -245,7 +245,7 @@ INTERN-PROJECT/
 │   └── tests/                   Unit tests
 │
 ├── week2/                       LLM Planner & Route Registry
-│   ├── llm_planner.py           Groq / Qwen3.6-27B process-plan generation
+│   ├── llm_planner.py           Groq / Qwen3.8-27B process-plan generation
 │   ├── routes.py                Atomic operations registry
 │   └── planner.py               End-to-end single-part planning
 │
@@ -330,13 +330,13 @@ cd week1 && python -m pytest tests/ -v
 
 | Metric                     | Value                                             |
 | ---------------------------- | -------------------------------------------------- |
-| Geometric features            | 22                                                   |
+| Geometric features            | 36                                                   |
 | Machining operations          | 41 (canonical, shared across all modules)            |
-| Precedence rules enforced      | 32, cycle-checked                                    |
+| Precedence rules enforced      | 44, cycle-checked                                    |
 | Dataset                        | 200 parts across 22 realistic manufacturing archetypes |
 | Optimization objectives        | 3 — Time, Cost, Energy                               |
 | Currency                       | INR (1 USD = ₹95.595)                                |
-| LLM / VLM                      | Qwen3.6-27B via Groq (~1–3s response time)           |
+| LLM / VLM                      | Qwen3.8-27B via Groq (~1–3s response time)           |
 | Interface                      | Interactive Streamlit dashboard with Pareto visualization |
 
 ---
@@ -344,7 +344,7 @@ cd week1 && python -m pytest tests/ -v
 ## 🛠️ Tech Stack
 
 - **Language:** Python 3.10+
-- **LLM / VLM:** Qwen3.6-27B via Groq API (text + vision)
+- **LLM / VLM:** Qwen3.8-27B via Groq API (text + vision)
 - **Optimization:** NSGA-II (custom implementation)
 - **UI:** Streamlit, Plotly (interactive 3D/2D charts)
 - **Testing:** pytest

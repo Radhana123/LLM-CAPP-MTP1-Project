@@ -2,7 +2,7 @@
 # Week 1 (extension) | LLM-CAPP Project
 #
 # 2D image (engineering sketch / drawing / photo) leke, Groq ke vision-capable
-# model (qwen/qwen3.6-27b) se manufacturing features extract karta hai.
+# model (qwen/qwen3.8-27b) se manufacturing features extract karta hai.
 #
 # Design principle (existing llm_planner.py se consistent):
 #   - Model ko sirf EXISTING feature vocabulary di jaati hai — koi naya
@@ -48,10 +48,10 @@ else:
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-VISION_MODEL = "qwen/qwen3.6-27b"   # same model family as llm_planner.py,
+VISION_MODEL = "qwen/qwen3.8-27b"   # same model family as llm_planner.py,
                                      # this one also accepts image input
 
-# NOTE: qwen/qwen3.6-27b is a dual-mode (thinking/non-thinking) model. By
+# NOTE: qwen/qwen3.8-27b is a dual-mode (thinking/non-thinking) model. By
 # default it can spend completion tokens on internal reasoning before
 # producing the final answer -- with a small token budget this consumes the
 # whole budget and leaves nothing for the actual JSON, which is the likely
@@ -62,31 +62,94 @@ VISION_MODEL = "qwen/qwen3.6-27b"   # same model family as llm_planner.py,
 # disabled. See https://console.groq.com/docs/reasoning for details.
 
 MAX_IMAGE_MB = 20   # Groq's documented per-image limit
-N_EXTRACTION_SAMPLES = 2   # kitni independent calls union karni hain --
-                            # 2 latency/consistency ka accha balance hai;
-                            # agar ab bhi feature miss ho to 3 kar dena
+# Extraction ek hi image ko 2 ALAG nazariye se padhta hai aur dono ka UNION leta hai:
+#   "geometry"   -> shapes/views (circles, cutouts, steps, tapers ...)
+#   "annotation" -> text callouts, symbols, notes, title block (M10, R5, C1, 45 deg ...)
+# Pehle same prompt 2 baar temperature=0 pe chalta tha -- dono ka jawab lagbhag
+# identical aata tha, isliye union se koi extra feature nahi milta tha.
+EXTRACTION_PASSES = ["geometry", "annotation"]
+
+# Thinking mode off ("none") hone se dense drawings mein features miss ho jaate
+# the. "low" thoda sochne deta hai (recall behtar). Latency/token quota zyada
+# lagta hai -- agar quota ki dikkat ho ya response khaali aaye to "none" kar do.
+REASONING_EFFORT = "low"
+MAX_COMPLETION_TOKENS = 4000   # thinking ke liye extra jagah (JSON chhota hi hota hai)
+
+# Har feature drawing mein kaisa dikhta hai -- model ko sirf naam dene se wo
+# Boss/Fillet/Counterbore/Step jaise features ka matlab guess karta tha.
+FEATURE_GUIDE = {
+    "Hole": "a visible circle (usually with a centerline cross) seen end-on, or two parallel dashed lines in a side view; diameter callouts like Ø10, R6 on a circle. A centerline alone, with no circle or bore, is NOT a hole",
+    "Slot": "long narrow cut (length much larger than width) with parallel sides: obround/rounded-end slot, U-shaped channel, or open-ended groove milled into a face",
+    "Pocket": "recessed area enclosed on ALL sides, milled to a depth (rectangular, circular or irregular window). A cut that is open at the sides or ends is a Slot, not a Pocket",
+    "Boss": "raised cylindrical or rectangular projection standing above the surrounding surface (e.g. round boss or lug on a base block)",
+    "Thread": "callouts like M10, M12x1.5, UNC/UNF, G1/4; thin partial arc in the end view or fine lines along a cylinder",
+    "Chamfer": "small angled edge break; notes like C1, 1x45 deg, 2.5x45",
+    "Fillet": "rounded corner or edge with radius callouts like R5, R2.5 (external or internal corners)",
+    "Groove": "narrow rectangular notch cut around a shaft (relief groove / undercut / necking)",
+    "Step": "stepped SHAFT: round stock with several different diameters (turned shoulders). Do NOT use for flat shoulders on a block or plate (that is Shoulder)",
+    "Face": "flat machined end surface or flat mounting surface; surface-finish symbol on a flat face",
+    "Taper": "round CONICAL surface whose diameter changes linearly, with a taper ratio or angle callout. A flat sloped face on a block is NOT Taper (that is Inclined_Face)",
+    "Knurl": "cross-hatched/diamond or straight pattern on a cylindrical surface; word KNURL",
+    "Counterbore": "hole with a larger flat-bottomed step at the mouth; two concentric circles; CBORE symbol",
+    "Countersink": "conical enlargement at a hole mouth; CSK or 90 deg countersink symbol",
+    "Keyway": "rectangular groove along a shaft or bore for a key; keyway width x depth callout",
+    "Spline": "many parallel axial grooves/teeth around a shaft or bore",
+    "Gear_Teeth": "gear tooth profile; module or tooth-count callout",
+    "Contour_3D": "free-form curved 3D sculpted surface",
+    "Engraved_Mark": "engraved text, logo or marking",
+    "Turning": "plain cylindrical outer surface of a ROUND SHAFT or rod made on a lathe. Do NOT use for a round boss standing on a block, plate or bracket",
+    "Bore": "large precision internal cylinder (hollow cylinder, sleeve, H7-type tolerance bore) finished by boring, distinct from a small drilled Hole",
+    "Center_Drill": "center holes at shaft ends; callouts like center drill / 60 deg center",
+    "Shoulder": "flat step or shoulder milled on a prismatic part (block, plate, bracket): a raised level or ledge with a vertical wall and a flat top, not on round stock",
+    "Inclined_Face": "flat sloped/angled face on a block or wedge (inclined plane, angled cut, triangular wedge side); angle or slope dimension; NOT round/conical",
+    "Rib": "thin triangular or straight web/gusset joining two faces of a bracket (e.g. the diagonal support behind an upright plate)",
+    "T_Slot": "groove with a T-shaped cross-section (narrow neck, wider bottom), as on machine tables and fixtures",
+    "Dovetail": "angled-sided slide groove or tongue with a dovetail (trapezoid) cross-section",
+    "Spotface": "shallow flat circular seat machined around a hole for a bolt head; SF symbol or 'spotface' note",
+    "Helical_Groove": "spiral groove or flute winding around a cylinder or bore, with a lead/pitch or helix angle callout",
+    "Parting_Off": "cut-off groove that separates the finished part from the bar; 'parting' / 'cut off' note at a shaft end",
+    "Undercut": "small relief groove next to a thread or shoulder (thread relief, grinding relief)",
+    "Contour_Turn": "curved profile turned on a shaft: arc, radius or concave/convex contour along the axis",
+    "Eccentric": "cylinder whose axis is offset from the main axis (cam, crank pin); eccentricity dimension",
+    "Reamed_Hole": "precision hole with a tight tolerance (H7, H8, +0.02) or 'ream' note; finished beyond drilling",
+    "Internal_Thread": "tapped hole: M-callout on a hole (M8 tapped, M10x1.25 thread depth), partial dashed circle in the hole's end view",
+    "Face_Groove": "ring or channel cut into a flat face (O-ring groove, face groove); not on a cylinder's outer surface",
+}
+
+PASS_FOCUS = {
+    "geometry": "Focus on the DRAWN GEOMETRY in every view (front, side, top, section, detail): shapes, outlines, hidden (dashed) lines, centerlines.",
+    "annotation": "Focus on the TEXT AND SYMBOLS: dimension callouts (Ø, R, M, x45), notes, section labels, surface-finish and tolerance symbols, title block, general notes.",
+}
 
 
 VISION_SYSTEM_PROMPT = """You are a manufacturing engineer analyzing a 2D
-engineering drawing or sketch of a mechanical part.
+engineering drawing, CAD view or sketch of a mechanical part.
 
-TASK: Identify which of the following manufacturing features are visibly
-present in the image. Use ONLY these exact feature names — do not invent
-any other name:
-{feature_list}
+TASK: List EVERY manufacturing feature that is present. Use ONLY these exact
+feature names (with how each usually appears in a drawing):
+{feature_guide}
+
+{focus}
 
 RULES:
-1. Only include a feature if there is clear visual evidence for it in the image
-   (e.g. a circle with a centerline = Hole, a helical/angled line pattern on
-   a cylindrical surface = Thread, a rectangular cut = Slot or Pocket).
-2. If the image is unclear, low-resolution, or ambiguous, still return your
-   best guess but set "confidence" to "low".
-3. Before finalizing, systematically re-check the image against EVERY name in
-   the feature list above, one by one -- do not stop as soon as you notice a
-   few features.
-4. Output ONLY a JSON object in this exact format, nothing else:
+1. Check ALL views and ALL text/notes in the image. A feature counts if the
+   geometry OR an annotation indicates it (e.g. a note "R5" means Fillet,
+   "1x45" means Chamfer, "M10" means Thread).
+2. Recall matters more than caution: the user reviews your list afterwards and
+   removes wrong items, but cannot see items you left out. If a feature is
+   plausible from the drawing, include it.
+3. Go through the feature list above one by one before answering; do not stop
+   after the first few.
+   First decide what kind of part it is. If it is a block, plate or bracket
+   (prismatic, made by milling), do NOT report the lathe-only features Turning,
+   Step, Taper, Groove, Knurl, Bore, Parting_Off, Undercut, Contour_Turn or
+   Eccentric; use Shoulder, Inclined_Face, Boss, Rib
+   and Slot for such shapes instead.
+4. If the image is unclear or low-resolution, still answer but set
+   "confidence" to "low".
+5. Output ONLY a JSON object in exactly this format, nothing else:
    {{"features": ["Hole", "Thread", ...], "confidence": "high/medium/low",
-     "notes": "brief explanation of what was seen"}}
+     "notes": "ONE short sentence, max 20 words"}}
 """
 
 
@@ -95,7 +158,7 @@ def _encode_image(image_bytes: bytes) -> str:
     return base64.b64encode(image_bytes).decode("utf-8")
 
 
-def _extract_single(b64_image: str, image_format: str, feature_list_str: str) -> dict:
+def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str) -> dict:
     """Ek single Groq API call karke parse + validate karta hai. Internal
     helper -- extract_features_from_image() isse N baar call karke union
     leta hai consistency ke liye."""
@@ -106,7 +169,7 @@ def _extract_single(b64_image: str, image_format: str, feature_list_str: str) ->
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": VISION_SYSTEM_PROMPT.format(feature_list=feature_list_str)},
+                        {"type": "text", "text": VISION_SYSTEM_PROMPT.format(feature_guide=feature_guide_str, focus=focus_text)},
                         {"type": "image_url", "image_url": {
                             "url": f"data:image/{image_format};base64,{b64_image}"
                         }},
@@ -116,9 +179,9 @@ def _extract_single(b64_image: str, image_format: str, feature_list_str: str) ->
             temperature=0,     # was 0.2 -- 0 minimizes run-to-run sampling
                                # variance, jo same image pe har baar alag
                                # result aane ki main wajah thi
-            max_completion_tokens=1500,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
             response_format={"type": "json_object"},
-            reasoning_effort="none",
+            reasoning_effort=REASONING_EFFORT,
             reasoning_format="hidden",
         )
         raw = response.choices[0].message.content.strip()
@@ -154,7 +217,7 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
     Main entry point. 2D image (raw bytes) leke Groq vision model se
     manufacturing features extract karta hai.
 
-    Consistency ke liye N_EXTRACTION_SAMPLES independent calls karta hai aur
+    Recall ke liye EXTRACTION_PASSES (geometry + annotation) alag-alag padhta hai aur
     unke valid features ka UNION final result hota hai -- ek call kisi
     feature ko miss kare (sampling variance ya truncation ki wajah se) to
     doosri call usually usse pakad leti hai, isliye same image baar baar
@@ -188,11 +251,13 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
         }
 
     b64_image = _encode_image(image_bytes)
-    feature_list_str = ", ".join(GEOMETRY_FEATURES)
+    feature_guide_str = "\n".join(
+        f"- {f}: {FEATURE_GUIDE.get(f, 'no description')}" for f in GEOMETRY_FEATURES
+    )
 
     samples = [
-        _extract_single(b64_image, image_format, feature_list_str)
-        for _ in range(N_EXTRACTION_SAMPLES)
+        _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS[p])
+        for p in EXTRACTION_PASSES
     ]
 
     successful = [s for s in samples if s["success"]]

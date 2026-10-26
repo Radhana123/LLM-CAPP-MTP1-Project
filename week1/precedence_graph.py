@@ -57,8 +57,28 @@ VOCAB_CONSISTENT_EDGES = [
     ("Center Drilling", "Thread Milling"),
 ]
 
+# ════════════════════════════════════════════════════
+# 3b. NEW-FEATURE RULES (Parting_Off / Undercut ke liye physical ordering)
+# Parting-off hamesha baaki lathe kaam ke BAAD (part kat jaane ke baad turning
+# nahi ho sakti), aur Undercut (relief groove) turning ke baad, threading se pehle.
+# ════════════════════════════════════════════════════
+NEW_FEATURE_EDGES = [
+    ("Plain/Cylindrical Turning", "Undercutting"),
+    ("Undercutting", "External Threading"),
+    ("Plain/Cylindrical Turning", "Parting-off"),
+    ("Step Turning", "Parting-off"),
+    ("Taper Turning", "Parting-off"),
+    ("Contour Turning", "Parting-off"),
+    ("Eccentric Turning", "Parting-off"),
+    ("Undercutting", "Parting-off"),
+    ("Grooving/Necking", "Parting-off"),
+    ("External Threading", "Parting-off"),
+    ("Knurling", "Parting-off"),
+    ("Boring", "Parting-off"),
+]
+
 # Final live graph — ye hi route_builder.py use karega
-PRECEDENCE_EDGES = HIGH_CONFIDENCE_EDGES + VOCAB_CONSISTENT_EDGES
+PRECEDENCE_EDGES = HIGH_CONFIDENCE_EDGES + VOCAB_CONSISTENT_EDGES + NEW_FEATURE_EDGES
 
 
 # ════════════════════════════════════════════════════

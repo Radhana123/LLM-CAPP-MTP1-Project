@@ -33,8 +33,8 @@ def evaluate_all_routes(material: str, batch_size: int, features: list = None) -
     results = []
 
     if features:
-        from route_builder import generate_valid_routes
-        candidate_routes = generate_valid_routes(features, max_routes=15)
+        from route_builder import generate_valid_routes_simple
+        candidate_routes = generate_valid_routes_simple(features, max_routes=15)   # step-lists (generate_valid_routes returns dicts)
         for i, steps in enumerate(candidate_routes):
             result = evaluate_route(f"Route_{i+1}", steps, material, batch_size)
             results.append(result)

@@ -24,8 +24,8 @@ def token_map():
 # ---------------------------------------------------------
 
 def test_total_feature_count():
-    """Total 19 features hone chahiye (10 original + 9 naye)."""
-    assert len(fv.GEOMETRY_FEATURES) == 19
+    """Total 36 features hone chahiye (10 original + 9 extended + 3 turning/bore/center + 3 prismatic + 11 milling/lathe/both)."""
+    assert len(fv.GEOMETRY_FEATURES) == 36
 
 
 def test_no_duplicate_features():
