@@ -8,6 +8,17 @@ Generic names n<N>_r<0-3>_s<0-3> choose everything: N samples (1-20), repair R0-
   s3 medoid: the front route that agrees most with the other samples.   n5_r0_s1 is b0, n1_r0_s1 is b1.
   e.g. n8_r1_s3 = 8 samples, minimal-edit repair, consistency-aware selection.
 
+Planner options (report 6.2), appended with '+' to any LLM system. A different prompt always means new API calls:
+  +fs2 / +fs4   k retrieved examples (most similar development parts by Jaccard overlap of their feature sets, then material) as
+                earlier turns of the chat; the part itself is never an example. +fs2x / +fs4x also leave out every part with the
+                SAME feature set (a combination the pool has not seen). Examples come from --pool (default dev_v2).
+  +h1           the Route Builder's route is given in the prompt as a hint (H1). +h0 / +fs0 = off: exactly the v1 prompt.
+  +ts           two-step planner: call 1 reasons in plain text (sampled), call 2 turns the reasoning into the operation list under
+                structured output (json_schema with the closed vocabulary; falls back to json_object, then plain text, and records
+                which one was used). TWO API calls per sample. With +fs/+h1 the examples and hint go into the reasoning prompt.
+                CAPP_STRUCTURED=json_object|none sets the first structured-output mode to try.
+  e.g. n5_r1_s3+fs2, b0+h1, n5_r1_s3+fs4x+h1, n5_r1_s3+ts, n5_r1_s3+ts+h1
+
 Examples (repo root, PowerShell):
     python scripts/run_eval.py --system rb --dataset dev_v2                       # no API calls
     python scripts/run_eval.py --system b0 --dataset dev_v2 --limit 20 --tag dev  # first 20 parts, live API (cached)
@@ -17,6 +28,9 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --system b0_r3 --dataset dev_v2 --limit 20 --tag dev   # reuses R2's cached re-prompts
     python scripts/run_eval.py --system n5_r1_s3 --dataset dev_v2 --limit 20 --tag dev   # B0's samples + R1 + medoid selection
     python scripts/run_eval.py --system n5_r1_s2 --weights 0.6,0.2,0.2 --limit 20 --tag dev  # time-first priorities
+    python scripts/run_eval.py --system n5_r1_s3+fs2 --limit 20 --tag dev          # few-shot, 2 retrieved examples (new API calls)
+    python scripts/run_eval.py --system b0+h1 --limit 20 --tag dev                 # with the Route Builder hint
+    python scripts/run_eval.py --system n5_r1_s3+ts --limit 10 --tag dev           # two-step planner (2 calls per sample, new API calls)
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 
@@ -34,7 +48,9 @@ from capp import dataset, harness, summary, systems   # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3> (see above)")
+    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1 (see above)")
+    ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
+    ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis of the final routes (kc, tool wear, Ra)")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")
     ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default) or test_v2 (sealed)")
     ap.add_argument("--limit", type=int, default=None, help="only the first N parts")
@@ -55,8 +71,11 @@ def main():
         ap.error("--system is required (or use --summarize-only)")
     try:
         systems.parse_system(args.system)
+        pspec = systems.planner_spec(args.system)
     except ValueError as exc:
         ap.error(str(exc))
+    if pspec.few_shot and args.pool.startswith("test"):
+        ap.error("--pool: few-shot examples must not come from the sealed test set")
     weights = None
     if args.weights:
         try:
@@ -74,7 +93,8 @@ def main():
         parts = parts[:args.limit]
     try:
         out = harness.run_experiment(args.system, parts, repeats=args.repeats, tag=args.tag, out_dir=args.out,
-                                     dataset_name=args.dataset, throttle=args.throttle, weights=weights)
+                                     dataset_name=args.dataset, throttle=args.throttle, weights=weights,
+                                     pool=args.pool, analysis=not args.no_analysis)
     except harness.HarnessError as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
         sys.exit(2)

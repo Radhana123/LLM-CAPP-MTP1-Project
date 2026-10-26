@@ -196,3 +196,129 @@ python scripts/compare_runs.py results/dev_rb results/dev_b0 results/dev_n5_r1_s
 ### Abhi kya nahi hai
 N candidates ki diversity abhi sirf T=0.3 se aati hai (samples lagbhag same dikhte hain). Report ke hisaab se diversity reasoning paths (hint ke saath/bina) aur retrieved examples se aani hai: agla step (retrieval few-shot).
 Confidence threshold tuning, model cascade (optional), physics agents, extended verifier, UI.
+
+## Step 8 (WP5): retrieval few-shot (k = 0/2/4) aur Route Builder hint (H0/H1)
+
+Code: naya `capp/plannerspec.py` (naam parsing), naya `capp/planners.py` (pool, retrieval, prompt), `capp/systems.py` (`parse_system` ab `+...` suffix leta hai, `planner_spec`),
+`capp/harness.py` (`pool=`, `planner_factory=`, run.json me planner options), `capp/summary.py` + `capp/compare.py` (prompt numbers), `scripts/run_eval.py` (`--pool`).
+Tests: 340 passed (naya: `tests/test_planners.py`, 51 tests).
+
+### Kya hai
+Koi naya LLM call nahi, sirf prompt badalta hai. Kisi bhi LLM system ke naam ke baad `+` se options lagao:
+- `+fs2`, `+fs4`: k retrieved examples. Pool (default `dev_v2`, kabhi test nahi) me se wo parts jinke feature sets query part se sabse zyada milte hain
+  (Jaccard overlap, tie me same material, phir same material-class, phir part_id). Har *alag feature set* ek candidate hai, aur jinka plan pehle chuni example jaisa hi ho wo hata diye jaate hain,
+  isliye k examples k alag problems hote hain, ek hi problem ki k copies nahi. Part khud kabhi example nahi banta.
+- `+fs2x`, `+fs4x`: upar se, jis feature set ka query part hai wo feature set wale *saare* parts bhi nikal diye jaate hain (naya combination, jo pool ne dekha hi nahi).
+- `+h1`: Route Builder ka pehla route prompt me "A rule-based planner proposes this route: [...]" ke roop me. `+h0` (default) = hint nahi.
+- `+fs0+h0` / koi suffix nahi = bilkul v1 prompt (byte-for-byte, test se pakka), isliye uske LLM answers cache se milte hain. Naya prompt = naya cache key = naye Groq calls.
+- Examples chat ke pehle turns hote hain (user: v1 wala prompt, assistant: JSON plan), sabse kam similar pehle, sabse similar sawaal ke bilkul pehle. R2 re-prompt prompts nahi badalte (examples/hint nahi jaate).
+- Pool ke har part ka "validated plan": expert `reference_routes[0]` agar hai (WP2 ke baad), warna Route Builder ka pehla route (strict verifier se check hota hai, dev ke 200 me se 200 valid).
+- Prompt chhota rehta hai: system ~1200 chars, fs4 + hint ~2800 chars total, matlab call ke hisaab se kuch sau tokens ka fark.
+- Record me har candidate ke `meta.prompt_context` me example part_ids aur hint hai; `per_candidate.csv` me `examples`, `hint` columns; summary me "planner prompt" line; `compare_runs.py` me "retrieved examples / call" aur "prompt tokens / part".
+
+### Thesis ke liye dhyan rakhne wali baatein (honest)
+1. **Examples ke plans Route Builder ke hain** (jab tak expert routes nahi). Isliye few-shot LLM ko RB jaisa banata hai; ye "LLM ne domain seekha" ka saboot nahi, "RB ka style copy kiya" ka hai. WP2 ke expert routes aane par pool unse banega.
+2. **dev_v2 me 200 parts, sirf 36 distinct feature sets.** `+fs2` me aksar ek *bilkul same problem* ka solved example mil jaata hai (Jaccard 1.0), yani answer lagbhag leak. Ye "seen archetype" ka upper bound hai.
+   Generalisation ke liye `+fs2x` / `+fs4x` report karo (same feature set nikal ke). Dono ko saath dikhana sahi rahega.
+3. **`+h1` me LLM RB ka route dekhta hai**, to efficiency RB ke paas aani chahiye. Ye ablation hai (hint kitna kaam karta hai), final system nahi.
+4. Ye sab dev set pe hai. Test_v2 pe sirf final run me, pool tab bhi dev hi rahega (`--pool test_v2` jaan-boojh ke refuse hota hai).
+5. Sirf prompt badla hai, temperature 0.3 wahi. Diversity ka asar dekhne ke liye n5/n8 ke saath chalana.
+
+### Chalane ka tareeka (naye Groq calls: 20 parts x 5 samples = lagbhag 100 calls har naye prompt ke liye; `--throttle 2` rate limit ke liye)
+```
+python scripts/run_eval.py --system n5_r1_s3+fs2x --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system n5_r1_s3+fs4x --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system n5_r1_s3+fs2  --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system n5_r1_s3+h1   --dataset dev_v2 --limit 20 --tag dev
+python scripts/compare_runs.py results/dev_rb results/dev_n5_r1_s3 results/dev_n5_r1_s3+fs2x results/dev_n5_r1_s3+fs4x results/dev_n5_r1_s3+fs2 results/dev_n5_r1_s3+h1
+```
+Same tag + same prompt options => alag repair/selection (r1/r3, s1/s3) ke saath dobara chalane par samples cache se aate hain, API nahi lagti. Pehle ek hi variant (`n5_r1_s3+fs2x`) chalao aur dekho.
+
+### Abhi kya nahi hai
+Two-step planner (pehle reasoning, phir formalisation, structured output) agla step hai. Uske baad physics agents (kc, Taylor, Ra), extended verifier, UI, expert benchmark.
+
+## Step 9 (WP4): two-step planner (reasoning call, phir structured-output formalisation), option `+ts`
+
+Code: naya `capp/twostep.py`, naya `scripts/show_plan.py`; `capp/plannerspec.py` (`+ts`), `capp/planners.py` (dispatch), `capp/config.py` (constants, `CAPP_STRUCTURED`),
+`capp/summary.py` + `capp/compare.py` + `capp/harness.py` (API calls, two-step numbers, run.json), `scripts/run_eval.py` (docs). Tests: `tests/test_twostep.py` (50).
+
+### Kya hai (report 6.2)
+Kisi bhi LLM system ke naam me `+ts` lagao (`n5_r1_s3+ts`, `b0+ts+h1`, `n5_r1_s3+fs2x+h1+ts`; options saath me chalte hain).
+- **Call 1, reasoning:** LLM ko part + closed operation list milti hai; wo chhota plain-text plan likhta hai (har op kis feature ke liye, har ordering decision kis precedence rule pe),
+  aur aakhri line `FINAL ORDER: a > b > c`. v1 ke rules 1-3 wahi hain (Facing pehle, Inspection aakhir me, closed list, precedence); JSON nahi. Sampled (T=0.3), isliye N samples = N reasoning paths.
+  `+fs` ke examples aur `+h1` ka hint isi call ke prompt me text ki tarah jaate hain.
+- **Call 2, formalisation:** reasoning text ko operation list me badalta hai, greedy (T=0), **structured output** me: JSON schema jisme operation names closed vocabulary ka `enum` hain.
+  Prompt kehta hai "stated order copy karo, correct mat karo", taaki reasoning ki galti verifier ko dikhe, chhup na jaye.
+- **Fallback chain:** `json_schema` -> platform/model mana kare to `json_object` -> `none` (plain text). Kaunsa chala, har sample me record hota hai (`meta.structured_used`), summary me
+  "two-step" line aur `per_candidate.csv` ke `structured`, `parser` columns me. v1 ka multi-strategy parser sirf aakhri fallback hai (`parser = fallback`). `CAPP_STRUCTURED=json_object` se pehla mode badal sakte ho.
+- **Reasoning text sample ke saath store hota hai** (`records.jsonl` -> `candidates[].meta.reasoning`), saath me `reasoning_order` (reasoning khud jo order kehti hai) aur `faithful`
+  (step 2 ne wahi order diya ya nahi). `python scripts/show_plan.py results/dev_b1+ts DEV_007` ek part ka poora sach dikhata hai: reasoning, LLM route, verifier ka reason, repair, final.
+- **Cost:** har sample ke 2 API calls. `n5` = part ke 10 calls. M7 me ab "samples/part" aur "API calls/part (incl. 2nd step, repair)" alag dikhte hain; tokens aur latency dono calls ka sum hai.
+- R2 re-prompt (agar r2/r3 chalao) abhi bhi one-step conversation hai (v1 prompt + rejected plan + feedback), ts me nahi badla.
+
+### Do cheezein jo thesis me honestly likhni hain
+1. **Structured output closed vocabulary force karta hai**, to "invented operation" errors ts me *construction se* gayab ho jaate hain. Agar ts ka M1 validity v1 se behtar nikle, to pehle M3 (failure kinds) dekho:
+   kitna fark vocabulary se aaya aur kitna order/missing me reasoning se. RQ2 ke liye sahi control "one-step + structured output, bina reasoning" hoga; agar zaroorat padi to agla chhota step.
+2. **v1 prompt ki valid-ops list me "Inspection" hai hi nahi** (36 ops), jabki rule 1 use maangta hai; kuch canonical ops (Form Milling, Forming, Gang Milling, Polishing/Burnishing) list me nahi hain.
+   v1 prompt ko baseline ke liye waise hi rakha hai. ts ke prompt/enum me list + "Inspection" hai (37), warna schema me Inspection aa hi nahi sakta aur har plan "missing" hota.
+3. **Live API pe structured output abhi test nahi hua** (qwen3.8-27b pe json_schema chalta hai ya nahi, yahan se nahi dikhta). Isliye chain hai aur record hota hai; pehle run ka "two-step: structured output used {...}" dekho.
+
+### Chalane ka tareeka (naye Groq calls; pehle chhota)
+```
+python scripts/run_eval.py --system b1+ts --dataset dev_v2 --limit 5 --tag dev          # smoke test: 10 calls
+python scripts/show_plan.py results/dev_b1+ts DEV_001                                    # reasoning + verifier + final
+python scripts/run_eval.py --system n5_r1_s3+ts --dataset dev_v2 --limit 20 --tag dev   # 200 calls (b1+ts ka sample 0 cache se)
+python scripts/run_eval.py --system n5_r1_s3+ts+h1 --dataset dev_v2 --limit 20 --tag dev
+python scripts/compare_runs.py results/dev_rb results/dev_n5_r1_s3 results/dev_n5_r1_s3+ts results/dev_n5_r1_s3+ts+h1
+```
+Same tag + same options => dobara chalane par sab cache se (API nahi). `--throttle 2` rate limit ke liye.
+
+### Abhi kya nahi hai
+Physics agents (kc, Taylor wear, Ra), extended verifier (15-20 physical rules), UI ke dono modes, extraction front end, expert benchmark (WP2), model cascade, confidence threshold tuning.
+
+## Step 10 (WP6 prep): physics agents, kc cutting energy, Taylor tool-wear cost, Ra risk
+
+Code: naya `capp/physics.py`, naya `scripts/physics_check.py`; `capp/harness.py` (har final route ke saath analysis), `capp/summary.py` ("physics" line + `per_part.csv` columns),
+`capp/compare.py` (4 rows), `scripts/run_eval.py` (`--no-analysis`). Tests: `tests/test_physics.py` (49).
+
+### Kya hai (report: "Route + Full Analysis" mode ke teen numbers)
+Ye **analysis layer** hai. Route select karne wale objectives (v1 Time/Cost/Energy/Efficiency) **nahi badle**, isliye B0/B1/RB aur ab tak ke saare numbers wahi hain. Physics sirf final route ko score/explain karta hai.
+Time agent ke speeds, feeds, passes aur machining time reuse hote hain, to har number Time agent se consistent hai.
+- **Specific cutting energy kc:** Kienzle `kc = kc1.1 * h^-mc` (`capp/materials.py` ki table), chip thickness h feed aur tool geometry se (turning h = f, drilling h = f/2 sin(59 deg), milling h = fz sqrt(ae/D)...).
+  `1 N/mm2 = 1 mJ/mm3`, yani kc hi specific cutting energy hai (steel ~2 J/mm3). Phir MRR Q, power `Pc = kc*Q/6e7` kW, spindle power `Pc/0.8`, utilisation vs 7.5 kW, energy `E = Pc*t/60` kWh.
+- **Taylor tool wear:** `V*T^n = C`; handbook speed pe tool life = `t_ref` (materials.py), wear fraction `t/T`, wear cost = fraction x ek cutting edge ki cost. Batch ke liye edges/batch bhi.
+- **Ra risk:** best case `f^2/(32 r)` (turning, boring, milling), process floor ke saath (`RA_FLOOR_UM`); route ka sabse fine process required Ra se compare hota hai: ratio <= 0.5 low, <= 1.0 medium, >1.0 high.
+  Saath me `max_turning_feed_mm_rev` (required Ra ke liye kitna feed chalega) milta hai: UI me "feed itna kam karo" ka seedha input.
+- **Speed what-if:** `physics.analyse_route(..., vc_factor=1.2)`: cut ka time 1/k, power k guna, energy same, wear per part `k^(1/n - 1)` guna (Taylor).
+- Har record me `final.physics` (totals + per-op short rows); `python scripts/run_eval.py --system rb --limit 20` ki summary me ek "physics" line; `--no-analysis` se band.
+  Pura per-op detail: `physics.analyse_part_route(steps, part)`.
+
+### Pehla look: `python scripts/physics_check.py --dataset dev_v2` (offline, API nahi), 200 dev parts, RB routes
+- Coverage: 18262 operation instances, koi unknown nahi; forming ops (Knurling, Forming, Polishing) aur Inspection me cutting energy/wear nahi (time rehta hai).
+- **Cutting energy 0.49 kWh/part, kc 2051 N/mm2 (mean), tool wear 95 INR/part** (72 edges/batch). Material ke hisaab se wear: Titanium 367, Cast Iron 106, Steel 93, Aluminum 9 INR/part. Ordering sahi hai (Ti, Steel, Cast Iron, Al, Plastic).
+- **v1 Energy agent bahut alag cheez hai.** `energy_agent` = har op ka fixed constant (`_BASE_ENERGY`) + setup events, material factor se; **part ke size pe depend hi nahi karta**.
+  Uska 84% hissa per-op constants ka hai. Isliye v1 2.85 kWh vs physics 0.49 kWh (ratio of means x5.8, median x14.5) ek-ek compare nahi hota: v1 me setup/non-cutting energy bhi hai, physics me sirf cut. Ye mat likhna ki "v1 galat hai".
+  Pooled Spearman 0.41 (parts ke beech v1 size nahi dekhta), par ek hi part ke route variants me 0.81: variants ko rank karne me dono kaafi milte hain, to **selection me physics energy se bahut fark nahi padega**; fark dikhane wali cheez size-dependence aur wear hai.
+- Wear vs v1 cost: pooled 0.94, within-part 0.89. Matlab wear zyada tar machining time ko follow karta hai; Taylor ka naya information material (Ti 4x steel) aur speed sensitivity me hai, route ordering me nahi.
+- **Machine power:** 23% parts me koi op 7.5 kW se upar jaata hai (Drilling 40, Counterboring 13, Facing 10, Spotfacing 4, Countersinking 3). **Ye zyada tar dataset ki limit hai, finding nahi:** dataset me hole diameter nahi hai, Time agent ki tarah
+  hole ops part ka diameter use karte hain, to 149 mm ke part me 149 mm ka drill lagta hai (over-power parts ka median diameter 149 mm, baaki 28 mm). Facing ke 10 cases asli hain (v1 speed/feed, bada depth).
+  Isliye is number ko report me "dataset me hole diameter aane par dobara" ke saath hi likhna.
+- **Ra risk** (best predicted Ra / required Ra): required 0.4 um wale 17 parts me koi low nahi (6 medium, 11 high); 0.8 um me 24 medium, 3 high, 6 low; 3.2 um me 54 low, 3 medium, 1 high; 6.3 aur 12.5 um me lagbhag sab low. Yani v1 ka ek hi feed (steel 0.15 mm/rev) fine finish ke liye roughing feed hai: physics bolta hai "finish pass ka feed alag chahiye" (v1 me parameters route ke baad aate hain, report 6.7).
+- **Speed sensitivity** (Vc x0.8 / 1.0 / 1.2): wear 45 / 95 / 178 INR/part, over-power parts 12% / 23% / 35%, cutting energy 0.489 kWh teeno me (volume same).
+
+### Jo honestly likhna hai
+1. **Ye assumptions hain, measurements nahi:** `ASSUMPTIONS` in `capp/physics.py` (machine power 7.5 kW, efficiency 0.8, insert nose radius 0.8/0.4, plunge tool widths, boring/reaming stock, `RA_FLOOR_UM`, mill engagement) aur materials.py ke `t_ref`, `tool_edge_cost_inr` (sab materials ke liye), Plastic ka kc. Absolute INR quote mat karo; comparisons aur sensitivity quote karo. `RA_FLOOR_UM` ke liye koi achha handbook source abhi nahi mila, quote karne se pehle check karna.
+2. **Energy = sirf cutting ka energy**, lower bound. Idle power, spindle acceleration, coolant, auxiliaries nahi hain; real machine ka electrical energy kaafi zyada hota hai.
+3. **Ra risk optimistic hai:** maanta hai ki route ka sabse fine process hi critical surface banata hai (dataset me ye mapping nahi hai). "Low" ka matlab "route ke parameters ye finish de sakte hain", guarantee nahi; "high" pakka signal hai.
+4. Wear model me tool edge, coolant, coating, BUE nahi hai; Taylor n carbide range (0.2-0.25) ka assumption hai.
+5. Time agent ka machining time ek hi tarah ka formula hai (per-operation), physics usi pe chalta hai: agar Time agent galat hai to physics ka energy aur wear bhi proportionally galat hoga.
+
+### Chalane ka tareeka
+```
+python scripts/physics_check.py --dataset dev_v2 --json results/physics_check.json
+python scripts/run_eval.py --system rb --dataset dev_v2 --tag dev                  # summary me "physics" line
+python scripts/run_eval.py --system rb --dataset dev_v2 --tag dev --no-analysis
+```
+
+### Abhi kya nahi hai
+Extended verifier (15-20 physical-feasibility rules; power limit aur Ra yahan Violation objects ban sakte hain taaki R1 repair ya flag kare), UI ke dono modes, extraction front end, expert benchmark (WP2), model cascade, confidence threshold tuning.

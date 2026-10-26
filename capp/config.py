@@ -5,6 +5,7 @@ Env-dependent values are functions (not constants) so tests and the harness can 
 Environment variables
   GROQ_API_KEY        API key (read from .env, never committed)
   CAPP_LLM_MODE       live (default): use cache, call API on a miss | replay: cache only, a miss is an error | nocache: always call API
+  CAPP_STRUCTURED     json_schema (default) | json_object | none: first structured-output mode of the two-step planner's 2nd call
   CAPP_RUN_TAG        label mixed into every cache key (e.g. rep1..rep5 for repeated runs); default "default"
   CAPP_CACHE_DIR      cache folder (default <repo>/cache/llm)
   CAPP_MODEL_PRIMARY / _SMALL / _LARGE   override model IDs
@@ -47,6 +48,13 @@ PLANNER_MAX_TOKENS = 200
 REPAIR_TEMPERATURE = 0.0
 REPAIR_MAX_TOKENS = 200
 
+# Two-step planner (capp/twostep.py): a sampled reasoning call, then a greedy formalisation call under structured output
+REASON_TEMPERATURE = PLANNER_TEMPERATURE
+REASON_MAX_TOKENS = 700
+FORMAL_TEMPERATURE = 0.0
+FORMAL_MAX_TOKENS = 300
+STRUCTURED_MODES = ("json_schema", "json_object", "none")      # tried in this order, each one only if the one before is refused
+
 VALID_MODES = ("live", "replay", "nocache")
 
 
@@ -54,6 +62,14 @@ def model(role: str = "primary") -> str:
     if role not in _DEFAULT_MODELS:
         raise KeyError("unknown model role %r (use one of %s)" % (role, sorted(_DEFAULT_MODELS)))
     return os.getenv("CAPP_MODEL_" + role.upper(), _DEFAULT_MODELS[role])
+
+
+def structured_mode() -> str:
+    """CAPP_STRUCTURED: the first structured-output mode the formalisation call asks for (default json_schema)."""
+    mode = os.getenv("CAPP_STRUCTURED", "json_schema").strip().lower()
+    if mode not in STRUCTURED_MODES:
+        raise ValueError("CAPP_STRUCTURED=%r, expected one of %s" % (mode, STRUCTURED_MODES))
+    return mode
 
 
 def get_api_key():

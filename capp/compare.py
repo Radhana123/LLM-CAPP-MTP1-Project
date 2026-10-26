@@ -9,7 +9,7 @@ two repairs on exactly those routes: edit distance and share of the LLM's operat
 """
 import os
 
-from capp import harness, metrics as M, summary as S
+from capp import harness, metrics as M, summary as S, systems
 
 
 def _label(path, records):
@@ -30,7 +30,8 @@ def table(runs: list) -> str:
         return s["M2"]["provenance_share"].get(name, 0.0)
     rows = [
         ("parts x repeats", lambda s: f"{s['n_parts']}x{s['n_records'] // max(1, s['n_parts'])}"),
-        ("LLM calls / part", lambda s: _fmt(s["M7"]["calls_per_part"], 2)),
+        ("LLM samples / part", lambda s: _fmt(s["M7"]["calls_per_part"], 2)),
+        ("API calls / part (incl. 2nd step, repair)", lambda s: _fmt(s["M7"]["api_calls_per_part"], 2)),
         ("M1 raw strict-valid", lambda s: _fmt(s["M1"]["strict_valid_of_parsed"])),
         ("M2 final strict-valid", lambda s: _fmt(s["M2"]["final_strict_valid"])),
         ("final raw_llm share", lambda s: _fmt(prov(s, "raw_llm"), 2)),
@@ -52,6 +53,13 @@ def table(runs: list) -> str:
         ("M6 gap to best RB (pts)", lambda s: _fmt(s["M6"]["efficiency_gap_to_rb_best_mean"], 2)),
         ("M6 time / cost / energy gap", lambda s: "/".join(_fmt(s["M6"][k], 3) for k in (
             "time_gap_to_rb_best_mean", "cost_gap_to_rb_best_mean", "energy_gap_to_rb_best_mean"))),
+        ("prompt tokens / part (samples)", lambda s: _fmt(s["M7"]["prompt_tokens_per_part"], 0)),
+        ("retrieved examples / call", lambda s: _fmt((s.get("planner_prompt") or {}).get("examples_per_call"), 2)),
+        ("physics: cutting energy kWh/part", lambda s: _fmt((s.get("physics") or {}).get("energy_kwh_mean"), 3)),
+        ("physics: tool wear INR/part", lambda s: _fmt((s.get("physics") or {}).get("wear_cost_inr_mean"), 1)),
+        ("physics: parts over machine power", lambda s: _fmt((s.get("physics") or {}).get("over_power_share"), 2)),
+        ("physics: Ra risk high share", lambda s: _fmt(((s.get("physics") or {}).get("ra_risk_share") or {}).get("high"), 2)),
+        ("2-step: stated order kept by step 2", lambda s: _fmt((s.get("two_step") or {}).get("faithful_share"), 2)),
         ("front size mean", lambda s: _fmt(s["front_size_mean"], 2)),
         ("selection", lambda s: "/".join(s.get("selection") or []) or "n/a"),
         ("plan confidence mean", lambda s: _fmt((s.get("confidence") or {}).get("mean"))),
@@ -111,7 +119,11 @@ def paired_repairs(recs_r0: list, recs_r1: list) -> dict:
 
 def _strategy(records):
     sysname = records[0]["system"] if records else ""
-    return sysname.rsplit("_", 1)[1].upper() if "_" in sysname else "R0"
+    try:
+        spec = systems.parse_system(sysname)
+    except ValueError:
+        spec = None
+    return spec[1].upper() if spec else "R0"
 
 
 def compare(dirs: list) -> str:

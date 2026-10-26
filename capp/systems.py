@@ -36,6 +36,7 @@ from dataclasses import asdict, dataclass, field
 
 from capp import legacy  # noqa: F401
 from capp import metrics as M
+from capp import plannerspec as PS
 from capp import repair as R
 from capp import verify as V
 
@@ -455,17 +456,28 @@ _GENERIC = re.compile(r"^n(\d{1,2})_r([0-3])_s([0-3])$")
 MAX_SAMPLES = 20
 
 
+def planner_spec(name: str) -> PS.PlannerSpec:
+    """The planner options of a system name: the part after '+' (fs2, fs4x, h1 ...). Default = the v1 planner."""
+    return PS.split_name(name)[1]
+
+
 def parse_system(name: str):
     """'rb' -> None. Otherwise (n_samples, repair, selection). Legacy names: b0 (5 samples, v1), b1 (1 sample), and
     b0_r1 ... b1_r3 (same with a repair strategy). Generic names: n<N>_r<0-3>_s<0-3>, e.g. n8_r1_s3 = 8 samples,
-    R1 repair, selection S3 (n5_r0_s1 is b0, n1_r0_s1 is b1)."""
-    if name == "rb":
+    R1 repair, selection S3 (n5_r0_s1 is b0, n1_r0_s1 is b1). Any LLM system may end with planner options, e.g.
+    n5_r1_s3+fs2+h1 (see capp/plannerspec.py); they do not change the tuple, see planner_spec()."""
+    base, _ = PS.split_name(name)                      # raises ValueError for an unknown option
+    if base == "rb":
+        if "+" in name:
+            raise ValueError("rb has no planner, so it takes no +fs/+h options")
         return None
+    name = base
     if name in _LEGACY:
         return _LEGACY[name]
     m = _GENERIC.match(name)
     if not m or not 1 <= int(m.group(1)) <= MAX_SAMPLES:
-        raise ValueError(f"unknown system {name!r}: use rb, b0, b1, b0_r1..b1_r3 or n<1-{MAX_SAMPLES}>_r<0-3>_s<0-3> (e.g. n5_r1_s3)")
+        raise ValueError(f"unknown system {name!r}: use rb, b0, b1, b0_r1..b1_r3 or n<1-{MAX_SAMPLES}>_r<0-3>_s<0-3> (e.g. n5_r1_s3), "
+                         f"optionally followed by +fs2 / +fs4 / +h1")
     return int(m.group(1)), "r" + m.group(2), "s" + m.group(3)
 
 
@@ -482,7 +494,7 @@ def make_system(name: str):
 
 
 def resolve(name: str):
-    """The run function of a system name (legacy or generic)."""
+    """The run function of a system name (legacy or generic, with or without planner options)."""
     return SYSTEMS[name] if name in SYSTEMS else make_system(name)
 
 

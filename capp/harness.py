@@ -22,7 +22,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from capp import config, llm_client, summary as S, systems
+from capp import config, llm_client, physics, summary as S, systems
 
 NO_KEY_MSG = "GROQ_API_KEY not configured"
 
@@ -102,19 +102,54 @@ def _live_call_made(rec) -> bool:
     return False
 
 
+def _resolve_pool(pool, pspec):
+    """The retrieval pool of a few-shot system: a Pool, a dataset name (default dev_v2) or None when no examples are used."""
+    if not pspec.few_shot:
+        return None
+    from capp import dataset, planners
+    if isinstance(pool, planners.Pool):
+        return pool
+    name = pool or "dev_v2"
+    if name.startswith("test"):
+        raise HarnessError("the retrieval pool must not be the sealed test set: examples come from the development data only")
+    return planners.Pool.from_dataset(dataset.load_dataset(name), name=name)
+
+
+def _physics(final: dict, part: dict):
+    """Physics analysis of the final route (capp/physics.py); never allowed to stop a run."""
+    if not final.get("steps"):
+        return None
+    try:
+        return physics.condense(physics.analyse_part_route(final["steps"], part))
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
                    front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
-                   weights=None) -> dict:
+                   weights=None, pool=None, planner_factory=None, analysis: bool = True) -> dict:
     """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant
-    (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system).
+    (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system), optionally with planner options
+    (+fs2, +fs4x, +h1: retrieval few-shot, hint; see capp/plannerspec.py).
     `planner` produces the LLM samples, `repair_planner` the R2 re-prompts (only R2/R3 systems call it); both default to the real
-    ones and both are guarded. `weights` (time, cost, energy) are the priorities of selection S2."""
+    ones and both are guarded. `planner_factory(part) -> planner` replaces `planner` for planner options; by default it is built
+    from the system name. `pool` (a planners.Pool or a dataset name, default dev_v2) is where few-shot examples come from.
+    `weights` (time, cost, energy) are the priorities of selection S2. `analysis` adds the physics analysis (cutting energy kc,
+    Taylor tool-wear cost, Ra risk) of every final route to its record; it needs no API call and does not change the route."""
     try:
         spec = systems.parse_system(system)
+        pspec = systems.planner_spec(system)
     except ValueError as exc:
         raise HarnessError(str(exc)) from None
     uses_llm = spec is not None
+    if planner is not None and (planner_factory is not None or not pspec.is_default):
+        raise HarnessError("`planner` replaces the whole prompt, so it cannot be combined with planner options in the system "
+                           "name or with `planner_factory`; pass planner_factory instead")
+    pool_obj = _resolve_pool(pool, pspec) if uses_llm else None
+    if uses_llm and planner_factory is None and not pspec.is_default:
+        from capp import planners
+        planner_factory = planners.make_factory(pspec, pool_obj)
     if weights is not None:
         try:
             weights = systems.normalize_weights(weights)
@@ -125,7 +160,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     if uses_llm and planner is None:
         import llm_planner
         planner = llm_planner.generate_process_plan
-    wrapped = _guarded(planner, max_consecutive_errors) if uses_llm else None
+    holder = {"planner": planner}                     # the planner of the current part (differs per part with options)
+    wrapped = _guarded(lambda *a, **k: holder["planner"](*a, **k), max_consecutive_errors) if uses_llm else None
     wrapped_repair = None
     if systems.reprompts(system):
         if repair_planner is None:
@@ -141,6 +177,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         for r in range(1, repeats + 1):
             os.environ["CAPP_RUN_TAG"] = f"{tag}-r{r}"
             for i, part in enumerate(parts, 1):
+                if uses_llm and planner_factory is not None:
+                    holder["planner"] = planner_factory(part)
                 kw = {"planner": wrapped, "front_uses_dims": front_uses_dims} if uses_llm else {}
                 if wrapped_repair:
                     kw["repair_planner"] = wrapped_repair
@@ -148,6 +186,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                     kw["weights"] = weights
                 rec = run_fn(part, **kw).to_dict()
                 rec["repeat"] = r
+                if analysis:
+                    rec["final"]["physics"] = _physics(rec["final"], part)
                 rec["run_tag"] = os.environ["CAPP_RUN_TAG"]
                 rec["part"] = part
                 records.append(rec)
@@ -167,6 +207,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "model": config.model("primary") if uses_llm else None,
         "temperature": config.PLANNER_TEMPERATURE if uses_llm else None,
         "repair_temperature": config.REPAIR_TEMPERATURE if systems.reprompts(system) else None,
+        "planner_options": (pspec.name or "v1") if uses_llm else None,
+        "few_shot_k": pspec.few_shot if uses_llm else None, "few_shot_leave_out": pspec.loo if pspec.few_shot else None,
+        "hint": pspec.hint if uses_llm else None,
+        "two_step": pspec.two_step if uses_llm else None, "physics_analysis": analysis,
+        "structured_output_requested": config.structured_mode() if uses_llm and pspec.two_step else None,
+        "pool": [pool_obj.name, len(pool_obj)] if pool_obj is not None else None,
         "n_samples": spec[0] if spec else None, "repair": spec[1] if spec else None, "selection": spec[2] if spec else None,
         "weights": list(weights or systems.DEFAULT_WEIGHTS) if spec and spec[2] == "s2" else None,
         "confidence_flag_threshold": systems.CONFIDENCE_FLAG if spec else None,

@@ -44,6 +44,16 @@ def _gap_to_rb_best(scores, best_rb):
     return M.quality_gap(scores, M.best_known(best_rb))
 
 
+def _physics_columns(ph):
+    t = (ph or {}).get("totals")
+    if not t:
+        return {"phys_energy_kwh": "", "phys_kc": "", "phys_wear_inr": "", "phys_peak_spindle_kw": "", "over_power": "",
+                "ra_best_um": "", "ra_risk": ""}
+    return {"phys_energy_kwh": t["cutting_energy_kwh"], "phys_kc": t["kc_mean_n_mm2"], "phys_wear_inr": t["wear_cost_inr"],
+            "phys_peak_spindle_kw": t["peak_spindle_kw"], "over_power": bool(t["ops_over_power"]),
+            "ra_best_um": t["ra"]["best_um"], "ra_risk": t["ra"]["risk"]}
+
+
 def part_rows(records: list) -> list:
     rows = []
     for rec in records:
@@ -72,6 +82,7 @@ def part_rows(records: list) -> list:
             "energy_kwh": fin["scores_eval"]["energy_kwh"], "efficiency": fin["scores_eval"]["efficiency_score"],
             "efficiency_v1": fin["scores"]["efficiency_score"],
             "eff_gap_to_rb_best": None if gap is None else gap["efficiency_gap"],
+            **_physics_columns(fin.get("physics")),
             "m4_source": src if sim else "", "m4_exact": None if not sim else sim["exact"],
             "m4_lcs_ratio": None if not sim else sim["lcs_ratio"],
             "m4_kendall_tau": None if not sim else sim["kendall_tau"],
@@ -120,8 +131,72 @@ def candidate_rows(records: list) -> list:
                 "finish_reason": c["meta"].get("finish_reason", ""), "prompt_tokens": c["meta"].get("prompt_tokens"),
                 "completion_tokens": c["meta"].get("completion_tokens"), "latency_s": c["meta"].get("latency_s"),
                 "cached": c["meta"].get("cached"),
+                "examples": ";".join((c["meta"].get("prompt_context") or {}).get("examples", [])),
+                "hint": (c["meta"].get("prompt_context") or {}).get("hint", ""),
+                "api_calls": c["meta"].get("n_calls", 1 if c["meta"] else 0),
+                "structured": c["meta"].get("structured_used", ""), "parser": c["meta"].get("parser", ""),
+                "faithful": c["meta"].get("faithful", ""), "reasoning_chars": len(c["meta"].get("reasoning") or "") or "",
             })
     return rows
+
+
+def _prompt_block(calls):
+    """What the planner prompt contained (records written before Step 8 have no prompt_context: plain v1 prompts)."""
+    ctxs = [(c["meta"] or {}).get("prompt_context") for _, c in calls]
+    ctxs = [x for x in ctxs if x is not None]
+    if not ctxs:
+        return {"options": "v1", "examples_per_call": 0.0, "hint_share": 0.0, "two_step_share": 0.0}
+    n_ex = [len(x.get("examples", [])) for x in ctxs]
+    return {"options": "fs/h", "examples_per_call": sum(n_ex) / len(ctxs),
+            "hint_share": sum(1 for x in ctxs if x.get("hint")) / len(ctxs),
+            "two_step_share": sum(1 for x in ctxs if x.get("two_step")) / len(ctxs),
+            "calls_without_examples_share": sum(1 for k in n_ex if k == 0) / len(ctxs)}
+
+
+def _physics_block(records):
+    """Physics analysis of the final routes (capp/physics.py); {"n": 0} for records written without it."""
+    rows = [(r, (r["final"].get("physics") or {}).get("totals")) for r in records]
+    rows = [(r, t) for r, t in rows if t]
+    if not rows:
+        return {"n": 0}
+    n = len(rows)
+    risks = {k: sum(1 for _, t in rows if t["ra"]["risk"] == k) / n for k in ("low", "medium", "high", "unknown")}
+
+    def mean(vals):
+        vals = [v for v in vals if v is not None]
+        return M.mean_std(vals)[0] if vals else None
+    return {"n": n,
+            "energy_kwh_mean": mean([t["cutting_energy_kwh"] for _, t in rows]),
+            "v1_energy_kwh_mean": mean([r["final"]["scores_eval"]["energy_kwh"] for r, _ in rows]),
+            "kc_mean_n_mm2": mean([t["kc_mean_n_mm2"] for _, t in rows]),
+            "wear_cost_inr_mean": mean([t["wear_cost_inr"] for _, t in rows]),
+            "v1_cost_inr_mean": mean([r["final"]["scores_eval"]["cost_inr"] for r, _ in rows]),
+            "edges_per_batch_mean": mean([t["edges_per_batch"] for _, t in rows]),
+            "peak_spindle_kw_mean": mean([t["peak_spindle_kw"] for _, t in rows]),
+            "over_power_share": sum(1 for _, t in rows if t["ops_over_power"]) / n,
+            "near_power_share": sum(1 for _, t in rows if t["ops_near_power"] and not t["ops_over_power"]) / n,
+            "ra_risk_share": risks, "ra_ratio_mean": mean([t["ra"]["ratio"] for _, t in rows])}
+
+
+def _two_step_block(calls):
+    """Numbers of the two-step planner (capp/twostep.py); {"n": 0} for one-step runs."""
+    ms = [c["meta"] for _, c in calls if c["meta"].get("n_calls") == 2]
+    if not ms:
+        return {"n": 0}
+    stated = [m for m in ms if m.get("faithful") is not None]
+    modes = {}
+    for m in ms:
+        modes[m.get("structured_used", "?")] = modes.get(m.get("structured_used", "?"), 0) + 1
+    parsers = {}
+    for m in ms:
+        parsers[m.get("parser", "?")] = parsers.get(m.get("parser", "?"), 0) + 1
+    reason_tokens = [m["calls"][0]["completion_tokens"] for m in ms if m.get("calls")]
+    return {"n": len(ms), "structured_used": modes, "parser": parsers,
+            "reasoning_truncated": sum(1 for m in ms if m.get("reasoning_truncated")),
+            "with_final_order_line": len(stated) / len(ms),
+            "faithful_share": M.rate([m["faithful"] for m in stated]) if stated else None,
+            "reasoning_tokens_mean": M.mean_std(reason_tokens)[0],
+            "reasoning_chars_mean": M.mean_std([len(m.get("reasoning") or "") for m in ms])[0]}
 
 
 def _confidence_block(records):
@@ -259,6 +334,7 @@ def summarize_set(records: list) -> dict:
             "energy_gap_to_rb_best_mean": M.mean_std([g["energy_kwh_gap"] for g in gaps])[0]},
         "M7": {
             "calls_per_part": attempts / n,
+            "api_calls_per_part": (sum(c["meta"].get("n_calls", 1) for _, c in calls) + sum(r["info"].get("repair_calls", 0) for r in records)) / n,
             "prompt_tokens_per_part": sum(c["meta"].get("prompt_tokens") or 0 for _, c in calls) / n,
             "completion_tokens_per_part": sum(c["meta"].get("completion_tokens") or 0 for _, c in calls) / n,
             "latency_mean_s": M.mean_std(lat)[0], "latency_p50_s": M.percentile(lat, 0.5), "latency_p95_s": M.percentile(lat, 0.95),
@@ -270,6 +346,9 @@ def summarize_set(records: list) -> dict:
             "repair_completion_tokens_per_part": sum(m["meta"].get("completion_tokens") or 0 for m in reprompts) / n,
             "repair_latency_mean_s": M.mean_std([m["meta"].get("latency_s") for m in reprompts])[0],
             "repair_cache_hit_rate": M.rate([bool(m["meta"].get("cached")) for m in reprompts])},
+        "planner_prompt": _prompt_block(calls),
+        "two_step": _two_step_block(calls),
+        "physics": _physics_block(records),
         "front_size_mean": M.mean_std([len(r["front"]) for r in records if r["front"]])[0],
         "confidence": _confidence_block(records),
         "selection": sorted({r["info"].get("selection") for r in records if r["info"].get("selection")}),
@@ -361,10 +440,30 @@ def format_summary(system: str, s: dict) -> str:
     rp = (f" + {_fmt(m7['repair_calls_per_part'], 2)} repair calls ({_fmt(m7['repair_prompt_tokens_per_part'], 0)}+"
           f"{_fmt(m7['repair_completion_tokens_per_part'], 0)} tokens, latency {_fmt(m7['repair_latency_mean_s'], 2)}s, "
           f"cache hit {_fmt(m7['repair_cache_hit_rate'], 2)})") if m7["repair_calls_per_part"] else ""
-    L.append(f"M7 cost         : {_fmt(m7['calls_per_part'], 2)} calls/part{rp}, {_fmt(m7['prompt_tokens_per_part'], 0)}+"
+    api = (f" ({_fmt(m7['api_calls_per_part'], 2)} API calls incl. repair)"
+           if abs(m7["api_calls_per_part"] - m7["total_calls_per_part"]) > 1e-9 else "")
+    unit = "samples/part" if api else "calls/part"
+    L.append(f"M7 cost         : {_fmt(m7['calls_per_part'], 2)} {unit}{api}{rp}, {_fmt(m7['prompt_tokens_per_part'], 0)}+"
              f"{_fmt(m7['completion_tokens_per_part'], 0)} tokens/part (samples), latency mean {_fmt(m7['latency_mean_s'], 2)}s "
              f"p50 {_fmt(m7['latency_p50_s'], 2)}s p95 {_fmt(m7['latency_p95_s'], 2)}s, truncated {m7['truncated_calls']}, "
              f"cache hit rate {_fmt(m7['cache_hit_rate'], 2)}")
+    pp = s.get("planner_prompt") or {}
+    if pp.get("options") == "fs/h":
+        L.append(f"planner prompt  : {_fmt(pp['examples_per_call'], 2)} retrieved examples per call, hint in "
+                 f"{_fmt(pp['hint_share'], 2)} of calls (calls that got no example: {_fmt(pp['calls_without_examples_share'], 2)})")
+    ph = s.get("physics") or {"n": 0}
+    if ph["n"]:
+        rr = ph["ra_risk_share"]
+        L.append(f"physics         : cutting energy {_fmt(ph['energy_kwh_mean'], 3)} kWh/part (v1 Energy agent {_fmt(ph['v1_energy_kwh_mean'], 2)}), "
+                 f"kc {_fmt(ph['kc_mean_n_mm2'], 0)} N/mm2, tool wear {_fmt(ph['wear_cost_inr_mean'], 1)} INR/part "
+                 f"({_fmt(ph['edges_per_batch_mean'], 1)} edges/batch; v1 cost {_fmt(ph['v1_cost_inr_mean'], 0)}), "
+                 f"peak spindle {_fmt(ph['peak_spindle_kw_mean'], 1)} kW, over machine power in {_fmt(ph['over_power_share'], 2)} of parts; "
+                 f"Ra risk low {_fmt(rr['low'], 2)} / medium {_fmt(rr['medium'], 2)} / high {_fmt(rr['high'], 2)} / unknown {_fmt(rr['unknown'], 2)}")
+    ts = s.get("two_step") or {"n": 0}
+    if ts["n"]:
+        L.append(f"two-step        : {ts['n']} samples; structured output used {ts['structured_used']}, parser {ts['parser']}; "
+                 f"reasoning {_fmt(ts['reasoning_tokens_mean'], 0)} tokens (truncated {ts['reasoning_truncated']}); FINAL ORDER line in "
+                 f"{_fmt(ts['with_final_order_line'], 2)}, formalised order equals the stated one in {_fmt(ts['faithful_share'], 2)}")
     L.append(f"front size mean : {_fmt(s['front_size_mean'], 2)}")
     cf = s.get("confidence") or {"n": 0}
     if cf["n"]:
