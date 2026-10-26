@@ -1,13 +1,16 @@
 """Run a reference system (rb, b1, b0) over a dataset and write results to results/<tag>_<system>/.
 
-Systems: rb (Route Builder), b1 / b0 (v1 baselines, 1 / 5 samples, R0 = whole-route replacement), b1_r1 / b0_r1 (same, but
-invalid samples are repaired by R1, minimal edit, R0 as fallback).
+Systems: rb (Route Builder), b1 / b0 (v1 baselines, 1 / 5 samples, R0 = whole-route replacement), and the repair variants
+b1_r1 / b0_r1 (R1: minimal-edit repair by rules, no API calls), b1_r2 / b0_r2 (R2: one LLM re-prompt with the violation report,
+extra API calls, cached), b1_r3 / b0_r3 (R3: R2, then R1 if the re-prompt fails). R0 is the last resort of every variant.
 
 Examples (repo root, PowerShell):
     python scripts/run_eval.py --system rb --dataset dev_v2                       # no API calls
     python scripts/run_eval.py --system b0 --dataset dev_v2 --limit 20 --tag dev  # first 20 parts, live API (cached)
     python scripts/run_eval.py --system b1 --dataset dev_v2 --limit 20 --tag dev  # same tag: B1 reuses B0's first sample
     python scripts/run_eval.py --system b0_r1 --dataset dev_v2 --limit 20 --tag dev   # same tag: B0's samples from cache, no API
+    python scripts/run_eval.py --system b0_r2 --dataset dev_v2 --limit 20 --tag dev   # B0's samples from cache + live re-prompts
+    python scripts/run_eval.py --system b0_r3 --dataset dev_v2 --limit 20 --tag dev   # reuses R2's cached re-prompts
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 

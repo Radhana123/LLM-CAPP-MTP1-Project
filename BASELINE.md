@@ -122,3 +122,30 @@ python scripts/compare_runs.py results/dev_rb results/dev_b1 results/dev_b0 resu
 ### Abhi kya nahi hai
 R2 (LLM re-prompt with violation report) aur R3 (hybrid) agle step me. Selection abhi bhi v1 jaisa hai (as-is scores), fair-scoring wala selection Step 7 (agents me changeover) ke saath aayega.
 Offline simulation (synthetic planner) se sirf pipeline check hua, asli numbers tumhare live cache se aayenge.
+
+## Step 6 (WP3): R2 (LLM re-prompt) aur R3 (hybrid)
+
+Code: `capp/reprompt.py` (R2), `capp/systems.py` (`b0_r2`, `b1_r2`, `b0_r3`, `b1_r3`), `capp/harness.py` (repair planner guard), `capp/summary.py` + `capp/compare.py` (R2 numbers), `capp/config.py` (`REPAIR_TEMPERATURE`).
+Tests: 266 passed (naya: `tests/test_reprompt.py`, plus additions in test_systems/test_harness).
+
+### Kya naya hai
+- **R2:** invalid route ko LLM ko wapas bhejte hain, violation report ke saath. Conversation: v1 ka system prompt + v1 ka user prompt (byte-for-byte same, test se check) →
+  LLM ka rejected plan (assistant) → ek naya user message jisme saari *hard* violations ki list hai ("'Drilling' must come before 'Reaming'", "feature 'Hole' is not covered (absent: Drilling)", ...)
+  aur "sirf utna badlo jitna zaruri hai". Temperature 0.0 (repair reproducible rahe). Jawab strict verifier se pass hona chahiye, warna R2 fail.
+- **R3 (report 6.3):** pehle R2; R2 fail ho to R1 *original* LLM route pe; sab fail ho to R0 last resort. R2/R3 ke `repair` record me `tried`, `stage` (kis stage ne route diya), `r1 {...}`, `r2 {...}` hote hain.
+- **Systems:** `b0_r2`, `b1_r2`, `b0_r3`, `b1_r3`. Baaki sab (dedupe, safety net, selection) B0/B1 jaisa; fark sirf repair strategy ka.
+- **Cost (M7):** R2 extra LLM calls hain. Summary me ab `repair_calls_per_part`, repair tokens, latency aur cache-hit alag dikhte hain. `calls/part` sirf samples ki ginti hai.
+- **Cache:** same `--tag` pe B0 ke samples aur R2 ke repair calls cache se aate hain; `b1_r2` ka sample 0 aur uska repair `b0_r2` jaisa hi cache entry hai. `b0_r3` R2 ke cached repairs reuse karta hai.
+- **Guards:** missing key, replay-mode cache miss ya lagatar 20 API errors R2 calls pe bhi run rok dete hain (`STOPPED: ...`).
+- **M5** ab stage ke hisaab se: R1 stage aur R2 stage ka edit distance aur LLM ops surviving alag.
+
+### Chalane ka tareeka (same `--tag dev`; R2/R3 ke naye Groq calls sirf invalid samples ke liye, 20 parts pe lagbhag 15 calls)
+```
+python scripts/run_eval.py --system b0_r2 --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system b0_r3 --dataset dev_v2 --limit 20 --tag dev
+python scripts/compare_runs.py results/dev_rb results/dev_b0 results/dev_b0_r1 results/dev_b0_r2 results/dev_b0_r3
+```
+Rate limit lage to `--throttle 2` jodo; cache ki wajah se jo calls ho chuki hain wo dobara nahi lagengi.
+
+### Abhi kya nahi hai
+Retrieval few-shot, multi-candidate selection strategies (S0-S3), physics agents (kc, Taylor, Ra), extended verifier, UI. R2 ko sirf ek round milta hai (report: single re-prompt).

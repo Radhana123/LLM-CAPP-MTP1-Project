@@ -79,7 +79,21 @@ def _repair_label(c):
     r = c.get("repair")
     if not r:
         return ""
-    return r["strategy"] + ("->" + r["fallback"] if r.get("fallback") else "")
+    if r.get("fallback"):
+        return r["strategy"] + "->" + r["fallback"]
+    stage = r.get("stage") or r["strategy"]
+    return r["strategy"] if stage == r["strategy"] else f"{r['strategy']}:{stage}"
+
+
+def _stage(c):
+    """Which stage produced a repaired route: r1 or r2 (records written before R2 existed have no 'stage': r1)."""
+    return c["repair"].get("stage") or "r1"
+
+
+def _r1_details(c):
+    """R1 details of a repair attempt (new records nest them under 'r1'; Step 5 records have them at the top level)."""
+    r = c["repair"]
+    return r.get("r1") or (r if "discordant_pairs" in r else None)
 
 
 def candidate_rows(records: list) -> list:
@@ -155,6 +169,9 @@ def summarize_set(records: list) -> dict:
         prov[f["provenance"]] = prov.get(f["provenance"], 0) + 1
     replaced = [c for r in records for c in r["candidates"] if c["replaced"] and c["llm_steps"]]
     repaired = [c for r in records for c in r["candidates"] if c.get("repaired") and c["llm_steps"]]
+    repaired_r1 = [c for c in repaired if _stage(c) == "r1"]
+    repaired_r2 = [c for c in repaired if _stage(c) == "r2"]
+    reprompts = [c["repair"]["r2"] for r in records for c in r["candidates"] if c.get("repair") and c["repair"].get("r2")]
     ok_finals = [(r, r["final"]) for r in records if r["final"]["check"]["valid"]]
     gaps = [_gap_to_rb_best(f["scores_eval"], r["best_scores"]) for r, f in ok_finals]
     gaps = [g for g in gaps if g]
@@ -180,6 +197,9 @@ def summarize_set(records: list) -> dict:
             "localized_repairs_total": sum(r["info"].get("repaired", 0) for r in records),
             "localized_repairs_per_part": sum(r["info"].get("repaired", 0) for r in records) / n,
             "r1_failed_total": sum(r["info"].get("r1_failed", 0) for r in records),
+            "repaired_by_r1_total": sum(r["info"].get("repaired_r1", 0) for r in records),
+            "repaired_by_r2_total": sum(r["info"].get("repaired_r2", 0) for r in records),
+            "r2_failed_total": sum(r["info"].get("r2_failed", 0) for r in records),
             "safety_net_parts": sum(1 for r in records if r["info"]["safety_net"]),
             "incomplete_fallback_parts": sum(1 for r in records if r["info"]["fallback_incomplete"]),
             "raw_llm_finals_strict_invalid": sum(1 for f in finals if f["provenance"] == "raw_llm" and not f["check"]["valid"]),
@@ -195,10 +215,14 @@ def summarize_set(records: list) -> dict:
             "n_repaired": len(repaired),
             "edit_distance_mean": M.mean_std([M.edit_distance(c["llm_steps"], c["steps"]) for c in repaired])[0],
             "survived_share_mean": M.mean_std([M.survived_share(c["llm_steps"], c["steps"]) for c in repaired])[0],
-            "discordant_pairs_mean": M.mean_std([c["repair"]["discordant_pairs"] for c in repaired])[0],
-            "operations_inserted_mean": M.mean_std([len(c["repair"]["inserted"]) for c in repaired])[0],
-            "operations_removed_mean": M.mean_std([len(c["repair"]["removed_unknown"]) + len(c["repair"]["removed_duplicates"])
-                                                   for c in repaired])[0]},
+            "discordant_pairs_mean": M.mean_std([_r1_details(c)["discordant_pairs"] for c in repaired_r1])[0],
+            "operations_inserted_mean": M.mean_std([len(_r1_details(c)["inserted"]) for c in repaired_r1])[0],
+            "operations_removed_mean": M.mean_std([len(_r1_details(c)["removed_unknown"]) + len(_r1_details(c)["removed_duplicates"])
+                                                   for c in repaired_r1])[0],
+            "by_stage": {st: {"n": len(cs),
+                              "edit_distance_mean": M.mean_std([M.edit_distance(c["llm_steps"], c["steps"]) for c in cs])[0],
+                              "survived_share_mean": M.mean_std([M.survived_share(c["llm_steps"], c["steps"]) for c in cs])[0]}
+                         for st, cs in (("r1", repaired_r1), ("r2", repaired_r2)) if cs}},
         "M6": {
             "n_valid_finals": len(ok_finals),
             "time_min_mean": M.mean_std([f["scores_eval"]["time_min"] for _, f in ok_finals])[0],
@@ -215,7 +239,13 @@ def summarize_set(records: list) -> dict:
             "completion_tokens_per_part": sum(c["meta"].get("completion_tokens") or 0 for _, c in calls) / n,
             "latency_mean_s": M.mean_std(lat)[0], "latency_p50_s": M.percentile(lat, 0.5), "latency_p95_s": M.percentile(lat, 0.95),
             "truncated_calls": sum(1 for _, c in calls if c["meta"].get("finish_reason") == "length"),
-            "cache_hit_rate": M.rate([bool(c["meta"].get("cached")) for _, c in calls])},
+            "cache_hit_rate": M.rate([bool(c["meta"].get("cached")) for _, c in calls]),
+            "repair_calls_per_part": sum(r["info"].get("repair_calls", 0) for r in records) / n,
+            "total_calls_per_part": (attempts + sum(r["info"].get("repair_calls", 0) for r in records)) / n,
+            "repair_prompt_tokens_per_part": sum(m["meta"].get("prompt_tokens") or 0 for m in reprompts) / n,
+            "repair_completion_tokens_per_part": sum(m["meta"].get("completion_tokens") or 0 for m in reprompts) / n,
+            "repair_latency_mean_s": M.mean_std([m["meta"].get("latency_s") for m in reprompts])[0],
+            "repair_cache_hit_rate": M.rate([bool(m["meta"].get("cached")) for m in reprompts])},
         "front_size_mean": M.mean_std([len(r["front"]) for r in records if r["front"]])[0],
         "pooled_llm_parsed": len(pooled),
     }
@@ -289,16 +319,24 @@ def format_summary(system: str, s: dict) -> str:
                  f"LCS {_fmt(v['raw_llm']['lcs_ratio_mean'])}, tau {_fmt(v['raw_llm']['kendall_tau_mean'])}")
     L.append(f"M5 replacement  : {m5['n_replaced']} replaced; edit distance {_fmt(m5['edit_distance_mean'], 2)}, "
              f"LLM operations surviving {_fmt(m5['survived_share_mean'])}")
-    if m5r["n_repaired"] or m2["r1_failed_total"]:
-        L.append(f"M5 R1 repair    : {m5r['n_repaired']} repaired (R1 failed, fell back to R0: {m2['r1_failed_total']}); "
-                 f"edit distance {_fmt(m5r['edit_distance_mean'], 2)}, LLM operations surviving {_fmt(m5r['survived_share_mean'])}, "
-                 f"discordant pairs {_fmt(m5r['discordant_pairs_mean'], 2)}, ops inserted {_fmt(m5r['operations_inserted_mean'], 2)}, "
-                 f"ops removed {_fmt(m5r['operations_removed_mean'], 2)}")
+    if m5r["n_repaired"] or m2["r1_failed_total"] or m2["r2_failed_total"]:
+        L.append(f"M5 localized    : {m5r['n_repaired']} repaired (by R1 {m2['repaired_by_r1_total']}, by R2 {m2['repaired_by_r2_total']}; "
+                 f"fell back to R0 after R1 failed {m2['r1_failed_total']}, after R2 failed {m2['r2_failed_total']}); "
+                 f"edit distance {_fmt(m5r['edit_distance_mean'], 2)}, LLM operations surviving {_fmt(m5r['survived_share_mean'])}")
+        for st, v in m5r["by_stage"].items():
+            L.append(f"                  {st.upper()}: n={v['n']}, edit distance {_fmt(v['edit_distance_mean'], 2)}, "
+                     f"surviving {_fmt(v['survived_share_mean'])}")
+        if m5r["discordant_pairs_mean"] is not None:
+            L.append(f"                  R1 edits: discordant pairs {_fmt(m5r['discordant_pairs_mean'], 2)}, ops inserted "
+                     f"{_fmt(m5r['operations_inserted_mean'], 2)}, ops removed {_fmt(m5r['operations_removed_mean'], 2)}")
     L.append(f"M6 quality      : efficiency {_fmt(m6['efficiency_mean'], 2)}, gap to best RB variant: efficiency "
              f"{_fmt(m6['efficiency_gap_to_rb_best_mean'], 2)} pts, time {_fmt(m6['time_gap_to_rb_best_mean'])}, "
              f"cost {_fmt(m6['cost_gap_to_rb_best_mean'])}, energy {_fmt(m6['energy_gap_to_rb_best_mean'])} (relative)")
-    L.append(f"M7 cost         : {_fmt(m7['calls_per_part'], 2)} calls/part, {_fmt(m7['prompt_tokens_per_part'], 0)}+"
-             f"{_fmt(m7['completion_tokens_per_part'], 0)} tokens/part, latency mean {_fmt(m7['latency_mean_s'], 2)}s "
+    rp = (f" + {_fmt(m7['repair_calls_per_part'], 2)} repair calls ({_fmt(m7['repair_prompt_tokens_per_part'], 0)}+"
+          f"{_fmt(m7['repair_completion_tokens_per_part'], 0)} tokens, latency {_fmt(m7['repair_latency_mean_s'], 2)}s, "
+          f"cache hit {_fmt(m7['repair_cache_hit_rate'], 2)})") if m7["repair_calls_per_part"] else ""
+    L.append(f"M7 cost         : {_fmt(m7['calls_per_part'], 2)} calls/part{rp}, {_fmt(m7['prompt_tokens_per_part'], 0)}+"
+             f"{_fmt(m7['completion_tokens_per_part'], 0)} tokens/part (samples), latency mean {_fmt(m7['latency_mean_s'], 2)}s "
              f"p50 {_fmt(m7['latency_p50_s'], 2)}s p95 {_fmt(m7['latency_p95_s'], 2)}s, truncated {m7['truncated_calls']}, "
              f"cache hit rate {_fmt(m7['cache_hit_rate'], 2)}")
     L.append(f"front size mean : {_fmt(s['front_size_mean'], 2)}")

@@ -7,11 +7,14 @@ The logic of B0/B1 follows v1 exactly (week4/nsga2.py "llm_first" + the selectio
   4. duplicates removed; if nothing is left, the Route Builder's own routes are used (safety net)
   5. non-dominated sort on (time, cost, energy) with v1's default dimensions; the member of the first front with the
      highest Efficiency (scored with the part's real dimensions) is the final route
-With repair="r1" (systems b0_r1 and b1_r1) step 3 changes: a sample with a HARD violation under the strict verifier (this
-includes invented and duplicate operations, which v1 lets through) is repaired by R1 (capp/repair.py, minimal edit, keeps
-the LLM's work) instead of being replaced. Provenance repaired_llm. If R1 finds no valid route, R0 (the replacement above)
-is the fallback, so the validity guarantee is the same as in v1. Everything else (dedupe, safety net, selection) is unchanged,
-so the difference between b0 and b0_r1 is the repair strategy alone.
+With repair="r1", "r2" or "r3" (systems b0_r1 ... b1_r3) step 3 changes: a sample with a HARD violation under the strict
+verifier (this includes invented and duplicate operations, which v1 lets through) is repaired instead of replaced:
+  r1  minimal-edit repair by rules (capp/repair.py)
+  r2  one LLM re-prompt that carries the violation report (capp/reprompt.py); the answer must pass the strict verifier
+  r3  hybrid: r2, and if its answer is still invalid, r1 on the original LLM route
+A repaired route has provenance repaired_llm. If every stage fails, R0 (the replacement above) is the last resort, so the
+validity guarantee is the same as in v1. Everything else (dedupe, safety net, selection) is unchanged, so the difference
+between b0 and b0_r1 / b0_r2 / b0_r3 is the repair strategy alone. Re-prompt calls are extra LLM calls: info["repair_calls"].
 What is new is only the bookkeeping: provenance, the first-pass check of every raw LLM route with the strict verifier
 (capp/verify.py), and the scores with the part's dimensions. tests/test_systems.py checks that B0 returns the same route
 as run_nsga2 + the UI selection on the same LLM outputs.
@@ -54,7 +57,7 @@ class Candidate:
     llm_raw: str = ""
     replaced: bool = False            # whole-route replacement by the Route Builder happened (R0)
     repaired: bool = False            # localized repair of the LLM route happened (R1)
-    repair: dict = None               # details of the repair attempt: strategy, ok, reason, inserted, removed_*, discordant_pairs
+    repair: dict = None               # the repair attempt: strategy, stage (r1|r2 that produced the route), tried, r1 {...}, r2 {...}, fallback
     in_pool: bool = True              # entered selection (False: LLM failed, or an exact duplicate of an earlier route)
     deduped: bool = False             # dropped as a duplicate (its first-pass result still counts for M1)
     first_pass: dict = None           # strict check of the raw LLM route
@@ -175,20 +178,54 @@ def run_rb(part: dict, max_routes: int = 15, **_) -> RunRecord:
         "population": len(cands), "deduped": 0}, refs, ref_scores)
 
 
+REPAIR_STAGES = {"r0": (), "r1": ("r1",), "r2": ("r2",), "r3": ("r2", "r1")}      # tried in this order, R0 is always last
+
+
+def _r2_stage(repair_planner, p, steps, chk, attempt, info, features):
+    """One re-prompt. Returns (route or None, detail dict)."""
+    info["repair_calls"] += 1
+    try:
+        rr = repair_planner(p["material"], features, p["tolerance"], p["batch_size"], sample_id=attempt,
+                            previous_steps=list(steps), violations=chk.hard_violations)
+    except FatalRunError:
+        raise
+    except Exception as exc:
+        rr = {"success": False, "steps": [], "raw_response": f"Exception: {exc}"}
+    chk2 = V.check_route(rr["steps"], features) if rr.get("success") else None
+    ok = bool(chk2 and chk2.valid)
+    detail = {"ok": ok, "steps": list(rr.get("steps", [])), "raw_response": rr.get("raw_response", ""),
+              "meta": rr.get("meta", {}), "kinds": chk2.kinds if chk2 else [],
+              "reason": "" if ok else ("no route in the answer" if not rr.get("success") else
+                                       "answer is still invalid: " + ", ".join(chk2.kinds))}
+    if ok:
+        info["repaired_r2"] += 1
+        return V.normalize_markers(rr["steps"]), detail
+    info["r2_failed"] += 1
+    return None, detail
+
+
 def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int = 30,
-                  front_uses_dims: bool = False, system: str = None, repair: str = "r0") -> RunRecord:
+                  front_uses_dims: bool = False, system: str = None, repair: str = "r0",
+                  repair_planner=None) -> RunRecord:
     """B0 (n_samples=5) and B1 (n_samples=1). `planner(material, features, tolerance, batch_size, sample_id=)`
     defaults to week2's generate_process_plan, looked up at call time so tests can substitute it.
-    repair: "r0" (v1: replace an invalid sample by the Route Builder's route) or "r1" (minimal-edit repair, R0 as fallback)."""
-    if repair not in ("r0", "r1"):
+    repair: "r0" (v1: replace an invalid sample by the Route Builder's route), "r1" (minimal-edit repair), "r2" (LLM re-prompt
+    with the violation report) or "r3" (r2, then r1); R0 is the last resort of all of them.
+    `repair_planner(material, features, tolerance, batch_size, sample_id=, previous_steps=, violations=)` defaults to
+    capp.reprompt.reprompt and is only called by r2 and r3."""
+    if repair not in REPAIR_STAGES:
         raise ValueError(f"unknown repair strategy {repair!r}")
+    if "r2" in REPAIR_STAGES[repair] and repair_planner is None:
+        from capp import reprompt
+        repair_planner = reprompt.reprompt
     if planner is None:
         import llm_planner
         planner = llm_planner.generate_process_plan
     p = part_inputs(part)
     features = p["features"]
     info = {"llm_calls": 0, "attempts": 0, "llm_failed": 0, "raw_v1_valid": 0, "raw_strict_valid": 0,
-            "replaced": 0, "replacement_failed": 0, "repaired": 0, "r1_failed": 0, "safety_net": False,
+            "replaced": 0, "replacement_failed": 0, "repaired": 0, "repaired_r1": 0, "repaired_r2": 0, "r1_failed": 0,
+            "r2_failed": 0, "repair_calls": 0, "safety_net": False,
             "fallback_incomplete": False, "machine_pref_overridden": False, "population": 0, "deduped": 0}
     pop = []
 
@@ -214,20 +251,35 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
                     first_pass=check_to_dict(chk), v1_valid=v1_ok, meta=res.get("meta", {}))
         info["raw_v1_valid"] += int(v1_ok)
         info["raw_strict_valid"] += int(chk.valid)
-        needs_repair = (not chk.valid) if repair == "r1" else (not v1_ok)    # r1 repairs what the strict verifier rejects
+        needs_repair = (not v1_ok) if repair == "r0" else (not chk.valid)    # r1..r3 repair what the strict verifier rejects
         if not needs_repair:
             pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, **base))
         else:
             attempt_info = None
-            if repair == "r1":
-                rep1 = R.r1(steps, features)
-                attempt_info = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
-                if rep1.ok:
+            if repair != "r0":
+                attempt_info = {"strategy": repair, "stage": None, "tried": []}
+                routed = None
+                for stage in REPAIR_STAGES[repair]:
+                    attempt_info["tried"].append(stage)
+                    if stage == "r1":
+                        rep1 = R.r1(steps, features)
+                        attempt_info["r1"] = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
+                        if rep1.ok:
+                            info["repaired_r1"] += 1
+                            routed = rep1.route
+                        else:
+                            info["r1_failed"] += 1
+                    else:
+                        routed, detail = _r2_stage(repair_planner, p, steps, chk, attempt, info, features)
+                        attempt_info["r2"] = detail
+                    if routed:
+                        attempt_info["stage"] = stage
+                        break
+                if routed:
                     info["repaired"] += 1
                     pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_repaired", provenance=PROV_REPAIRED,
-                                         steps=rep1.route, repaired=True, repair=attempt_info, **base))
+                                         steps=routed, repaired=True, repair=attempt_info, **base))
                     continue
-                info["r1_failed"] += 1
                 attempt_info["fallback"] = "r0"
             corrected = fsm_validator.fix_sequence_with_builder(features)
             if (corrected and fsm_validator.validate_sequence(corrected)["valid"]
@@ -283,13 +335,20 @@ def run_b1(part, **kw):
     return run_llm_first(part, n_samples=1, system="b1", **kw)
 
 
-def run_b0_r1(part, **kw):
-    return run_llm_first(part, n_samples=5, system="b0_r1", repair="r1", **kw)
+def _variant(n_samples, repair):
+    name = {5: "b0", 1: "b1"}[n_samples] + "_" + repair
+
+    def run(part, **kw):
+        return run_llm_first(part, n_samples=n_samples, system=name, repair=repair, **kw)
+    run.__name__ = "run_" + name
+    return run
 
 
-def run_b1_r1(part, **kw):
-    return run_llm_first(part, n_samples=1, system="b1_r1", repair="r1", **kw)
+run_b0_r1, run_b1_r1 = _variant(5, "r1"), _variant(1, "r1")
+run_b0_r2, run_b1_r2 = _variant(5, "r2"), _variant(1, "r2")
+run_b0_r3, run_b1_r3 = _variant(5, "r3"), _variant(1, "r3")
 
-
-SYSTEMS = {"rb": run_rb, "b1": run_b1, "b0": run_b0, "b1_r1": run_b1_r1, "b0_r1": run_b0_r1}
-LLM_SYSTEMS = ("b1", "b0", "b1_r1", "b0_r1")
+SYSTEMS = {"rb": run_rb, "b1": run_b1, "b0": run_b0, "b1_r1": run_b1_r1, "b0_r1": run_b0_r1,
+           "b1_r2": run_b1_r2, "b0_r2": run_b0_r2, "b1_r3": run_b1_r3, "b0_r3": run_b0_r3}
+LLM_SYSTEMS = tuple(k for k in SYSTEMS if k != "rb")
+REPROMPT_SYSTEMS = ("b1_r2", "b0_r2", "b1_r3", "b0_r3")      # systems that make extra LLM calls for repair

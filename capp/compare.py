@@ -20,6 +20,10 @@ def _fmt(x, nd=3):
     return "n/a" if x is None else (f"{x:.{nd}f}" if isinstance(x, float) else str(x))
 
 
+def _stage_val(s, stage, key):
+    return s["M5_localized_repair"]["by_stage"].get(stage, {}).get(key)
+
+
 def table(runs: list) -> str:
     """runs: list of (label, summary). Returns an aligned text table."""
     def prov(s, name):
@@ -33,12 +37,17 @@ def table(runs: list) -> str:
         ("final repaired_llm share", lambda s: _fmt(prov(s, "repaired_llm"), 2)),
         ("final route_builder share", lambda s: _fmt(prov(s, "route_builder"), 2)),
         ("R0 replacements / part", lambda s: _fmt(s["M2"]["whole_route_replacements_per_part"], 2)),
-        ("R1 repairs / part", lambda s: _fmt(s["M2"]["localized_repairs_per_part"], 2)),
+        ("localized repairs / part", lambda s: _fmt(s["M2"]["localized_repairs_per_part"], 2)),
+        ("  by R1 / by R2 (total)", lambda s: f"{s['M2']['repaired_by_r1_total']}/{s['M2']['repaired_by_r2_total']}"),
+        ("  fell back to R0 after R1 / R2", lambda s: f"{s['M2']['r1_failed_total']}/{s['M2']['r2_failed_total']}"),
+        ("extra re-prompt calls / part", lambda s: _fmt(s["M7"]["repair_calls_per_part"], 2)),
         ("replacement found no route", lambda s: str(s["M2"]["replacement_failed_total"])),
         ("M5 edit distance (R0)", lambda s: _fmt(s["M5_whole_route_replacement"]["edit_distance_mean"], 2)),
         ("M5 LLM ops surviving (R0)", lambda s: _fmt(s["M5_whole_route_replacement"]["survived_share_mean"])),
-        ("M5 edit distance (R1)", lambda s: _fmt(s["M5_localized_repair"]["edit_distance_mean"], 2)),
-        ("M5 LLM ops surviving (R1)", lambda s: _fmt(s["M5_localized_repair"]["survived_share_mean"])),
+        ("M5 edit distance (R1 stage)", lambda s: _fmt(_stage_val(s, "r1", "edit_distance_mean"), 2)),
+        ("M5 LLM ops surviving (R1 stage)", lambda s: _fmt(_stage_val(s, "r1", "survived_share_mean"))),
+        ("M5 edit distance (R2 stage)", lambda s: _fmt(_stage_val(s, "r2", "edit_distance_mean"), 2)),
+        ("M5 LLM ops surviving (R2 stage)", lambda s: _fmt(_stage_val(s, "r2", "survived_share_mean"))),
         ("M6 efficiency", lambda s: _fmt(s["M6"]["efficiency_mean"], 2)),
         ("M6 gap to best RB (pts)", lambda s: _fmt(s["M6"]["efficiency_gap_to_rb_best_mean"], 2)),
         ("M6 time / cost / energy gap", lambda s: "/".join(_fmt(s["M6"][k], 3) for k in (
@@ -97,6 +106,11 @@ def paired_repairs(recs_r0: list, recs_r1: list) -> dict:
             "survived_r0": M.mean_std(sv0)[0], "survived_r1": M.mean_std(sv1)[0]}
 
 
+def _strategy(records):
+    sysname = records[0]["system"] if records else ""
+    return sysname.rsplit("_", 1)[1].upper() if "_" in sysname else "R0"
+
+
 def compare(dirs: list) -> str:
     loaded = []
     for d in dirs:
@@ -117,7 +131,7 @@ def compare(dirs: list) -> str:
                 continue
             p = paired_repairs(r0, r1)
             if p["n"]:
-                out.append(f"\nSame raw LLM routes, R0 ({lab0}) vs R1 ({lab1}): n={p['n']}; edit distance "
+                out.append(f"\nSame raw LLM routes, R0 ({lab0}) vs {_strategy(r1)} ({lab1}): n={p['n']}; edit distance "
                            f"{_fmt(p['edit_distance_r0'], 2)} vs {_fmt(p['edit_distance_r1'], 2)}; LLM operations surviving "
                            f"{_fmt(p['survived_r0'])} vs {_fmt(p['survived_r1'])}")
     if len(set(labels)) != len(labels):

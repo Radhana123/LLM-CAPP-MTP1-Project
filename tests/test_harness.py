@@ -269,9 +269,112 @@ def test_b0_r1_reuses_b0_cache_and_reports_localized_repair(tmp_path):
     assert s1["M2"]["localized_repairs_total"] == s1["M5_localized_repair"]["n_repaired"] > 0
     assert s1["M2"]["whole_route_replacements_total"] == 0 and s0["M2"]["whole_route_replacements_total"] > 0
     text = SM.format_summary("b0_r1", s1)
-    assert "M5 R1 repair" in text
+    assert "M5 localized" in text and "R1: n=" in text
     rows = list(__import__("csv").DictReader(open(tmp_path / "rr_b0_r1" / "per_candidate.csv", encoding="utf-8")))
     repaired = [r for r in rows if r["repaired"] == "True"]
     assert repaired and all(r["repair_strategy"] == "r1" and r["edit_distance"] != "" for r in repaired)
     run = json.loads((tmp_path / "rr_b0_r1" / "run.json").read_text())
     assert run["system"] == "b0_r1" and run["model"]
+
+
+# ---- R2 / R3 through the real planner, reprompt, llm_client and cache -------------------------------------
+GOOD = ["Facing", "Center Drilling", "Drilling", "Chamfering", "Inspection"]
+
+
+def _r2_transport(log):
+    """Samples alternate between a valid and an invalid route; every 4-message conversation is a re-prompt."""
+    def transport(model, messages, params):
+        log.append("repair" if len(messages) == 4 else "sample")
+        if len(messages) == 4:
+            steps = GOOD
+        else:
+            steps = [GOOD, ["Inspection", "Facing"]][len([x for x in log if x == "sample"]) % 2]
+        return {"text": json.dumps(steps), "prompt_tokens": 500 if len(messages) == 4 else 310,
+                "completion_tokens": 25, "finish_reason": "stop"}
+    return transport
+
+
+def test_b0_r2_real_path_counts_repair_calls_and_caches_them(tmp_path):
+    log = []
+    llm_client.set_transport(_r2_transport(log))
+    ps = _hole_chamfer_parts(3)
+    out = H.run_experiment("b0_r2", ps, tag="r2", out_dir=str(tmp_path), progress=None)
+    s = out["summary"]
+    n_repair = log.count("repair")
+    assert log.count("sample") == 15 and n_repair > 0
+    assert s["M7"]["repair_calls_per_part"] == pytest.approx(n_repair / 3)
+    assert s["M7"]["total_calls_per_part"] == pytest.approx((15 + n_repair) / 3)
+    assert s["M7"]["repair_prompt_tokens_per_part"] == pytest.approx(500 * n_repair / 3)
+    assert s["M7"]["repair_cache_hit_rate"] == 0.0 and s["M2"]["repaired_by_r2_total"] == n_repair
+    assert s["M5_localized_repair"]["by_stage"]["r2"]["n"] == n_repair and s["M2"]["final_strict_valid"] == 1.0
+    assert "repair calls" in SM.format_summary("b0_r2", s) and "R2: n=" in SM.format_summary("b0_r2", s)
+
+    again = H.run_experiment("b0_r2", ps, tag="r2", progress=None, write=False)        # all from the cache, repairs included
+    assert len(log) == 15 + n_repair and again["summary"]["M7"]["repair_cache_hit_rate"] == 1.0
+    assert [r["final"]["steps"] for r in again["records"]] == [r["final"]["steps"] for r in out["records"]]
+
+    H.run_experiment("b1_r2", ps, tag="r2", progress=None, write=False)                # B1's sample 0 and its repair are B0's
+    assert len(log) == 15 + n_repair
+
+    rows = list(__import__("csv").DictReader(open(tmp_path / "r2_b0_r2" / "per_candidate.csv", encoding="utf-8")))
+    assert {r["repair_strategy"] for r in rows if r["repaired"] == "True"} == {"r2"}
+    run = json.loads((tmp_path / "r2_b0_r2" / "run.json").read_text())
+    assert run["repair_temperature"] == 0.0
+
+
+def test_b0_r3_real_path_makes_the_same_calls_as_r2_when_r2_succeeds():
+    log = []
+    llm_client.set_transport(_r2_transport(log))
+    ps = _hole_chamfer_parts(3)
+    H.run_experiment("b0_r2", ps, tag="x", progress=None, write=False)
+    n = len(log)
+    out = H.run_experiment("b0_r3", ps, tag="x", progress=None, write=False)
+    assert len(log) == n and out["summary"]["M2"]["repaired_by_r1_total"] == 0
+
+
+def test_repair_planner_guards(parts):
+    def good(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
+        return fake_planner(material, features, tolerance, batch_size, sample_id)
+
+    def down(*a, **k):
+        return {"success": False, "steps": [], "raw_response": "API Error: 503"}
+
+    def nokey(*a, **k):
+        return {"success": False, "steps": [], "raw_response": "GROQ_API_KEY not configured"}
+
+    def miss(*a, **k):
+        return {"success": False, "steps": [], "raw_response": "API Error: not in cache (replay mode): key=abc"}
+
+    with pytest.raises(H.HarnessError, match="in a row"):
+        H.run_experiment("b0_r2", parts, planner=good, repair_planner=down, max_consecutive_errors=3, progress=None, write=False)
+    with pytest.raises(H.HarnessError, match="GROQ_API_KEY"):
+        H.run_experiment("b0_r2", parts, planner=good, repair_planner=nokey, progress=None, write=False)
+    with pytest.raises(H.HarnessError, match="replay mode"):
+        H.run_experiment("b0_r3", parts, planner=good, repair_planner=miss, progress=None, write=False)
+
+
+def test_replay_of_a_run_without_cached_repairs_stops(monkeypatch):
+    log = []
+    llm_client.set_transport(_r2_transport(log))
+    ps = _hole_chamfer_parts(2)
+    H.run_experiment("b0", ps, tag="rp2", progress=None, write=False)                  # only the samples are cached
+    monkeypatch.setenv("CAPP_LLM_MODE", "replay")
+    with pytest.raises(H.HarnessError, match="not in cache"):
+        H.run_experiment("b0_r2", ps, tag="rp2", progress=None, write=False)
+
+
+def test_throttle_also_waits_after_a_live_repair_call(parts, monkeypatch):
+    slept = []
+    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s))
+
+    def cached_planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
+        r = fake_planner(material, features, tolerance, batch_size, sample_id)
+        r["meta"] = _meta(cached=True)
+        return r
+
+    def live_repair(material, features, tolerance="0.05mm", batch_size=100, sample_id=0, previous_steps=(), violations=()):
+        steps = V.clean_steps(rb.generate_valid_routes(features, max_routes=1)[0]["steps"])
+        return {"success": True, "steps": steps, "raw_response": "x", "model": "f", "meta": _meta(cached=False)}
+
+    H.run_experiment("b0_r2", parts[:3], planner=cached_planner, repair_planner=live_repair, throttle=0.5, progress=None, write=False)
+    assert slept and set(slept) == {0.5}

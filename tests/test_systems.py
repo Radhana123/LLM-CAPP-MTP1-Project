@@ -213,6 +213,10 @@ def test_b0_reproduces_v1_run_nsga2_and_ui_selection(monkeypatch, planner, featu
 
 
 # ---- R1 variants (b0_r1, b1_r1) ---------------------------------------------------------------------------
+def no_answer_repair(material, features, tolerance="0.05mm", batch_size=100, sample_id=0, previous_steps=(), violations=()):
+    return {"success": False, "steps": [], "raw_response": "API Error: none", "model": "fake"}
+
+
 def invented_planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
     """v1-valid but strict-invalid: a valid route with an invented operation and a repeated one."""
     base = V.clean_steps(rb.generate_valid_routes(features, max_routes=1)[0]["steps"])
@@ -225,8 +229,10 @@ def test_r1_variant_repairs_and_labels_provenance():
     by_name = {x.name: x for x in rec.candidates}
     c2 = by_name["Route_LLM_2_repaired"]
     assert c2.provenance == "repaired_llm" and c2.repaired and not c2.replaced
-    assert c2.repair["strategy"] == "r1" and c2.repair["ok"] and V.check_route(c2.steps, ["Hole", "Chamfer"]).valid
-    assert by_name["Route_LLM_3_repaired"].repaired and "Inspection" in by_name["Route_LLM_3_repaired"].repair["inserted"]
+    assert c2.repair["strategy"] == "r1" and c2.repair["stage"] == "r1" and c2.repair["r1"]["ok"]
+    assert V.check_route(c2.steps, ["Hole", "Chamfer"]).valid
+    c3 = by_name["Route_LLM_3_repaired"]
+    assert c3.repaired and "Inspection" in c3.repair["r1"]["inserted"]
     assert by_name["Route_LLM_1"].provenance == "raw_llm"
     assert rec.info["repaired"] == 2 and rec.info["replaced"] == 0 and rec.info["r1_failed"] == 0
     assert rec.info["raw_v1_valid"] == 2 and rec.final["check"]["valid"]
@@ -248,7 +254,7 @@ def test_r1_falls_back_to_r0_when_r1_gives_up(monkeypatch):
     rec = S.run_b0_r1(part(["Hole", "Chamfer"]), planner=fake_planner)
     assert rec.info["repaired"] == 0 and rec.info["r1_failed"] == 2 and rec.info["replaced"] == 2
     c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_corrected"]
-    assert c2.replaced and c2.provenance == "route_builder" and c2.repair["fallback"] == "r0" and c2.repair["reason"] == "forced"
+    assert c2.replaced and c2.provenance == "route_builder" and c2.repair["fallback"] == "r0" and c2.repair["r1"]["reason"] == "forced"
     assert rec.final["check"]["valid"]
 
 
@@ -276,5 +282,128 @@ def test_unknown_repair_strategy_is_rejected():
         S.run_llm_first(part(["Hole"]), planner=fake_planner, repair="r9")
 
 
-def test_system_registry_has_the_r1_variants():
-    assert {"rb", "b1", "b0", "b1_r1", "b0_r1"} == set(S.SYSTEMS) and set(S.LLM_SYSTEMS) == {"b1", "b0", "b1_r1", "b0_r1"}
+def test_system_registry_has_the_repair_variants():
+    names = {"rb", "b1", "b0", "b1_r1", "b0_r1", "b1_r2", "b0_r2", "b1_r3", "b0_r3"}
+    assert names == set(S.SYSTEMS) and set(S.LLM_SYSTEMS) == names - {"rb"}
+    assert set(S.REPROMPT_SYSTEMS) == {"b1_r2", "b0_r2", "b1_r3", "b0_r3"}
+    for name, fn in S.SYSTEMS.items():
+        if name != "rb":
+            assert fn(part(["Hole"]), planner=fake_planner, repair_planner=no_answer_repair).system == name
+
+
+# ---- R2 (re-prompt) and R3 (R2, then R1) ------------------------------------------------------------------
+class Repairer:
+    """Stand-in for capp.reprompt.reprompt that records what it was asked and answers from a callable."""
+    def __init__(self, answer):
+        self.answer, self.calls = answer, []
+
+    def __call__(self, material, features, tolerance="0.05mm", batch_size=100, sample_id=0, previous_steps=(), violations=()):
+        self.calls.append({"sample_id": sample_id, "previous": list(previous_steps), "violations": list(violations)})
+        steps = self.answer(features, previous_steps)
+        return {"success": bool(steps), "steps": steps, "raw_response": str(steps), "model": "fake", "meta": _meta()}
+
+
+def fixes_it(features, previous):
+    return V.clean_steps(rb.generate_valid_routes(features, max_routes=1)[0]["steps"])
+
+
+def still_wrong(features, previous):
+    return ["Inspection", "Facing"]
+
+
+def test_r2_accepts_a_valid_answer_and_counts_the_extra_calls():
+    rp = Repairer(fixes_it)
+    rec = S.run_b0_r2(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=rp)
+    by_name = {x.name: x for x in rec.candidates}
+    c2 = by_name["Route_LLM_2_repaired"]
+    assert c2.provenance == "repaired_llm" and c2.repaired and c2.repair["stage"] == "r2" and c2.repair["tried"] == ["r2"]
+    assert c2.repair["r2"]["ok"] and V.check_route(c2.steps, ["Hole", "Chamfer"]).valid
+    assert rec.info["repair_calls"] == len(rp.calls) == 2 and rec.info["repaired_r2"] == 2 and rec.info["r2_failed"] == 0
+    assert rec.info["llm_calls"] == 5 and rec.info["replaced"] == 0
+    assert all(c["violations"] and all(v.hard for v in c["violations"]) for c in rp.calls)
+    assert rp.calls[0]["previous"] == c2.llm_steps or rp.calls[1]["previous"] == c2.llm_steps
+
+
+def test_r2_is_not_called_for_samples_that_are_already_valid():
+    rp = Repairer(fixes_it)
+    rec = S.run_b0_r2(part(["Hole"]), planner=lambda *a, **k: fake_planner(*a, **dict(k, sample_id=0)), repair_planner=rp)
+    assert rp.calls == [] and rec.info["repair_calls"] == 0 and rec.info["repaired"] == 0
+
+
+def test_r2_that_is_still_invalid_falls_back_to_r0():
+    rp = Repairer(still_wrong)
+    rec = S.run_b0_r2(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=rp)
+    c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_corrected"]
+    assert c2.replaced and c2.provenance == "route_builder" and c2.repair["fallback"] == "r0" and c2.repair["stage"] is None
+    assert not c2.repair["r2"]["ok"] and "still invalid" in c2.repair["r2"]["reason"]
+    assert rec.info["r2_failed"] == 2 and rec.info["replaced"] == 2 and rec.info["repaired"] == 0
+    assert rec.final["check"]["valid"]
+
+
+def test_r2_answer_with_no_route_or_an_exception_is_a_failure_not_a_crash():
+    rec = S.run_b0_r2(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=Repairer(lambda f, p: []))
+    assert rec.info["r2_failed"] == 2 and rec.info["replaced"] == 2 and rec.final["check"]["valid"]
+
+    def raising(*a, **k):
+        raise RuntimeError("boom")
+    rec = S.run_b0_r2(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=raising)
+    assert rec.info["r2_failed"] == 2 and rec.info["replaced"] == 2 and rec.final["check"]["valid"]
+
+
+def test_a_fatal_error_from_the_repair_planner_stops_the_run():
+    def fatal(*a, **k):
+        raise S.FatalRunError("stop")
+    with pytest.raises(S.FatalRunError):
+        S.run_b0_r2(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=fatal)
+
+
+def test_r3_stops_at_r2_when_r2_works_and_never_runs_r1(monkeypatch):
+    monkeypatch.setattr(S.R, "r1", lambda *a, **k: pytest.fail("R1 must not run when R2 succeeded"))
+    rec = S.run_b0_r3(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=Repairer(fixes_it))
+    c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_repaired"]
+    assert c2.repair["strategy"] == "r3" and c2.repair["stage"] == "r2" and "r1" not in c2.repair
+    assert rec.info["repaired_r2"] == 2 and rec.info["repaired_r1"] == 0
+
+
+def test_r3_falls_back_to_r1_on_the_original_route_when_r2_fails():
+    rp = Repairer(still_wrong)
+    rec = S.run_b0_r3(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=rp)
+    c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_repaired"]
+    assert c2.repaired and c2.provenance == "repaired_llm" and c2.repair["stage"] == "r1"
+    assert c2.repair["tried"] == ["r2", "r1"] and not c2.repair["r2"]["ok"] and c2.repair["r1"]["ok"]
+    assert V.check_route(c2.steps, ["Hole", "Chamfer"]).valid
+    assert rec.info["r2_failed"] == 2 and rec.info["repaired_r1"] == 2 and rec.info["replaced"] == 0
+    assert rec.info["repair_calls"] == 2
+
+
+def test_r3_uses_r0_only_as_the_last_resort(monkeypatch):
+    monkeypatch.setattr(S.R, "r1", lambda *a, **k: S.R.Repair(ok=False, reason="forced"))
+    rec = S.run_b0_r3(part(["Hole", "Chamfer"]), planner=fake_planner, repair_planner=Repairer(still_wrong))
+    c2 = {x.name: x for x in rec.candidates}["Route_LLM_2_corrected"]
+    assert c2.replaced and c2.repair["tried"] == ["r2", "r1"] and c2.repair["fallback"] == "r0"
+    assert rec.info["replaced"] == 2 and rec.info["r1_failed"] == 2 and rec.info["r2_failed"] == 2
+
+
+def test_r2_and_r3_see_the_same_samples_as_b0():
+    p = part(["Hole", "Chamfer", "Slot"])
+    base = S.run_b0(p, planner=fake_planner)
+    for fn in (S.run_b0_r2, S.run_b0_r3):
+        rec = fn(p, planner=fake_planner, repair_planner=Repairer(fixes_it))
+        assert [c.llm_steps for c in rec.candidates] == [c.llm_steps for c in base.candidates]
+        assert rec.info["raw_strict_valid"] == base.info["raw_strict_valid"]
+
+
+def test_b1_variants_use_one_sample():
+    rec = S.run_b1_r2(part(["Hole", "Chamfer"]), planner=lambda *a, **k: fake_planner(*a, **dict(k, sample_id=1)),
+                      repair_planner=Repairer(fixes_it))
+    assert rec.info["attempts"] == 1 and rec.info["repair_calls"] == 1 and rec.system == "b1_r2"
+
+
+def test_r2_only_uses_hard_violations_in_the_report():
+    rp = Repairer(fixes_it)
+    # valid order but badly grouped machines (soft) AND an invented operation (hard)
+    def planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
+        steps = ["Facing", "Plain/Cylindrical Turning", "Pocket Milling", "Grooving/Necking", "Slot Milling", "Deburring", "Inspection"]
+        return {"success": True, "steps": steps, "raw_response": str(steps), "model": "fake", "meta": _meta()}
+    S.run_b1_r2(part(["Turning", "Pocket", "Groove", "Slot"]), planner=planner, repair_planner=rp)
+    assert rp.calls and {v.kind for v in rp.calls[0]["violations"]} == {"invented"}

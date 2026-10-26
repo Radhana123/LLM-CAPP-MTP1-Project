@@ -91,10 +91,23 @@ def load_records(out_dir):
         return [json.loads(line) for line in f if line.strip()]
 
 
+def _live_call_made(rec) -> bool:
+    """True if the run made at least one LLM call that was not answered from the cache (sample calls and R2 re-prompts)."""
+    for c in rec["candidates"]:
+        if c["meta"] and not c["meta"].get("cached"):
+            return True
+        r2 = (c.get("repair") or {}).get("r2")
+        if r2 and r2.get("meta") and not r2["meta"].get("cached"):
+            return True
+    return False
+
+
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
-                   front_uses_dims: bool = False, progress=print, write: bool = True) -> dict:
-    """Run `system` ('rb', 'b1' or 'b0') on every part, `repeats` times (rb is deterministic: one run)."""
+                   front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None) -> dict:
+    """Run `system` ('rb', 'b1', 'b0' or one of their repair variants) on every part, `repeats` times (rb is deterministic: one run).
+    `planner` produces the LLM samples, `repair_planner` the R2 re-prompts (only systems in systems.REPROMPT_SYSTEMS call it);
+    both default to the real ones and both are guarded."""
     if system not in systems.SYSTEMS:
         raise HarnessError(f"unknown system {system!r}, choose from {sorted(systems.SYSTEMS)}")
     uses_llm = system in systems.LLM_SYSTEMS
@@ -104,6 +117,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         import llm_planner
         planner = llm_planner.generate_process_plan
     wrapped = _guarded(planner, max_consecutive_errors) if uses_llm else None
+    wrapped_repair = None
+    if system in systems.REPROMPT_SYSTEMS:
+        if repair_planner is None:
+            from capp import reprompt
+            repair_planner = reprompt.reprompt
+        wrapped_repair = _guarded(repair_planner, max_consecutive_errors)
     run_fn = systems.SYSTEMS[system]
 
     records = []
@@ -114,6 +133,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
             os.environ["CAPP_RUN_TAG"] = f"{tag}-r{r}"
             for i, part in enumerate(parts, 1):
                 kw = {"planner": wrapped, "front_uses_dims": front_uses_dims} if uses_llm else {}
+                if wrapped_repair:
+                    kw["repair_planner"] = wrapped_repair
                 rec = run_fn(part, **kw).to_dict()
                 rec["repeat"] = r
                 rec["run_tag"] = os.environ["CAPP_RUN_TAG"]
@@ -121,7 +142,7 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                 records.append(rec)
                 if progress and (i % 10 == 0 or i == len(parts)):
                     progress(f"[{system} r{r}/{repeats}] {i}/{len(parts)} parts, {time.time() - t_start:.0f}s")
-                if throttle and any(c["meta"] and not c["meta"].get("cached") for c in rec["candidates"]):
+                if throttle and _live_call_made(rec):
                     time.sleep(throttle)
     finally:
         if old_tag is None:
@@ -134,6 +155,7 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "system": system, "tag": tag, "dataset": dataset_name, "n_parts": len(parts), "repeats": repeats,
         "model": config.model("primary") if uses_llm else None,
         "temperature": config.PLANNER_TEMPERATURE if uses_llm else None,
+        "repair_temperature": config.REPAIR_TEMPERATURE if system in systems.REPROMPT_SYSTEMS else None,
         "max_tokens": config.PLANNER_MAX_TOKENS if uses_llm else None,
         "llm_mode": config.get_mode(), "front_uses_dims": front_uses_dims,
         "git_commit": _git_commit(), "python": sys.version.split()[0], "platform": platform.platform(),

@@ -43,6 +43,10 @@ _DEFAULT_MODELS = {
 PLANNER_TEMPERATURE = 0.3
 PLANNER_MAX_TOKENS = 200
 
+# R2 (re-prompt with the violation report, capp/reprompt.py): greedy decoding, so a repair is reproducible
+REPAIR_TEMPERATURE = 0.0
+REPAIR_MAX_TOKENS = 200
+
 VALID_MODES = ("live", "replay", "nocache")
 
 
