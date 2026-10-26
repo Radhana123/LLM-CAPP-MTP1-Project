@@ -19,12 +19,23 @@ What is new is only the bookkeeping: provenance, the first-pass check of every r
 (capp/verify.py), and the scores with the part's dimensions. tests/test_systems.py checks that B0 returns the same route
 as run_nsga2 + the UI selection on the same LLM outputs.
 
+Selection (report 6.4), the last step, is a parameter too (default s1 = v1):
+  s0  first valid candidate (sample order)           s1  v1: first non-dominated front, then highest Efficiency
+  s2  first front, then weighted scalarisation of time, cost, energy (user priorities, min-max scaled inside the front)
+  s3  first front, then the medoid: the route with the smallest mean Kendall-tau distance to the other samples' routes
+      (over the union of the operations, so a different choice of operations counts as disagreement, see route_distance)
+The plan confidence is the mean pairwise agreement (1 - route_distance) of the routes of all samples after repair,
+duplicates included (a route that three of five samples produced counts three times). Below CONFIDENCE_FLAG the plan is
+flagged for human review. The confidence is recorded for every run whatever the selection.
+
 Note on provenance: v1 names a replaced sample "Route_LLM_n_corrected", but the route is the Route Builder's work.
 Here it is labelled route_builder (replaced=True).
 """
+import re
 from dataclasses import asdict, dataclass, field
 
 from capp import legacy  # noqa: F401
+from capp import metrics as M
 from capp import repair as R
 from capp import verify as V
 
@@ -135,16 +146,107 @@ class _Ind:
                            agents.energy_agent(cand.steps, p["material"], dims))
 
 
-def _select(cands, p, front_dims):
-    """v1: first non-dominated front, then highest Efficiency (strict >, so the first of equals wins)."""
+SELECTIONS = ("s0", "s1", "s2", "s3")
+DEFAULT_WEIGHTS = (1 / 3, 1 / 3, 1 / 3)       # time, cost, energy
+CONFIDENCE_FLAG = 0.8                         # plans with lower confidence are flagged for human review (tune on the dev set)
+
+
+def normalize_weights(weights):
+    w = tuple(float(x) for x in (weights if weights is not None else DEFAULT_WEIGHTS))
+    if len(w) != 3 or any(x < 0 for x in w) or sum(w) <= 0:
+        raise ValueError(f"weights must be three non-negative numbers (time, cost, energy) with a positive sum, got {weights!r}")
+    t = sum(w)
+    return tuple(x / t for x in w)
+
+
+def route_distance(a, b, p=0.5):
+    """Disagreement of two routes in [0, 1] (markers ignored): Kendall-tau distance over the union of their operations.
+    A pair of operations that both routes contain counts 1 if they are in opposite order. A pair in which at least one operation
+    is missing from one of the routes cannot be compared and counts p (0.5, neutral; Fagin et al.'s K^(p) for partial rankings).
+    For routes with the same operations this is the plain normalised Kendall-tau distance (0 = same order, 1 = reversed); it
+    also notices that two routes chose different alternative chains, which the tau on the common operations alone would not."""
+    a, b = V.clean_steps(a), V.clean_steps(b)
+    pos_a = {}
+    pos_b = {}
+    for i, op in enumerate(a):
+        pos_a.setdefault(op, i)
+    for i, op in enumerate(b):
+        pos_b.setdefault(op, i)
+    union = list(dict.fromkeys(a + b))
+    n = len(union)
+    if n < 2:
+        return 0.0 if set(a) == set(b) else 1.0
+    pen = 0.0
+    for i in range(n):
+        for j in range(i + 1, n):
+            x, y = union[i], union[j]
+            if x in pos_a and y in pos_a and x in pos_b and y in pos_b:
+                if (pos_a[x] - pos_a[y]) * (pos_b[x] - pos_b[y]) < 0:
+                    pen += 1.0
+            else:
+                pen += p
+    return pen / (n * (n - 1) / 2)
+
+
+def agreement(routes):
+    """Mean pairwise agreement (1 - route_distance) of a list of routes; None for fewer than two."""
+    if len(routes) < 2:
+        return None
+    ds = [route_distance(routes[i], routes[j]) for i in range(len(routes)) for j in range(i + 1, len(routes))]
+    return 1.0 - sum(ds) / len(ds)
+
+
+def _select(cands, p, front_dims, selection="s1", weights=None, sample_routes=()):
+    """Returns (selected candidate, names of the first front, detail). The front is always computed (front size is reported);
+    s1 is v1's rule: highest Efficiency in the first front (strict >, so the first of equals wins)."""
     pop = [_Ind(c, p, front_dims) for c in cands]
     fronts = v1_nsga2.non_dominated_sort(pop)
     front = [pop[i] for i in fronts[0]]
-    best, best_eff = None, -1
-    for ind in front:
-        if ind.cand.scores["efficiency_score"] > best_eff:
-            best, best_eff = ind, ind.cand.scores["efficiency_score"]
-    return best.cand, [i.route_name for i in front]
+    names = [i.route_name for i in front]
+    detail = {"selection": selection}
+
+    def best_efficiency(members):
+        best, best_eff = None, -1
+        for ind in members:
+            if ind.cand.scores["efficiency_score"] > best_eff:
+                best, best_eff = ind, ind.cand.scores["efficiency_score"]
+        return best
+
+    if selection == "s1":
+        return best_efficiency(front).cand, names, detail
+    if selection == "s0":
+        for c in cands:
+            if V.check_route(c.steps, p["features"]).valid:
+                return c, names, detail
+        return cands[0], names, dict(detail, no_valid_candidate=True)
+    if selection == "s2":
+        w = normalize_weights(weights)
+        keys = ("time_min", "cost_inr", "energy_kwh")
+        lo = [min(i.cand.scores[k] for i in front) for k in keys]
+        hi = [max(i.cand.scores[k] for i in front) for k in keys]
+
+        def score(ind):
+            return sum(wk * ((ind.cand.scores[k] - l) / (h - l) if h > l else 0.0)
+                       for wk, k, l, h in zip(w, keys, lo, hi))
+        best, best_s = None, None
+        for ind in front:                                   # ties: higher Efficiency, then the first
+            sc = score(ind)
+            if (best is None or sc < best_s - 1e-12
+                    or (abs(sc - best_s) <= 1e-12 and ind.cand.scores["efficiency_score"] > best.cand.scores["efficiency_score"])):
+                best, best_s = ind, sc
+        return best.cand, names, dict(detail, weights=list(w), scalarised_score=best_s)
+    if selection == "s3":
+        def mean_distance(ind):
+            others = [r for sid, r in sample_routes if sid != ind.cand.sample_id]
+            return sum(route_distance(ind.cand.steps, r) for r in others) / len(others) if others else 0.0
+        best, best_d = None, None
+        for ind in front:                                   # ties: higher Efficiency, then the first
+            d = mean_distance(ind)
+            if (best is None or d < best_d - 1e-12
+                    or (abs(d - best_d) <= 1e-12 and ind.cand.scores["efficiency_score"] > best.cand.scores["efficiency_score"])):
+                best, best_d = ind, d
+        return best.cand, names, dict(detail, selected_mean_distance=best_d)
+    raise ValueError(f"unknown selection {selection!r}")
 
 
 def _final(cand, features):
@@ -206,7 +308,7 @@ def _r2_stage(repair_planner, p, steps, chk, attempt, info, features):
 
 def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int = 30,
                   front_uses_dims: bool = False, system: str = None, repair: str = "r0",
-                  repair_planner=None) -> RunRecord:
+                  repair_planner=None, selection: str = "s1", weights=None) -> RunRecord:
     """B0 (n_samples=5) and B1 (n_samples=1). `planner(material, features, tolerance, batch_size, sample_id=)`
     defaults to week2's generate_process_plan, looked up at call time so tests can substitute it.
     repair: "r0" (v1: replace an invalid sample by the Route Builder's route), "r1" (minimal-edit repair), "r2" (LLM re-prompt
@@ -215,6 +317,10 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
     capp.reprompt.reprompt and is only called by r2 and r3."""
     if repair not in REPAIR_STAGES:
         raise ValueError(f"unknown repair strategy {repair!r}")
+    if selection not in SELECTIONS:
+        raise ValueError(f"unknown selection {selection!r}")
+    if selection == "s2":
+        normalize_weights(weights)
     if "r2" in REPAIR_STAGES[repair] and repair_planner is None:
         from capp import reprompt
         repair_planner = reprompt.reprompt
@@ -321,7 +427,13 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
     info["population"] = len(usable)
     all_cands = pop
     _finish_candidates([c for c in all_cands if c.steps], p)
-    best, front_names = _select(usable, p, p["dims"] if front_uses_dims else DEFAULT_DIMS)
+    sample_routes = [(c.sample_id, c.steps) for c in all_cands if c.llm_ok and c.steps and c.sample_id >= 0]
+    best, front_names, detail = _select(usable, p, p["dims"] if front_uses_dims else DEFAULT_DIMS, selection, weights,
+                                        sample_routes)
+    conf = agreement([r for _, r in sample_routes])
+    info.update({"selection": selection, "confidence": conf, "flagged": conf is not None and conf < CONFIDENCE_FLAG,
+                 "confidence_routes": len(sample_routes)})
+    info.update({k: v for k, v in detail.items() if k not in ("selection",)})
     refs, ref_scores = _references(features, p)
     return RunRecord(system or f"b{n_samples}", part["part_id"], all_cands, _final(best, features), front_names,
                      info, refs, ref_scores)
@@ -335,20 +447,60 @@ def run_b1(part, **kw):
     return run_llm_first(part, n_samples=1, system="b1", **kw)
 
 
-def _variant(n_samples, repair):
-    name = {5: "b0", 1: "b1"}[n_samples] + "_" + repair
+_LEGACY = {"b0": (5, "r0", "s1"), "b1": (1, "r0", "s1")}
+for _n, _label in ((5, "b0"), (1, "b1")):
+    for _r in ("r1", "r2", "r3"):
+        _LEGACY[f"{_label}_{_r}"] = (_n, _r, "s1")
+_GENERIC = re.compile(r"^n(\d{1,2})_r([0-3])_s([0-3])$")
+MAX_SAMPLES = 20
+
+
+def parse_system(name: str):
+    """'rb' -> None. Otherwise (n_samples, repair, selection). Legacy names: b0 (5 samples, v1), b1 (1 sample), and
+    b0_r1 ... b1_r3 (same with a repair strategy). Generic names: n<N>_r<0-3>_s<0-3>, e.g. n8_r1_s3 = 8 samples,
+    R1 repair, selection S3 (n5_r0_s1 is b0, n1_r0_s1 is b1)."""
+    if name == "rb":
+        return None
+    if name in _LEGACY:
+        return _LEGACY[name]
+    m = _GENERIC.match(name)
+    if not m or not 1 <= int(m.group(1)) <= MAX_SAMPLES:
+        raise ValueError(f"unknown system {name!r}: use rb, b0, b1, b0_r1..b1_r3 or n<1-{MAX_SAMPLES}>_r<0-3>_s<0-3> (e.g. n5_r1_s3)")
+    return int(m.group(1)), "r" + m.group(2), "s" + m.group(3)
+
+
+def make_system(name: str):
+    spec = parse_system(name)
+    if spec is None:
+        return run_rb
+    n_samples, repair, selection = spec
 
     def run(part, **kw):
-        return run_llm_first(part, n_samples=n_samples, system=name, repair=repair, **kw)
+        return run_llm_first(part, n_samples=n_samples, system=name, repair=repair, selection=selection, **kw)
     run.__name__ = "run_" + name
     return run
 
 
-run_b0_r1, run_b1_r1 = _variant(5, "r1"), _variant(1, "r1")
-run_b0_r2, run_b1_r2 = _variant(5, "r2"), _variant(1, "r2")
-run_b0_r3, run_b1_r3 = _variant(5, "r3"), _variant(1, "r3")
+def resolve(name: str):
+    """The run function of a system name (legacy or generic)."""
+    return SYSTEMS[name] if name in SYSTEMS else make_system(name)
+
+
+def is_llm(name: str) -> bool:
+    return parse_system(name) is not None
+
+
+def reprompts(name: str) -> bool:
+    """True if the system makes extra LLM calls for repair (R2, R3)."""
+    spec = parse_system(name)
+    return spec is not None and "r2" in REPAIR_STAGES[spec[1]]
+
+
+run_b0_r1, run_b1_r1 = make_system("b0_r1"), make_system("b1_r1")
+run_b0_r2, run_b1_r2 = make_system("b0_r2"), make_system("b1_r2")
+run_b0_r3, run_b1_r3 = make_system("b0_r3"), make_system("b1_r3")
 
 SYSTEMS = {"rb": run_rb, "b1": run_b1, "b0": run_b0, "b1_r1": run_b1_r1, "b0_r1": run_b0_r1,
            "b1_r2": run_b1_r2, "b0_r2": run_b0_r2, "b1_r3": run_b1_r3, "b0_r3": run_b0_r3}
 LLM_SYSTEMS = tuple(k for k in SYSTEMS if k != "rb")
-REPROMPT_SYSTEMS = ("b1_r2", "b0_r2", "b1_r3", "b0_r3")      # systems that make extra LLM calls for repair
+REPROMPT_SYSTEMS = tuple(k for k in SYSTEMS if reprompts(k))      # legacy systems that make extra LLM calls for repair

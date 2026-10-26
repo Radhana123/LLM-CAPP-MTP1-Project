@@ -3,6 +3,10 @@
 Systems: rb (Route Builder), b1 / b0 (v1 baselines, 1 / 5 samples, R0 = whole-route replacement), and the repair variants
 b1_r1 / b0_r1 (R1: minimal-edit repair by rules, no API calls), b1_r2 / b0_r2 (R2: one LLM re-prompt with the violation report,
 extra API calls, cached), b1_r3 / b0_r3 (R3: R2, then R1 if the re-prompt fails). R0 is the last resort of every variant.
+Generic names n<N>_r<0-3>_s<0-3> choose everything: N samples (1-20), repair R0-R3, selection S0-S3 (report 6.4):
+  s0 first valid candidate | s1 v1 (front, then best Efficiency) | s2 weighted time/cost/energy on the front (--weights)
+  s3 medoid: the front route that agrees most with the other samples.   n5_r0_s1 is b0, n1_r0_s1 is b1.
+  e.g. n8_r1_s3 = 8 samples, minimal-edit repair, consistency-aware selection.
 
 Examples (repo root, PowerShell):
     python scripts/run_eval.py --system rb --dataset dev_v2                       # no API calls
@@ -11,6 +15,8 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --system b0_r1 --dataset dev_v2 --limit 20 --tag dev   # same tag: B0's samples from cache, no API
     python scripts/run_eval.py --system b0_r2 --dataset dev_v2 --limit 20 --tag dev   # B0's samples from cache + live re-prompts
     python scripts/run_eval.py --system b0_r3 --dataset dev_v2 --limit 20 --tag dev   # reuses R2's cached re-prompts
+    python scripts/run_eval.py --system n5_r1_s3 --dataset dev_v2 --limit 20 --tag dev   # B0's samples + R1 + medoid selection
+    python scripts/run_eval.py --system n5_r1_s2 --weights 0.6,0.2,0.2 --limit 20 --tag dev  # time-first priorities
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 
@@ -28,7 +34,8 @@ from capp import dataset, harness, summary, systems   # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--system", choices=sorted(systems.SYSTEMS))
+    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3> (see above)")
+    ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")
     ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default) or test_v2 (sealed)")
     ap.add_argument("--limit", type=int, default=None, help="only the first N parts")
     ap.add_argument("--offset", type=int, default=0)
@@ -46,6 +53,17 @@ def main():
         return
     if not args.system:
         ap.error("--system is required (or use --summarize-only)")
+    try:
+        systems.parse_system(args.system)
+    except ValueError as exc:
+        ap.error(str(exc))
+    weights = None
+    if args.weights:
+        try:
+            weights = [float(x) for x in args.weights.split(",")]
+            systems.normalize_weights(weights)
+        except ValueError as exc:
+            ap.error(f"--weights: {exc}")
     if args.dataset.startswith("test") and args.system != "rb":
         print("WARNING: test_v2 is sealed (final runs only). Continue only if this is the final run.", file=sys.stderr)
     if args.mode:
@@ -56,7 +74,7 @@ def main():
         parts = parts[:args.limit]
     try:
         out = harness.run_experiment(args.system, parts, repeats=args.repeats, tag=args.tag, out_dir=args.out,
-                                     dataset_name=args.dataset, throttle=args.throttle)
+                                     dataset_name=args.dataset, throttle=args.throttle, weights=weights)
     except harness.HarnessError as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
         sys.exit(2)

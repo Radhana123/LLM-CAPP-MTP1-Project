@@ -15,6 +15,9 @@ Metrics reported (Table 3 of the report)
       the route, and LLM routes never contain any)
   M7  inference cost: calls, tokens, latency
   M8  stability over repeated runs (mean and std over repeats of M1, M4 and M6)
+  conf  plan confidence (mean pairwise agreement of the samples' routes), share of plans flagged for human review, and
+        whether confidence tells anything: gap to the best Route Builder variant of flagged vs unflagged plans, and the
+        Spearman correlation between confidence and that gap (negative = low confidence goes with worse plans)
 """
 from capp import metrics as M
 
@@ -61,6 +64,7 @@ def part_rows(records: list) -> list:
             "deduped": info["deduped"], "safety_net": info["safety_net"],
             "population": info["population"], "front_size": len(rec["front"]),
             "final_name": fin["name"], "final_provenance": fin["provenance"],
+            "selection": info.get("selection", ""), "confidence": info.get("confidence"), "flagged": info.get("flagged"),
             "final_strict_valid": fin["check"]["valid"], "final_v1_valid": fin["check"]["v1_valid"],
             "final_kinds": ";".join(fin["check"]["kinds"]), "final_route": " > ".join(
                 s for s in fin["steps"] if not s.startswith("---")),
@@ -118,6 +122,26 @@ def candidate_rows(records: list) -> list:
                 "cached": c["meta"].get("cached"),
             })
     return rows
+
+
+def _confidence_block(records):
+    rows = []
+    for r in records:
+        c = r["info"].get("confidence")
+        if c is None:
+            continue
+        g = _gap_to_rb_best(r["final"]["scores_eval"], r["best_scores"]) if r["final"]["check"]["valid"] else None
+        rows.append((c, bool(r["info"].get("flagged")), None if g is None else g["efficiency_gap"]))
+    if not rows:
+        return {"n": 0}
+    gf = [g for c, f, g in rows if f and g is not None]
+    gu = [g for c, f, g in rows if not f and g is not None]
+    paired = [(c, g) for c, f, g in rows if g is not None]
+    return {"n": len(rows), "mean": M.mean_std([c for c, _, _ in rows])[0],
+            "flagged_share": M.rate([f for _, f, _ in rows]), "n_flagged": sum(1 for _, f, _ in rows if f),
+            "gap_flagged_mean": M.mean_std(gf)[0], "gap_unflagged_mean": M.mean_std(gu)[0],
+            "spearman_confidence_vs_gap": M.spearman([c for c, _ in paired], [g for _, g in paired]) if len(paired) > 1 else None,
+            "selected_mean_distance_mean": M.mean_std([r["info"].get("selected_mean_distance") for r in records])[0]}
 
 
 def _parsed(records):
@@ -247,6 +271,8 @@ def summarize_set(records: list) -> dict:
             "repair_latency_mean_s": M.mean_std([m["meta"].get("latency_s") for m in reprompts])[0],
             "repair_cache_hit_rate": M.rate([bool(m["meta"].get("cached")) for m in reprompts])},
         "front_size_mean": M.mean_std([len(r["front"]) for r in records if r["front"]])[0],
+        "confidence": _confidence_block(records),
+        "selection": sorted({r["info"].get("selection") for r in records if r["info"].get("selection")}),
         "pooled_llm_parsed": len(pooled),
     }
     return out
@@ -340,6 +366,12 @@ def format_summary(system: str, s: dict) -> str:
              f"p50 {_fmt(m7['latency_p50_s'], 2)}s p95 {_fmt(m7['latency_p95_s'], 2)}s, truncated {m7['truncated_calls']}, "
              f"cache hit rate {_fmt(m7['cache_hit_rate'], 2)}")
     L.append(f"front size mean : {_fmt(s['front_size_mean'], 2)}")
+    cf = s.get("confidence") or {"n": 0}
+    if cf["n"]:
+        L.append(f"confidence      : selection {'/'.join(s['selection']) or 'n/a'}; mean {_fmt(cf['mean'])}, flagged "
+                 f"{cf['n_flagged']}/{cf['n']} ({_fmt(cf['flagged_share'], 2)}); gap to best RB (pts) flagged "
+                 f"{_fmt(cf['gap_flagged_mean'], 2)} vs unflagged {_fmt(cf['gap_unflagged_mean'], 2)}; "
+                 f"Spearman(confidence, gap) {_fmt(cf['spearman_confidence_vs_gap'], 2)}")
     for key, groups in s.get("by_class", {}).items():
         L.append(f"  by {key}: " + "; ".join(
             f"{k} (n={v['n_records']}) M1 {_fmt(v['M1_strict_valid_of_parsed'], 2)} M2 {_fmt(v['M2_final_strict_valid'], 2)}"

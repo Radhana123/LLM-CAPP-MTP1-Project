@@ -104,13 +104,22 @@ def _live_call_made(rec) -> bool:
 
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
-                   front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None) -> dict:
-    """Run `system` ('rb', 'b1', 'b0' or one of their repair variants) on every part, `repeats` times (rb is deterministic: one run).
-    `planner` produces the LLM samples, `repair_planner` the R2 re-prompts (only systems in systems.REPROMPT_SYSTEMS call it);
-    both default to the real ones and both are guarded."""
-    if system not in systems.SYSTEMS:
-        raise HarnessError(f"unknown system {system!r}, choose from {sorted(systems.SYSTEMS)}")
-    uses_llm = system in systems.LLM_SYSTEMS
+                   front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
+                   weights=None) -> dict:
+    """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant
+    (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system).
+    `planner` produces the LLM samples, `repair_planner` the R2 re-prompts (only R2/R3 systems call it); both default to the real
+    ones and both are guarded. `weights` (time, cost, energy) are the priorities of selection S2."""
+    try:
+        spec = systems.parse_system(system)
+    except ValueError as exc:
+        raise HarnessError(str(exc)) from None
+    uses_llm = spec is not None
+    if weights is not None:
+        try:
+            weights = systems.normalize_weights(weights)
+        except ValueError as exc:
+            raise HarnessError(str(exc)) from None
     if not uses_llm:
         repeats = 1
     if uses_llm and planner is None:
@@ -118,12 +127,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         planner = llm_planner.generate_process_plan
     wrapped = _guarded(planner, max_consecutive_errors) if uses_llm else None
     wrapped_repair = None
-    if system in systems.REPROMPT_SYSTEMS:
+    if systems.reprompts(system):
         if repair_planner is None:
             from capp import reprompt
             repair_planner = reprompt.reprompt
         wrapped_repair = _guarded(repair_planner, max_consecutive_errors)
-    run_fn = systems.SYSTEMS[system]
+    run_fn = systems.resolve(system)
 
     records = []
     old_tag = os.environ.get("CAPP_RUN_TAG")
@@ -135,6 +144,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                 kw = {"planner": wrapped, "front_uses_dims": front_uses_dims} if uses_llm else {}
                 if wrapped_repair:
                     kw["repair_planner"] = wrapped_repair
+                if uses_llm and weights is not None:
+                    kw["weights"] = weights
                 rec = run_fn(part, **kw).to_dict()
                 rec["repeat"] = r
                 rec["run_tag"] = os.environ["CAPP_RUN_TAG"]
@@ -155,7 +166,10 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "system": system, "tag": tag, "dataset": dataset_name, "n_parts": len(parts), "repeats": repeats,
         "model": config.model("primary") if uses_llm else None,
         "temperature": config.PLANNER_TEMPERATURE if uses_llm else None,
-        "repair_temperature": config.REPAIR_TEMPERATURE if system in systems.REPROMPT_SYSTEMS else None,
+        "repair_temperature": config.REPAIR_TEMPERATURE if systems.reprompts(system) else None,
+        "n_samples": spec[0] if spec else None, "repair": spec[1] if spec else None, "selection": spec[2] if spec else None,
+        "weights": list(weights or systems.DEFAULT_WEIGHTS) if spec and spec[2] == "s2" else None,
+        "confidence_flag_threshold": systems.CONFIDENCE_FLAG if spec else None,
         "max_tokens": config.PLANNER_MAX_TOKENS if uses_llm else None,
         "llm_mode": config.get_mode(), "front_uses_dims": front_uses_dims,
         "git_commit": _git_commit(), "python": sys.version.split()[0], "platform": platform.platform(),

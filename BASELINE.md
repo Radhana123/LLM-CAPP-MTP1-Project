@@ -149,3 +149,50 @@ Rate limit lage to `--throttle 2` jodo; cache ki wajah se jo calls ho chuki hain
 
 ### Abhi kya nahi hai
 Retrieval few-shot, multi-candidate selection strategies (S0-S3), physics agents (kc, Taylor, Ra), extended verifier, UI. R2 ko sirf ek round milta hai (report: single re-prompt).
+
+## Step 7 (WP4): selection S0-S3, plan confidence, aur ek reproducibility fix
+
+Code: `capp/systems.py` (selection, confidence, system names), `capp/harness.py` (`weights`), `capp/summary.py` + `capp/compare.py` (confidence numbers), `scripts/run_eval.py` (`--weights`),
+`scripts/objective_check.py` (tie numbers), `week1/route_builder.py` (fix). Tests: 289 passed (naye: `tests/test_selection.py`, `tests/test_determinism.py`).
+
+### 1. Reproducibility fix (zaroori)
+Route Builder ke `_classify_and_assign` me shared ops pe `for op in list(shared_ops)` string-set ke hash order me chalta tha, aur har op ka machine assignment is pe depend karta hai
+ki dono machines pe abhi kitne ops hain. Is wajah se ek 7-feature archetype (Turning, Step, Groove, Thread, Keyway, Chamfer, Undercut) pe kabhi 15 kabhi 12 routes milte the,
+process-to-process (`PYTHONHASHSEED`). Fix: `sorted(shared_ops)` (aur warnings bhi sorted). `tests/test_determinism.py` ab 4 alag hash seeds pe saare 43 archetypes ke RB routes,
+prefer_lathe routes, warnings, R0 replacement aur R1 repair compare karta hai; purane code pe ye test fail hota hai, fix ke saath pass.
+**Asar:** RB baseline (first route) same hai: efficiency 64.46, gap 1.06 (har seed pe check kiya). Sirf us ek archetype ke *variants* badle, isliye objective_check ke numbers thode shift hue:
+routes/part 13.275 -> 13.185, distinct triples 5.54 -> 5.51, front size mean 2.97 -> 3.00, correlations 0.979/0.908/0.881 -> 0.979/0.907/0.877.
+Pehle wale numbers hash seed pe depend karte the; ab har run me yehi aayenge.
+
+### 2. Selection (report 6.4)
+Selection ab parameter hai (`s0`-`s3`), default `s1` = v1, to `b0`/`b1` waise hi rehte hain.
+- **S0** pehla valid candidate (sample order). **S1** v1: pehla non-dominated front, usme se sabse zyada Efficiency.
+- **S2** pehla front, phir time/cost/energy ka weighted scalarisation (front ke andar min-max scale; `--weights 0.6,0.2,0.2`, default barabar).
+- **S3** pehla front, phir *medoid*: wo route jiska doosre samples ke routes se mean distance sabse kam ho. Duplicates gine jaate hain (3 samples ka same route = 3 votes), dedupe se votes nahi ghatte.
+  Tie me zyada Efficiency, phir pehla.
+- **Distance** (`route_distance`): Kendall-tau distance operations ke *union* pe. Dono routes me maujood ops ki jodi ulti ho to 1; jis jodi me koi op ek route me nahi hai wo 0.5 (neutral, Fagin ka K^(p)).
+  Same ops wale routes pe ye plain tau hai. Sirf common ops pe tau lene se alag alternative chain wale routes "agree" dikhte the, ye test se pakda gaya.
+- **Plan confidence** = sabhi samples ke (repair ke baad) routes ka mean pairwise agreement (1 - distance). 0.8 se kam => human review flag (`CONFIDENCE_FLAG`, abhi tune nahi hua; dev set pe karenge).
+  Har run me record hota hai, chahe selection kuch bhi ho. Summary me: mean, flagged share, flagged vs unflagged ka gap, Spearman(confidence, gap).
+- **System names:** `n<N>_r<0-3>_s<0-3>`, N = 1..20 samples. `n5_r0_s1` = b0, `n1_r0_s1` = b1. Purane naam (b0, b1_r2, ...) chalte rahenge.
+
+### 3. Naya finding: front ke members zyadatar exact ties hain
+`objective_check.py` ab front ke andar ties bhi ginta hai (dev_v2, Route Builder variants):
+- front ke members me se **61.3%** ka (time, cost, energy) kisi aur member jaisa bilkul same hai (sirf operation order alag);
+- **77.5%** parts me front me ties hain; **84.0%** parts me poora front ek hi (time, cost, energy) triple hai (front me distinct triples ka mean 1.16).
+Matlab 84% parts me "multi-objective selection" ke liye koi trade-off hai hi nahi: v1 ka Efficiency selection un order-variants me se bas pehla utha leta hai, jo arbitrary hai.
+S3 (medoid) is tie ko ek principled tareeke se todta hai (jo order LLM samples me sabse common hai). Ye RB variants pe nikala gaya hai, LLM samples pe nahi; live runs me S1 vs S3 ka fark dikhega.
+
+### Chalane ka tareeka (same `--tag dev`)
+```
+python scripts/objective_check.py --dataset dev_v2                                     # API nahi
+python scripts/run_eval.py --system n5_r1_s3 --dataset dev_v2 --limit 20 --tag dev     # B0 ke samples cache se, R1, medoid; API nahi
+python scripts/run_eval.py --system n5_r1_s2 --weights 0.6,0.2,0.2 --dataset dev_v2 --limit 20 --tag dev
+python scripts/run_eval.py --system n3_r1_s3 --dataset dev_v2 --limit 20 --tag dev     # sirf pehle 3 samples, cache se
+python scripts/run_eval.py --system n8_r1_s3 --dataset dev_v2 --limit 20 --tag dev     # samples 5,6,7 naye: lagbhag 60 Groq calls
+python scripts/compare_runs.py results/dev_rb results/dev_b0 results/dev_n5_r1_s1 results/dev_n5_r1_s3
+```
+
+### Abhi kya nahi hai
+N candidates ki diversity abhi sirf T=0.3 se aati hai (samples lagbhag same dikhte hain). Report ke hisaab se diversity reasoning paths (hint ke saath/bina) aur retrieved examples se aani hai: agla step (retrieval few-shot).
+Confidence threshold tuning, model cascade (optional), physics agents, extended verifier, UI.

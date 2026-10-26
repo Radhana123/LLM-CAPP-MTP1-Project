@@ -53,6 +53,9 @@ def table(runs: list) -> str:
         ("M6 time / cost / energy gap", lambda s: "/".join(_fmt(s["M6"][k], 3) for k in (
             "time_gap_to_rb_best_mean", "cost_gap_to_rb_best_mean", "energy_gap_to_rb_best_mean"))),
         ("front size mean", lambda s: _fmt(s["front_size_mean"], 2)),
+        ("selection", lambda s: "/".join(s.get("selection") or []) or "n/a"),
+        ("plan confidence mean", lambda s: _fmt((s.get("confidence") or {}).get("mean"))),
+        ("plans flagged for review", lambda s: _fmt((s.get("confidence") or {}).get("flagged_share"), 2)),
     ]
     w0 = max(len(r[0]) for r in rows)
     cols = [max(len(lab), 10) for lab, _ in runs]

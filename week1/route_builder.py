@@ -213,8 +213,8 @@ def _classify_and_assign(operations: set, machine_preference: str = "auto") -> d
 
     else:
         # Dono machines zaroori — shared ops preference ke hisaab se assign
-        for op in list(shared_ops):
-            if machine_preference == "prefer_lathe":
+        for op in sorted(shared_ops):      # sorted: the choice below depends on how many ops each machine already has,
+            if machine_preference == "prefer_lathe":   # so a hash-order iteration made the routes differ between Python processes
                 lathe_ops.add(op)
             elif machine_preference == "prefer_milling":
                 milling_ops.add(op)
@@ -320,7 +320,7 @@ def build_routes(features: list, max_routes: int = 5, machine_preference: str = 
     # Sort: 0-changeover routes first
     all_routes.sort(key=lambda x: x["changeovers"])
     # Attach warnings to each route
-    unique_warnings = list(set(all_warnings))
+    unique_warnings = sorted(set(all_warnings))
     for r in all_routes:
         r["warnings"] = unique_warnings
     return all_routes[:max_routes]

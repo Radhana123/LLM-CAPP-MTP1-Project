@@ -2,8 +2,10 @@
 
 For every part, take the Route Builder's valid route variants, score them fairly (part dimensions, one changeover charge per
 machine switch) and look at (a) the Spearman correlation between the objectives across the variants of a part, (b) how many
-distinct (time, cost, energy) triples exist, (c) the size of the non-dominated front. If the objectives are almost perfectly
-correlated, NSGA-II has one objective in three costumes and a front of size 1 or 2.
+distinct (time, cost, energy) triples exist, (c) the size of the non-dominated front, and how many of its members are exact
+objective ties (the same triple, only another operation order): for those the Efficiency score cannot choose, and v1 simply
+keeps the first. If the objectives are almost perfectly correlated, NSGA-II has one objective in three costumes and a front
+of size 1 or 2.
 
     python scripts/objective_check.py --dataset dev_v2
 """
@@ -39,10 +41,12 @@ def analyse(parts, max_routes=15):
         objs = [(s["time_min"], s["cost_inr"], s["energy_kwh"]) for s in sc]
         pop = [_P(o) for o in objs]
         front = nsga2.non_dominated_sort(pop)[0]
+        front_triples = [objs[i] for i in front]
         col = lambda i: [o[i] for o in objs]          # noqa: E731
         rows.append({
             "part_id": part["part_id"], "archetype": part.get("archetype", ""), "machine_profile": part.get("machine_profile", ""),
             "routes": len(routes), "distinct_triples": len(set(objs)), "front_size": len(front),
+            "front_distinct_triples": len(set(front_triples)),
             "rho_time_cost": metrics.spearman(col(0), col(1)), "rho_time_energy": metrics.spearman(col(0), col(2)),
             "rho_cost_energy": metrics.spearman(col(1), col(2)),
         })
@@ -59,6 +63,10 @@ def summarize(rows):
         "parts": n, "routes_per_part_mean": mean("routes"), "distinct_triples_mean": mean("distinct_triples"),
         "front_size_mean": statistics.fmean(fs), "front_size_median": statistics.median(fs),
         "parts_front_size_1": sum(1 for f in fs if f == 1) / n, "parts_front_size_le_2": sum(1 for f in fs if f <= 2) / n,
+        "front_distinct_triples_mean": mean("front_distinct_triples"),
+        "front_members_that_are_ties_share": 1 - sum(r["front_distinct_triples"] for r in rows) / sum(r["front_size"] for r in rows),
+        "parts_with_tied_front_members": sum(1 for r in rows if r["front_distinct_triples"] < r["front_size"]) / n,
+        "parts_whose_front_is_one_triple": sum(1 for r in rows if r["front_distinct_triples"] == 1) / n,
         "rho_time_cost_mean": mean("rho_time_cost"), "rho_time_energy_mean": mean("rho_time_energy"),
         "rho_cost_energy_mean": mean("rho_cost_energy"),
         "parts_where_correlation_undefined": sum(1 for r in rows if r["rho_time_cost"] is None) / n,
