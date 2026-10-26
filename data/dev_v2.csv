@@ -1,0 +1,201 @@
+part_id,split,archetype,in_distribution,material,features,tolerance,batch_size,diameter,length,depth,width,required_ra_um,machine_preference,n_features,batch_category,machine_profile
+DEV_001,dev,Sealed Housing Cover,True,Aluminum,Groove;Face;Hole;Chamfer,0.05mm,250,66,54,40,30,3.2,auto,4,medium_batch,lathe
+DEV_002,dev,Multi-Feature Drive Shaft,True,Titanium,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.005mm,1,38,82,13,30,0.4,auto,7,prototype,mixed
+DEV_003,dev,T-Slot Table Plate,True,Steel,T_Slot;Face;Hole;Chamfer,0.02mm,1,32,216,17,94,1.6,auto,4,prototype,milling
+DEV_004,dev,Engraved ID Plate,True,Aluminum,Engraved_Mark;Face;Hole;Chamfer,0.5mm,50,31,141,43,141,12.5,auto,4,small_batch,milling
+DEV_005,dev,Engraved ID Plate,True,Plastic,Engraved_Mark;Face;Hole;Chamfer,0.1mm,100,16,157,52,140,6.3,auto,4,medium_batch,milling
+DEV_006,dev,V-Belt Pulley,True,Cast Iron,Groove;Hole;Keyway;Face,0.02mm,50,205,20,6,113,1.6,auto,4,small_batch,mixed
+DEV_007,dev,V-Belt Pulley,True,Aluminum,Groove;Hole;Keyway;Face,0.02mm,250,92,23,15,50,1.6,auto,4,medium_batch,mixed
+DEV_008,dev,Engraved ID Plate,True,Brass,Engraved_Mark;Face;Hole;Chamfer,0.5mm,250,14,121,17,114,12.5,auto,4,medium_batch,milling
+DEV_009,dev,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.1mm,5000,41,78,18,33,6.3,auto,4,mass_production,lathe
+DEV_010,dev,Multi-Feature Drive Shaft,True,Steel,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.005mm,10,24,231,5,19,0.4,auto,7,prototype,mixed
+DEV_011,dev,Internally Threaded Bushing,True,Copper,Thread;Hole;Chamfer;Face,0.05mm,250,35,102,8,28,3.2,auto,4,medium_batch,flexible
+DEV_012,dev,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.01mm,50,149,34,12,48,0.8,auto,3,small_batch,milling
+DEV_013,dev,Sealed Housing Cover,True,Steel,Groove;Face;Hole;Chamfer,0.1mm,250,198,44,18,27,6.3,auto,4,medium_batch,lathe
+DEV_014,dev,Turned Pin with Undercut,True,Brass,Turning;Undercut;Thread;Chamfer;Parting_Off,0.05mm,500,27,232,10,22,3.2,auto,5,medium_batch,lathe
+DEV_015,dev,Flange Plate,True,Steel,Hole;Counterbore;Countersink;Chamfer;Face,0.1mm,250,168,41,19,26,6.3,auto,5,medium_batch,flexible
+DEV_016,dev,Gear Blank,True,Cast Iron,Gear_Teeth;Hole;Keyway;Face,0.01mm,10,89,58,39,37,0.8,auto,4,prototype,milling
+DEV_017,dev,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.1mm,250,18,169,10,72,6.3,auto,4,medium_batch,milling
+DEV_018,dev,Gear Blank,True,Cast Iron,Gear_Teeth;Hole;Keyway;Face,0.005mm,50,171,25,19,20,0.4,auto,4,small_batch,milling
+DEV_019,dev,Hex Bolt,True,Steel,Face;Thread;Chamfer,0.02mm,5000,31,111,6,25,1.6,auto,3,mass_production,flexible
+DEV_020,dev,Sealed Housing Cover,True,Aluminum,Groove;Face;Hole;Chamfer,0.1mm,250,163,25,19,36,6.3,auto,4,medium_batch,lathe
+DEV_021,dev,Contoured Spindle Nose,True,Titanium,Contour_Turn;Turning;Step;Chamfer,0.02mm,50,44,238,19,35,1.6,auto,4,small_batch,lathe
+DEV_022,dev,Tapped Manifold Block,True,Aluminum,Internal_Thread;Pocket;Face;Hole;Chamfer,0.05mm,250,20,300,28,63,3.2,auto,5,medium_batch,milling
+DEV_023,dev,Precision Reamed Housing,True,Aluminum,Reamed_Hole;Bore;Face;Face_Groove,0.02mm,100,161,50,28,31,1.6,auto,4,medium_batch,lathe
+DEV_024,dev,Gearbox Housing Half,True,Cast Iron,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.05mm,1,14,170,60,49,3.2,auto,8,prototype,milling
+DEV_025,dev,Precision Dowel Pin,True,Steel,Chamfer;Face,0.005mm,1000,52,137,25,42,0.4,auto,2,mass_production,flexible
+DEV_026,dev,Precision Dowel Pin,True,Steel,Chamfer;Face,0.01mm,1000,45,40,13,36,0.8,auto,2,mass_production,flexible
+DEV_027,dev,Gusseted Bracket,True,Aluminum,Shoulder;Rib;Hole;Face;Chamfer,0.05mm,1000,29,159,17,79,3.2,auto,5,mass_production,milling
+DEV_028,dev,Gear Blank,True,Cast Iron,Gear_Teeth;Hole;Keyway;Face,0.01mm,10,88,38,30,39,0.8,auto,4,prototype,milling
+DEV_029,dev,Bored Bearing Sleeve,True,Cast Iron,Bore;Center_Drill;Turning;Chamfer;Face,0.005mm,50,44,149,25,35,0.4,auto,5,small_batch,lathe
+DEV_030,dev,Stepped Shaft with Retaining Groove,True,Aluminum,Step;Groove;Fillet;Chamfer,0.02mm,50,53,94,20,42,1.6,auto,4,small_batch,mixed
+DEV_031,dev,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.005mm,2500,16,200,9,13,0.4,auto,2,mass_production,flexible
+DEV_032,dev,O-Ring Face Seal Cap,True,Plastic,Face_Groove;Face;Hole;Center_Drill,0.02mm,100,130,41,15,70,1.6,auto,4,medium_batch,flexible
+DEV_033,dev,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.01mm,5,29,67,13,23,0.8,auto,5,prototype,mixed
+DEV_034,dev,Hex Bolt,True,Brass,Face;Thread;Chamfer,0.05mm,1000,38,190,12,30,3.2,auto,3,mass_production,flexible
+DEV_035,dev,Boss with Spotface,True,Steel,Boss;Counterbore;Hole,0.02mm,250,130,48,36,60,1.6,auto,3,medium_batch,flexible
+DEV_036,dev,Boss with Spotface,True,Aluminum,Boss;Counterbore;Hole,0.05mm,100,79,60,23,27,3.2,auto,3,medium_batch,flexible
+DEV_037,dev,Knurled Grip Handle,True,Steel,Knurl;Step;Chamfer;Face,0.05mm,100,44,94,20,35,3.2,auto,4,medium_batch,lathe
+DEV_038,dev,Valve Body,True,Steel,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,50,177,31,5,79,3.2,auto,8,small_batch,mixed
+DEV_039,dev,Bored Bearing Sleeve,True,Steel,Bore;Center_Drill;Turning;Chamfer;Face,0.01mm,250,53,136,16,42,0.8,auto,5,medium_batch,lathe
+DEV_040,dev,Gearbox Housing Half,True,Cast Iron,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.01mm,10,27,177,33,61,0.8,auto,8,prototype,milling
+DEV_041,dev,Helical Flute Shaft,True,Aluminum,Helical_Groove;Turning;Step;Chamfer,0.02mm,100,12,150,6,10,1.6,auto,4,medium_batch,mixed
+DEV_042,dev,Boss with Spotface,True,Aluminum,Boss;Counterbore;Hole,0.05mm,100,62,51,8,35,3.2,auto,3,medium_batch,flexible
+DEV_043,dev,Pocketed Housing,True,Steel,Pocket;Hole;Counterbore;Chamfer,0.02mm,50,17,275,25,47,1.6,auto,4,small_batch,milling
+DEV_044,dev,Turned Pin with Undercut,True,Steel,Turning;Undercut;Thread;Chamfer;Parting_Off,0.05mm,500,30,94,11,24,3.2,auto,5,medium_batch,lathe
+DEV_045,dev,Flange Plate,True,Steel,Hole;Counterbore;Countersink;Chamfer;Face,0.05mm,500,116,15,6,65,3.2,auto,5,medium_batch,flexible
+DEV_046,dev,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.01mm,50,66,26,15,33,0.8,auto,3,small_batch,milling
+DEV_047,dev,Dovetail Slide Block,True,Steel,Dovetail;Face;Shoulder;Hole,0.02mm,20,27,197,50,48,1.6,auto,4,small_batch,milling
+DEV_048,dev,O-Ring Face Seal Cap,True,Aluminum,Face_Groove;Face;Hole;Center_Drill,0.02mm,500,201,15,11,31,1.6,auto,4,medium_batch,flexible
+DEV_049,dev,Contoured Spindle Nose,True,Aluminum,Contour_Turn;Turning;Step;Chamfer,0.02mm,50,47,108,14,38,1.6,auto,4,small_batch,lathe
+DEV_050,dev,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.5mm,500,14,173,21,65,12.5,auto,4,medium_batch,milling
+DEV_051,dev,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.05mm,500,28,225,8,22,3.2,auto,4,medium_batch,lathe
+DEV_052,dev,Gear Blank,True,Cast Iron,Gear_Teeth;Hole;Keyway;Face,0.005mm,10,220,34,25,84,0.4,auto,4,prototype,milling
+DEV_053,dev,Hex Bolt,True,Steel,Face;Thread;Chamfer,0.05mm,5000,17,64,5,14,3.2,auto,3,mass_production,flexible
+DEV_054,dev,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.05mm,250,21,176,41,72,3.2,auto,4,medium_batch,milling
+DEV_055,dev,Spotfaced Mounting Flange,True,Steel,Spotface;Reamed_Hole;Hole;Face,0.02mm,50,201,19,7,20,1.6,auto,4,small_batch,milling
+DEV_056,dev,O-Ring Face Seal Cap,True,Steel,Face_Groove;Face;Hole;Center_Drill,0.02mm,500,201,24,11,44,1.6,auto,4,medium_batch,flexible
+DEV_057,dev,Knurled Grip Handle,True,Plastic,Knurl;Step;Chamfer;Face,0.1mm,250,23,211,9,18,6.3,auto,4,medium_batch,lathe
+DEV_058,dev,T-Slot Table Plate,True,Cast Iron,T_Slot;Face;Hole;Chamfer,0.05mm,1,7,132,12,62,3.2,auto,4,prototype,milling
+DEV_059,dev,Sealed Housing Cover,True,Steel,Groove;Face;Hole;Chamfer,0.05mm,250,116,32,18,51,3.2,auto,4,medium_batch,lathe
+DEV_060,dev,Precision Reamed Housing,True,Cast Iron,Reamed_Hole;Bore;Face;Face_Groove,0.01mm,100,86,25,15,46,0.8,auto,4,medium_batch,lathe
+DEV_061,dev,Bored Bearing Sleeve,True,Cast Iron,Bore;Center_Drill;Turning;Chamfer;Face,0.005mm,20,47,216,24,38,0.4,auto,5,small_batch,lathe
+DEV_062,dev,Engraved ID Plate,True,Aluminum,Engraved_Mark;Face;Hole;Chamfer,0.5mm,50,17,209,37,57,12.5,auto,4,small_batch,milling
+DEV_063,dev,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.01mm,1000,54,115,21,43,0.8,auto,2,mass_production,flexible
+DEV_064,dev,Knurled Grip Handle,True,Plastic,Knurl;Step;Chamfer;Face,0.05mm,500,15,147,9,12,3.2,auto,4,medium_batch,lathe
+DEV_065,dev,Boss with Spotface,True,Steel,Boss;Counterbore;Hole,0.05mm,100,198,20,7,39,3.2,auto,3,medium_batch,flexible
+DEV_066,dev,Valve Body,True,Steel,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,250,121,46,14,34,3.2,auto,8,medium_batch,mixed
+DEV_067,dev,Tapered Sleeve,True,Brass,Taper;Hole;Chamfer,0.02mm,100,13,52,7,10,1.6,auto,3,medium_batch,lathe
+DEV_068,dev,Dovetail Slide Block,True,Brass,Dovetail;Face;Shoulder;Hole,0.02mm,100,18,285,43,87,1.6,auto,4,medium_batch,milling
+DEV_069,dev,Valve Body,True,Cast Iron,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.02mm,250,168,59,21,78,1.6,auto,8,medium_batch,mixed
+DEV_070,dev,Stepped Shaft with Retaining Groove,True,Steel,Step;Groove;Fillet;Chamfer,0.01mm,10,12,102,7,10,0.8,auto,4,prototype,mixed
+DEV_071,dev,Turned Pin with Undercut,True,Aluminum,Turning;Undercut;Thread;Chamfer;Parting_Off,0.02mm,500,47,184,25,38,1.6,auto,5,medium_batch,lathe
+DEV_072,dev,Threaded Shaft with Relief Groove,True,Titanium,Thread;Fillet;Step,0.02mm,10,26,163,8,21,1.6,auto,3,prototype,mixed
+DEV_073,dev,Contoured Spindle Nose,True,Titanium,Contour_Turn;Turning;Step;Chamfer,0.01mm,10,21,227,12,17,0.8,auto,4,prototype,lathe
+DEV_074,dev,Gusseted Bracket,True,Steel,Shoulder;Rib;Hole;Face;Chamfer,0.5mm,50,17,277,47,108,12.5,auto,5,small_batch,milling
+DEV_075,dev,Spotfaced Mounting Flange,True,Aluminum,Spotface;Reamed_Hole;Hole;Face,0.05mm,500,212,45,23,24,3.2,auto,4,medium_batch,milling
+DEV_076,dev,Gusseted Bracket,True,Cast Iron,Shoulder;Rib;Hole;Face;Chamfer,0.5mm,50,21,134,57,79,12.5,auto,5,small_batch,milling
+DEV_077,dev,O-Ring Face Seal Cap,True,Aluminum,Face_Groove;Face;Hole;Center_Drill,0.02mm,500,90,56,14,51,1.6,auto,4,medium_batch,flexible
+DEV_078,dev,Threaded Shaft with Relief Groove,True,Steel,Thread;Fillet;Step,0.02mm,100,14,138,7,11,1.6,auto,3,medium_batch,mixed
+DEV_079,dev,Knurled Grip Handle,True,Aluminum,Knurl;Step;Chamfer;Face,0.1mm,250,18,211,9,14,6.3,auto,4,medium_batch,lathe
+DEV_080,dev,Precision Reamed Housing,True,Steel,Reamed_Hole;Bore;Face;Face_Groove,0.01mm,50,162,50,7,78,0.8,auto,4,small_batch,lathe
+DEV_081,dev,Tapped Manifold Block,True,Steel,Internal_Thread;Pocket;Face;Hole;Chamfer,0.05mm,10,25,299,50,37,3.2,auto,5,prototype,milling
+DEV_082,dev,Bored Bearing Sleeve,True,Cast Iron,Bore;Center_Drill;Turning;Chamfer;Face,0.01mm,20,39,59,8,31,0.8,auto,5,small_batch,lathe
+DEV_083,dev,Tapered Sleeve,True,Aluminum,Taper;Hole;Chamfer,0.05mm,100,37,218,21,30,3.2,auto,3,medium_batch,lathe
+DEV_084,dev,Turned Pin with Undercut,True,Brass,Turning;Undercut;Thread;Chamfer;Parting_Off,0.02mm,500,11,231,6,9,1.6,auto,5,medium_batch,lathe
+DEV_085,dev,Valve Body,True,Cast Iron,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,10,103,26,7,59,3.2,auto,8,prototype,mixed
+DEV_086,dev,Pocketed Housing,True,Steel,Pocket;Hole;Counterbore;Chamfer,0.02mm,50,22,263,51,107,1.6,auto,4,small_batch,milling
+DEV_087,dev,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.02mm,50,26,236,9,21,1.6,auto,5,small_batch,mixed
+DEV_088,dev,Tapered Sleeve,True,Steel,Taper;Hole;Chamfer,0.02mm,50,42,60,9,34,1.6,auto,3,small_batch,lathe
+DEV_089,dev,Valve Body,True,Steel,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,250,100,19,12,42,3.2,auto,8,medium_batch,mixed
+DEV_090,dev,Precision Reamed Housing,True,Aluminum,Reamed_Hole;Bore;Face;Face_Groove,0.01mm,100,173,32,10,94,0.8,auto,4,medium_batch,lathe
+DEV_091,dev,Splined Shaft,True,Titanium,Spline;Step;Fillet;Chamfer,0.005mm,10,14,216,5,11,0.4,auto,4,prototype,mixed
+DEV_092,dev,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.02mm,5,51,57,28,41,1.6,auto,5,prototype,mixed
+DEV_093,dev,T-Slot Table Plate,True,Aluminum,T_Slot;Face;Hole;Chamfer,0.05mm,20,21,225,58,62,3.2,auto,4,small_batch,milling
+DEV_094,dev,Helical Flute Shaft,True,Brass,Helical_Groove;Turning;Step;Chamfer,0.05mm,20,42,178,19,34,3.2,auto,4,small_batch,mixed
+DEV_095,dev,Contoured Spindle Nose,True,Aluminum,Contour_Turn;Turning;Step;Chamfer,0.02mm,1,37,132,18,30,1.6,auto,4,prototype,lathe
+DEV_096,dev,Turned Pin with Undercut,True,Steel,Turning;Undercut;Thread;Chamfer;Parting_Off,0.02mm,500,18,158,5,14,1.6,auto,5,medium_batch,lathe
+DEV_097,dev,Internally Threaded Bushing,True,Steel,Thread;Hole;Chamfer;Face,0.02mm,250,52,175,21,42,1.6,auto,4,medium_batch,flexible
+DEV_098,dev,Flanged Bushing,True,Brass,Hole;Face;Chamfer;Counterbore,0.02mm,250,55,120,10,44,1.6,auto,4,medium_batch,flexible
+DEV_099,dev,Boss with Spotface,True,Aluminum,Boss;Counterbore;Hole,0.05mm,250,99,60,18,24,3.2,auto,3,medium_batch,flexible
+DEV_100,dev,Stepped Shaft with Retaining Groove,True,Aluminum,Step;Groove;Fillet;Chamfer,0.01mm,100,32,96,10,26,0.8,auto,4,medium_batch,mixed
+DEV_101,dev,Multi-Feature Drive Shaft,True,Steel,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.005mm,10,60,54,22,48,0.4,auto,7,prototype,mixed
+DEV_102,dev,Wedge Clamp Block,True,Steel,Inclined_Face;Hole;Face;Chamfer,0.1mm,100,26,267,40,91,6.3,auto,4,medium_batch,milling
+DEV_103,dev,Wedge Clamp Block,True,Steel,Inclined_Face;Hole;Face;Chamfer,0.1mm,100,10,180,22,136,6.3,auto,4,medium_batch,milling
+DEV_104,dev,Splined Shaft,True,Steel,Spline;Step;Fillet;Chamfer,0.01mm,10,37,72,5,30,0.8,auto,4,prototype,mixed
+DEV_105,dev,Gearbox Housing Half,True,Aluminum,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.02mm,1,16,190,47,62,1.6,auto,8,prototype,milling
+DEV_106,dev,Tapped Manifold Block,True,Steel,Internal_Thread;Pocket;Face;Hole;Chamfer,0.02mm,250,12,253,13,148,1.6,auto,5,medium_batch,milling
+DEV_107,dev,Stepped Shaft with Retaining Groove,True,Aluminum,Step;Groove;Fillet;Chamfer,0.01mm,100,15,112,8,12,0.8,auto,4,medium_batch,mixed
+DEV_108,dev,Engraved ID Plate,True,Plastic,Engraved_Mark;Face;Hole;Chamfer,0.1mm,250,28,212,39,46,6.3,auto,4,medium_batch,milling
+DEV_109,dev,Wedge Clamp Block,True,Cast Iron,Inclined_Face;Hole;Face;Chamfer,0.1mm,100,13,73,28,34,6.3,auto,4,medium_batch,milling
+DEV_110,dev,T-Slot Table Plate,True,Steel,T_Slot;Face;Hole;Chamfer,0.05mm,1,17,154,24,79,3.2,auto,4,prototype,milling
+DEV_111,dev,Gearbox Housing Half,True,Aluminum,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.02mm,1,10,149,56,146,1.6,auto,8,prototype,milling
+DEV_112,dev,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.005mm,1000,60,188,24,48,0.4,auto,2,mass_production,flexible
+DEV_113,dev,Internally Threaded Bushing,True,Copper,Thread;Hole;Chamfer;Face,0.02mm,100,59,148,18,47,1.6,auto,4,medium_batch,flexible
+DEV_114,dev,Stepped Shaft with Retaining Groove,True,Steel,Step;Groove;Fillet;Chamfer,0.02mm,50,50,187,10,40,1.6,auto,4,small_batch,mixed
+DEV_115,dev,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.05mm,500,12,143,25,116,3.2,auto,4,medium_batch,milling
+DEV_116,dev,Precision Reamed Housing,True,Steel,Reamed_Hole;Bore;Face;Face_Groove,0.02mm,10,128,51,7,68,1.6,auto,4,prototype,lathe
+DEV_117,dev,Keyed Shaft,True,Aluminum,Step;Keyway;Chamfer;Face,0.02mm,50,50,133,9,40,1.6,auto,4,small_batch,mixed
+DEV_118,dev,Threaded Shaft with Relief Groove,True,Titanium,Thread;Fillet;Step,0.01mm,10,17,79,9,14,0.8,auto,3,prototype,mixed
+DEV_119,dev,Precision Reamed Housing,True,Cast Iron,Reamed_Hole;Bore;Face;Face_Groove,0.02mm,50,83,45,27,33,1.6,auto,4,small_batch,lathe
+DEV_120,dev,Tapered Sleeve,True,Steel,Taper;Hole;Chamfer,0.05mm,50,22,115,7,18,3.2,auto,3,small_batch,lathe
+DEV_121,dev,Flanged Bushing,True,Copper,Hole;Face;Chamfer;Counterbore,0.02mm,250,50,83,21,40,1.6,auto,4,medium_batch,flexible
+DEV_122,dev,Internally Threaded Bushing,True,Steel,Thread;Hole;Chamfer;Face,0.05mm,100,33,65,15,26,3.2,auto,4,medium_batch,flexible
+DEV_123,dev,Keyed Shaft,True,Aluminum,Step;Keyway;Chamfer;Face,0.02mm,10,52,108,26,42,1.6,auto,4,prototype,mixed
+DEV_124,dev,Spotfaced Mounting Flange,True,Steel,Spotface;Reamed_Hole;Hole;Face,0.05mm,500,132,59,34,24,3.2,auto,4,medium_batch,milling
+DEV_125,dev,Flanged Bushing,True,Copper,Hole;Face;Chamfer;Counterbore,0.05mm,250,34,250,15,27,3.2,auto,4,medium_batch,flexible
+DEV_126,dev,O-Ring Face Seal Cap,True,Plastic,Face_Groove;Face;Hole;Center_Drill,0.05mm,2500,129,41,31,50,3.2,auto,4,mass_production,flexible
+DEV_127,dev,Keyed Shaft,True,Cast Iron,Step;Keyway;Chamfer;Face,0.02mm,100,28,219,8,22,1.6,auto,4,medium_batch,mixed
+DEV_128,dev,Helical Flute Shaft,True,Steel,Helical_Groove;Turning;Step;Chamfer,0.02mm,20,48,231,22,38,1.6,auto,4,small_batch,mixed
+DEV_129,dev,Bored Bearing Sleeve,True,Brass,Bore;Center_Drill;Turning;Chamfer;Face,0.005mm,250,51,127,4,41,0.4,auto,5,medium_batch,lathe
+DEV_130,dev,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.01mm,5,40,211,7,32,0.8,auto,5,prototype,mixed
+DEV_131,dev,Gusseted Bracket,True,Steel,Shoulder;Rib;Hole;Face;Chamfer,0.1mm,1000,14,215,29,146,6.3,auto,5,mass_production,milling
+DEV_132,dev,Gusseted Bracket,True,Cast Iron,Shoulder;Rib;Hole;Face;Chamfer,0.05mm,250,29,240,52,146,3.2,auto,5,medium_batch,milling
+DEV_133,dev,Keyed Shaft,True,Steel,Step;Keyway;Chamfer;Face,0.01mm,50,15,99,4,12,0.8,auto,4,small_batch,mixed
+DEV_134,dev,Wedge Clamp Block,True,Cast Iron,Inclined_Face;Hole;Face;Chamfer,0.1mm,500,8,182,22,32,6.3,auto,4,medium_batch,milling
+DEV_135,dev,Stepped Shaft with Retaining Groove,True,Aluminum,Step;Groove;Fillet;Chamfer,0.01mm,10,53,119,11,42,0.8,auto,4,prototype,mixed
+DEV_136,dev,Dovetail Slide Block,True,Cast Iron,Dovetail;Face;Shoulder;Hole,0.02mm,20,25,217,46,139,1.6,auto,4,small_batch,milling
+DEV_137,dev,Flanged Bushing,True,Copper,Hole;Face;Chamfer;Counterbore,0.02mm,50,39,137,12,31,1.6,auto,4,small_batch,flexible
+DEV_138,dev,Splined Shaft,True,Titanium,Spline;Step;Fillet;Chamfer,0.005mm,50,20,229,11,16,0.4,auto,4,small_batch,mixed
+DEV_139,dev,T-Slot Table Plate,True,Cast Iron,T_Slot;Face;Hole;Chamfer,0.02mm,20,20,222,40,102,1.6,auto,4,small_batch,milling
+DEV_140,dev,Wedge Clamp Block,True,Cast Iron,Inclined_Face;Hole;Face;Chamfer,0.1mm,100,11,176,30,37,6.3,auto,4,medium_batch,milling
+DEV_141,dev,V-Belt Pulley,True,Steel,Groove;Hole;Keyway;Face,0.02mm,100,195,53,32,47,1.6,auto,4,medium_batch,mixed
+DEV_142,dev,Dovetail Slide Block,True,Steel,Dovetail;Face;Shoulder;Hole,0.01mm,5,9,128,25,107,0.8,auto,4,prototype,milling
+DEV_143,dev,Sealed Housing Cover,True,Cast Iron,Groove;Face;Hole;Chamfer,0.1mm,250,61,37,14,32,6.3,auto,4,medium_batch,lathe
+DEV_144,dev,Contoured Spindle Nose,True,Steel,Contour_Turn;Turning;Step;Chamfer,0.01mm,10,38,102,18,30,0.8,auto,4,prototype,lathe
+DEV_145,dev,Gusseted Bracket,True,Steel,Shoulder;Rib;Hole;Face;Chamfer,0.5mm,1000,23,226,57,118,12.5,auto,5,mass_production,milling
+DEV_146,dev,Threaded Shaft with Relief Groove,True,Steel,Thread;Fillet;Step,0.01mm,100,45,177,12,36,0.8,auto,3,medium_batch,mixed
+DEV_147,dev,V-Belt Pulley,True,Aluminum,Groove;Hole;Keyway;Face,0.05mm,50,123,29,7,41,3.2,auto,4,small_batch,mixed
+DEV_148,dev,Dovetail Slide Block,True,Steel,Dovetail;Face;Shoulder;Hole,0.01mm,5,8,151,52,84,0.8,auto,4,prototype,milling
+DEV_149,dev,Bored Bearing Sleeve,True,Steel,Bore;Center_Drill;Turning;Chamfer;Face,0.005mm,250,59,117,11,47,0.4,auto,5,medium_batch,lathe
+DEV_150,dev,Mounting Bracket,True,Steel,Slot;Hole;Chamfer;Face,0.05mm,500,18,180,25,153,3.2,auto,4,medium_batch,milling
+DEV_151,dev,Flanged Bushing,True,Brass,Hole;Face;Chamfer;Counterbore,0.02mm,50,30,142,8,24,1.6,auto,4,small_batch,flexible
+DEV_152,dev,Engraved ID Plate,True,Plastic,Engraved_Mark;Face;Hole;Chamfer,0.5mm,100,24,189,34,160,12.5,auto,4,medium_batch,milling
+DEV_153,dev,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.05mm,1000,31,181,16,25,3.2,auto,4,mass_production,lathe
+DEV_154,dev,Hex Bolt,True,Titanium,Face;Thread;Chamfer,0.05mm,2500,12,226,7,10,3.2,auto,3,mass_production,flexible
+DEV_155,dev,Internally Threaded Bushing,True,Brass,Thread;Hole;Chamfer;Face,0.05mm,100,45,103,7,36,3.2,auto,4,medium_batch,flexible
+DEV_156,dev,Multi-Feature Drive Shaft,True,Titanium,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.01mm,50,19,102,10,15,0.8,auto,7,small_batch,mixed
+DEV_157,dev,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.02mm,50,218,24,19,50,1.6,auto,3,small_batch,milling
+DEV_158,dev,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.1mm,500,99,41,25,26,6.3,auto,5,medium_batch,flexible
+DEV_159,dev,Hex Bolt,True,Steel,Face;Thread;Chamfer,0.05mm,500,15,137,4,12,3.2,auto,3,medium_batch,flexible
+DEV_160,dev,Valve Body,True,Steel,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,50,131,17,10,33,3.2,auto,8,small_batch,mixed
+DEV_161,dev,Keyed Shaft,True,Cast Iron,Step;Keyway;Chamfer;Face,0.02mm,100,22,220,5,18,1.6,auto,4,medium_batch,mixed
+DEV_162,dev,V-Belt Pulley,True,Steel,Groove;Hole;Keyway;Face,0.02mm,250,139,40,26,67,1.6,auto,4,medium_batch,mixed
+DEV_163,dev,Tapered Sleeve,True,Brass,Taper;Hole;Chamfer,0.02mm,50,35,70,11,28,1.6,auto,3,small_batch,lathe
+DEV_164,dev,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.01mm,50,144,32,7,55,0.8,auto,3,small_batch,milling
+DEV_165,dev,Spotfaced Mounting Flange,True,Cast Iron,Spotface;Reamed_Hole;Hole;Face,0.02mm,250,220,52,17,74,1.6,auto,4,medium_batch,milling
+DEV_166,dev,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.1mm,100,181,41,11,32,6.3,auto,5,medium_batch,flexible
+DEV_167,dev,Multi-Feature Drive Shaft,True,Titanium,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.01mm,50,44,49,23,35,0.8,auto,7,small_batch,mixed
+DEV_168,dev,Multi-Feature Drive Shaft,True,Titanium,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.02mm,50,17,75,4,14,1.6,auto,7,small_batch,mixed
+DEV_169,dev,Hex Bolt,True,Brass,Face;Thread;Chamfer,0.02mm,1000,55,206,26,44,1.6,auto,3,mass_production,flexible
+DEV_170,dev,Gear Blank,True,Steel,Gear_Teeth;Hole;Keyway;Face,0.01mm,50,68,52,28,24,0.8,auto,4,small_batch,milling
+DEV_171,dev,Mounting Bracket,True,Steel,Slot;Hole;Chamfer;Face,0.05mm,250,7,283,16,143,3.2,auto,4,medium_batch,milling
+DEV_172,dev,Internally Threaded Bushing,True,Copper,Thread;Hole;Chamfer;Face,0.05mm,250,49,248,27,39,3.2,auto,4,medium_batch,flexible
+DEV_173,dev,Splined Shaft,True,Titanium,Spline;Step;Fillet;Chamfer,0.01mm,10,32,93,11,26,0.8,auto,4,prototype,mixed
+DEV_174,dev,Splined Shaft,True,Steel,Spline;Step;Fillet;Chamfer,0.005mm,50,27,51,4,22,0.4,auto,4,small_batch,mixed
+DEV_175,dev,Tapped Manifold Block,True,Aluminum,Internal_Thread;Pocket;Face;Hole;Chamfer,0.05mm,50,18,141,59,112,3.2,auto,5,small_batch,milling
+DEV_176,dev,Pocketed Housing,True,Aluminum,Pocket;Hole;Counterbore;Chamfer,0.02mm,100,25,138,28,69,1.6,auto,4,medium_batch,milling
+DEV_177,dev,Helical Flute Shaft,True,Aluminum,Helical_Groove;Turning;Step;Chamfer,0.05mm,5,39,216,13,31,3.2,auto,4,prototype,mixed
+DEV_178,dev,Threaded Shaft with Relief Groove,True,Titanium,Thread;Fillet;Step,0.02mm,50,24,75,12,19,1.6,auto,3,small_batch,mixed
+DEV_179,dev,Pocketed Housing,True,Aluminum,Pocket;Hole;Counterbore;Chamfer,0.05mm,100,14,296,18,56,3.2,auto,4,medium_batch,milling
+DEV_180,dev,Helical Flute Shaft,True,Brass,Helical_Groove;Turning;Step;Chamfer,0.05mm,5,15,98,9,12,3.2,auto,4,prototype,mixed
+DEV_181,dev,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.05mm,250,184,28,22,36,3.2,auto,5,medium_batch,flexible
+DEV_182,dev,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.02mm,10,87,39,6,50,1.6,auto,3,prototype,milling
+DEV_183,dev,Boss with Spotface,True,Cast Iron,Boss;Counterbore;Hole,0.05mm,250,174,25,20,77,3.2,auto,3,medium_batch,flexible
+DEV_184,dev,Flanged Bushing,True,Copper,Hole;Face;Chamfer;Counterbore,0.02mm,250,30,236,16,24,1.6,auto,4,medium_batch,flexible
+DEV_185,dev,Keyed Shaft,True,Cast Iron,Step;Keyway;Chamfer;Face,0.01mm,50,15,181,6,12,0.8,auto,4,small_batch,mixed
+DEV_186,dev,Tapped Manifold Block,True,Steel,Internal_Thread;Pocket;Face;Hole;Chamfer,0.05mm,250,7,270,58,157,3.2,auto,5,medium_batch,milling
+DEV_187,dev,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.05mm,1000,30,88,15,24,3.2,auto,4,mass_production,lathe
+DEV_188,dev,Center-Drilled Stud,True,Steel,Center_Drill;Thread;Turning;Chamfer,0.1mm,1000,24,238,10,19,6.3,auto,4,mass_production,lathe
+DEV_189,dev,Pocketed Housing,True,Aluminum,Pocket;Hole;Counterbore;Chamfer,0.05mm,10,14,226,41,97,3.2,auto,4,prototype,milling
+DEV_190,dev,Gearbox Housing Half,True,Cast Iron,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.05mm,50,16,297,15,131,3.2,auto,8,small_batch,milling
+DEV_191,dev,Gear Blank,True,Steel,Gear_Teeth;Hole;Keyway;Face,0.005mm,50,101,49,38,20,0.4,auto,4,small_batch,milling
+DEV_192,dev,Wedge Clamp Block,True,Aluminum,Inclined_Face;Hole;Face;Chamfer,0.05mm,100,25,183,27,96,3.2,auto,4,medium_batch,milling
+DEV_193,dev,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.05mm,100,77,17,10,22,3.2,auto,5,medium_batch,flexible
+DEV_194,dev,Knurled Grip Handle,True,Steel,Knurl;Step;Chamfer;Face,0.1mm,250,58,58,4,46,6.3,auto,4,medium_batch,lathe
+DEV_195,dev,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.005mm,2500,29,169,8,23,0.4,auto,2,mass_production,flexible
+DEV_196,dev,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.01mm,5,22,45,13,18,0.8,auto,5,prototype,mixed
+DEV_197,dev,Threaded Shaft with Relief Groove,True,Titanium,Thread;Fillet;Step,0.02mm,100,39,76,12,31,1.6,auto,3,medium_batch,mixed
+DEV_198,dev,Sealed Housing Cover,True,Aluminum,Groove;Face;Hole;Chamfer,0.1mm,250,209,59,6,117,6.3,auto,4,medium_batch,lathe
+DEV_199,dev,Gearbox Housing Half,True,Aluminum,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.02mm,50,27,248,34,151,1.6,auto,8,small_batch,milling
+DEV_200,dev,Spotfaced Mounting Flange,True,Steel,Spotface;Reamed_Hole;Hole;Face,0.02mm,500,98,32,9,24,1.6,auto,4,medium_batch,milling

@@ -1,0 +1,5261 @@
+[
+  {
+    "part_id": "DEV_001",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 66,
+      "length": 54,
+      "depth": 40,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_002",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 38,
+      "length": 82,
+      "depth": 13,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 7,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_003",
+    "split": "dev",
+    "archetype": "T-Slot Table Plate",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "T_Slot",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 32,
+      "length": 216,
+      "depth": 17,
+      "width": 94
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_004",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 31,
+      "length": 141,
+      "depth": 43,
+      "width": 141
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_005",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 16,
+      "length": 157,
+      "depth": 52,
+      "width": 140
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_006",
+    "split": "dev",
+    "archetype": "V-Belt Pulley",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Groove",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 205,
+      "length": 20,
+      "depth": 6,
+      "width": 113
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_007",
+    "split": "dev",
+    "archetype": "V-Belt Pulley",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Groove",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 92,
+      "length": 23,
+      "depth": 15,
+      "width": 50
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_008",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 14,
+      "length": 121,
+      "depth": 17,
+      "width": 114
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_009",
+    "split": "dev",
+    "archetype": "Center-Drilled Stud",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Center_Drill",
+      "Thread",
+      "Turning",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 5000,
+    "dims": {
+      "diameter": 41,
+      "length": 78,
+      "depth": 18,
+      "width": 33
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "mass_production",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_010",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 24,
+      "length": 231,
+      "depth": 5,
+      "width": 19
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 7,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_011",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 35,
+      "length": 102,
+      "depth": 8,
+      "width": 28
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_012",
+    "split": "dev",
+    "archetype": "Cam Profile Disc",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_3D",
+      "Hole",
+      "Keyway"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 149,
+      "length": 34,
+      "depth": 12,
+      "width": 48
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_013",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 198,
+      "length": 44,
+      "depth": 18,
+      "width": 27
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_014",
+    "split": "dev",
+    "archetype": "Turned Pin with Undercut",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Turning",
+      "Undercut",
+      "Thread",
+      "Chamfer",
+      "Parting_Off"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 27,
+      "length": 232,
+      "depth": 10,
+      "width": 22
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_015",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 168,
+      "length": 41,
+      "depth": 19,
+      "width": 26
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_016",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 89,
+      "length": 58,
+      "depth": 39,
+      "width": 37
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_017",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 18,
+      "length": 169,
+      "depth": 10,
+      "width": 72
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_018",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 171,
+      "length": 25,
+      "depth": 19,
+      "width": 20
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_019",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 5000,
+    "dims": {
+      "diameter": 31,
+      "length": 111,
+      "depth": 6,
+      "width": 25
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_020",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 163,
+      "length": 25,
+      "depth": 19,
+      "width": 36
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_021",
+    "split": "dev",
+    "archetype": "Contoured Spindle Nose",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Contour_Turn",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 44,
+      "length": 238,
+      "depth": 19,
+      "width": 35
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_022",
+    "split": "dev",
+    "archetype": "Tapped Manifold Block",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Internal_Thread",
+      "Pocket",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 20,
+      "length": 300,
+      "depth": 28,
+      "width": 63
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_023",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 161,
+      "length": 50,
+      "depth": 28,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_024",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 14,
+      "length": 170,
+      "depth": 60,
+      "width": 49
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_025",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 52,
+      "length": 137,
+      "depth": 25,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_026",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 45,
+      "length": 40,
+      "depth": 13,
+      "width": 36
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_027",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 29,
+      "length": 159,
+      "depth": 17,
+      "width": 79
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "mass_production",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_028",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 88,
+      "length": 38,
+      "depth": 30,
+      "width": 39
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_029",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 44,
+      "length": 149,
+      "depth": 25,
+      "width": 35
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_030",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 53,
+      "length": 94,
+      "depth": 20,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_031",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 2500,
+    "dims": {
+      "diameter": 16,
+      "length": 200,
+      "depth": 9,
+      "width": 13
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_032",
+    "split": "dev",
+    "archetype": "O-Ring Face Seal Cap",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Face_Groove",
+      "Face",
+      "Hole",
+      "Center_Drill"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 130,
+      "length": 41,
+      "depth": 15,
+      "width": 70
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_033",
+    "split": "dev",
+    "archetype": "Eccentric Cam Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Eccentric",
+      "Turning",
+      "Step",
+      "Keyway",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 29,
+      "length": 67,
+      "depth": 13,
+      "width": 23
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 5,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_034",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 38,
+      "length": 190,
+      "depth": 12,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_035",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 130,
+      "length": 48,
+      "depth": 36,
+      "width": 60
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_036",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 79,
+      "length": 60,
+      "depth": 23,
+      "width": 27
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_037",
+    "split": "dev",
+    "archetype": "Knurled Grip Handle",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Knurl",
+      "Step",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 44,
+      "length": 94,
+      "depth": 20,
+      "width": 35
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_038",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 177,
+      "length": 31,
+      "depth": 5,
+      "width": 79
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_039",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 53,
+      "length": 136,
+      "depth": 16,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_040",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 27,
+      "length": 177,
+      "depth": 33,
+      "width": 61
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 8,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_041",
+    "split": "dev",
+    "archetype": "Helical Flute Shaft",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Helical_Groove",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 12,
+      "length": 150,
+      "depth": 6,
+      "width": 10
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_042",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 62,
+      "length": 51,
+      "depth": 8,
+      "width": 35
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_043",
+    "split": "dev",
+    "archetype": "Pocketed Housing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 17,
+      "length": 275,
+      "depth": 25,
+      "width": 47
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_044",
+    "split": "dev",
+    "archetype": "Turned Pin with Undercut",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Turning",
+      "Undercut",
+      "Thread",
+      "Chamfer",
+      "Parting_Off"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 30,
+      "length": 94,
+      "depth": 11,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_045",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 116,
+      "length": 15,
+      "depth": 6,
+      "width": 65
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_046",
+    "split": "dev",
+    "archetype": "Cam Profile Disc",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_3D",
+      "Hole",
+      "Keyway"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 66,
+      "length": 26,
+      "depth": 15,
+      "width": 33
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_047",
+    "split": "dev",
+    "archetype": "Dovetail Slide Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Dovetail",
+      "Face",
+      "Shoulder",
+      "Hole"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 27,
+      "length": 197,
+      "depth": 50,
+      "width": 48
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_048",
+    "split": "dev",
+    "archetype": "O-Ring Face Seal Cap",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Face_Groove",
+      "Face",
+      "Hole",
+      "Center_Drill"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 201,
+      "length": 15,
+      "depth": 11,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_049",
+    "split": "dev",
+    "archetype": "Contoured Spindle Nose",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Contour_Turn",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 47,
+      "length": 108,
+      "depth": 14,
+      "width": 38
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_050",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 14,
+      "length": 173,
+      "depth": 21,
+      "width": 65
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_051",
+    "split": "dev",
+    "archetype": "Center-Drilled Stud",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Center_Drill",
+      "Thread",
+      "Turning",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 28,
+      "length": 225,
+      "depth": 8,
+      "width": 22
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_052",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 220,
+      "length": 34,
+      "depth": 25,
+      "width": 84
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_053",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 5000,
+    "dims": {
+      "diameter": 17,
+      "length": 64,
+      "depth": 5,
+      "width": 14
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_054",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 21,
+      "length": 176,
+      "depth": 41,
+      "width": 72
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_055",
+    "split": "dev",
+    "archetype": "Spotfaced Mounting Flange",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Spotface",
+      "Reamed_Hole",
+      "Hole",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 201,
+      "length": 19,
+      "depth": 7,
+      "width": 20
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_056",
+    "split": "dev",
+    "archetype": "O-Ring Face Seal Cap",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Face_Groove",
+      "Face",
+      "Hole",
+      "Center_Drill"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 201,
+      "length": 24,
+      "depth": 11,
+      "width": 44
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_057",
+    "split": "dev",
+    "archetype": "Knurled Grip Handle",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Knurl",
+      "Step",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 23,
+      "length": 211,
+      "depth": 9,
+      "width": 18
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_058",
+    "split": "dev",
+    "archetype": "T-Slot Table Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "T_Slot",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 7,
+      "length": 132,
+      "depth": 12,
+      "width": 62
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_059",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 116,
+      "length": 32,
+      "depth": 18,
+      "width": 51
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_060",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 86,
+      "length": 25,
+      "depth": 15,
+      "width": 46
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_061",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 47,
+      "length": 216,
+      "depth": 24,
+      "width": 38
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_062",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 17,
+      "length": 209,
+      "depth": 37,
+      "width": 57
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_063",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 54,
+      "length": 115,
+      "depth": 21,
+      "width": 43
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_064",
+    "split": "dev",
+    "archetype": "Knurled Grip Handle",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Knurl",
+      "Step",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 15,
+      "length": 147,
+      "depth": 9,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_065",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 198,
+      "length": 20,
+      "depth": 7,
+      "width": 39
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_066",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 121,
+      "length": 46,
+      "depth": 14,
+      "width": 34
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_067",
+    "split": "dev",
+    "archetype": "Tapered Sleeve",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Taper",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 13,
+      "length": 52,
+      "depth": 7,
+      "width": 10
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_068",
+    "split": "dev",
+    "archetype": "Dovetail Slide Block",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Dovetail",
+      "Face",
+      "Shoulder",
+      "Hole"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 18,
+      "length": 285,
+      "depth": 43,
+      "width": 87
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_069",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 168,
+      "length": 59,
+      "depth": 21,
+      "width": 78
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 8,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_070",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 12,
+      "length": 102,
+      "depth": 7,
+      "width": 10
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_071",
+    "split": "dev",
+    "archetype": "Turned Pin with Undercut",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Turning",
+      "Undercut",
+      "Thread",
+      "Chamfer",
+      "Parting_Off"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 47,
+      "length": 184,
+      "depth": 25,
+      "width": 38
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_072",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 26,
+      "length": 163,
+      "depth": 8,
+      "width": 21
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_073",
+    "split": "dev",
+    "archetype": "Contoured Spindle Nose",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Contour_Turn",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 21,
+      "length": 227,
+      "depth": 12,
+      "width": 17
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_074",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 17,
+      "length": 277,
+      "depth": 47,
+      "width": 108
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_075",
+    "split": "dev",
+    "archetype": "Spotfaced Mounting Flange",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Spotface",
+      "Reamed_Hole",
+      "Hole",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 212,
+      "length": 45,
+      "depth": 23,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_076",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 21,
+      "length": 134,
+      "depth": 57,
+      "width": 79
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_077",
+    "split": "dev",
+    "archetype": "O-Ring Face Seal Cap",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Face_Groove",
+      "Face",
+      "Hole",
+      "Center_Drill"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 90,
+      "length": 56,
+      "depth": 14,
+      "width": 51
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_078",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 14,
+      "length": 138,
+      "depth": 7,
+      "width": 11
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_079",
+    "split": "dev",
+    "archetype": "Knurled Grip Handle",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Knurl",
+      "Step",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 18,
+      "length": 211,
+      "depth": 9,
+      "width": 14
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_080",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 162,
+      "length": 50,
+      "depth": 7,
+      "width": 78
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_081",
+    "split": "dev",
+    "archetype": "Tapped Manifold Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Internal_Thread",
+      "Pocket",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 25,
+      "length": 299,
+      "depth": 50,
+      "width": 37
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_082",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 39,
+      "length": 59,
+      "depth": 8,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_083",
+    "split": "dev",
+    "archetype": "Tapered Sleeve",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Taper",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 37,
+      "length": 218,
+      "depth": 21,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_084",
+    "split": "dev",
+    "archetype": "Turned Pin with Undercut",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Turning",
+      "Undercut",
+      "Thread",
+      "Chamfer",
+      "Parting_Off"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 11,
+      "length": 231,
+      "depth": 6,
+      "width": 9
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_085",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 103,
+      "length": 26,
+      "depth": 7,
+      "width": 59
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_086",
+    "split": "dev",
+    "archetype": "Pocketed Housing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 22,
+      "length": 263,
+      "depth": 51,
+      "width": 107
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_087",
+    "split": "dev",
+    "archetype": "Eccentric Cam Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Eccentric",
+      "Turning",
+      "Step",
+      "Keyway",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 26,
+      "length": 236,
+      "depth": 9,
+      "width": 21
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_088",
+    "split": "dev",
+    "archetype": "Tapered Sleeve",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Taper",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 42,
+      "length": 60,
+      "depth": 9,
+      "width": 34
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_089",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 100,
+      "length": 19,
+      "depth": 12,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_090",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 173,
+      "length": 32,
+      "depth": 10,
+      "width": 94
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_091",
+    "split": "dev",
+    "archetype": "Splined Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Spline",
+      "Step",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 14,
+      "length": 216,
+      "depth": 5,
+      "width": 11
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_092",
+    "split": "dev",
+    "archetype": "Eccentric Cam Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Eccentric",
+      "Turning",
+      "Step",
+      "Keyway",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 51,
+      "length": 57,
+      "depth": 28,
+      "width": 41
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_093",
+    "split": "dev",
+    "archetype": "T-Slot Table Plate",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "T_Slot",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 21,
+      "length": 225,
+      "depth": 58,
+      "width": 62
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_094",
+    "split": "dev",
+    "archetype": "Helical Flute Shaft",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Helical_Groove",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 42,
+      "length": 178,
+      "depth": 19,
+      "width": 34
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_095",
+    "split": "dev",
+    "archetype": "Contoured Spindle Nose",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Contour_Turn",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 37,
+      "length": 132,
+      "depth": 18,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_096",
+    "split": "dev",
+    "archetype": "Turned Pin with Undercut",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Turning",
+      "Undercut",
+      "Thread",
+      "Chamfer",
+      "Parting_Off"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 18,
+      "length": 158,
+      "depth": 5,
+      "width": 14
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_097",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 52,
+      "length": 175,
+      "depth": 21,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_098",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 55,
+      "length": 120,
+      "depth": 10,
+      "width": 44
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_099",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 99,
+      "length": 60,
+      "depth": 18,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_100",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 32,
+      "length": 96,
+      "depth": 10,
+      "width": 26
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_101",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 60,
+      "length": 54,
+      "depth": 22,
+      "width": 48
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 7,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_102",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 26,
+      "length": 267,
+      "depth": 40,
+      "width": 91
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_103",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 10,
+      "length": 180,
+      "depth": 22,
+      "width": 136
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_104",
+    "split": "dev",
+    "archetype": "Splined Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Spline",
+      "Step",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 37,
+      "length": 72,
+      "depth": 5,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_105",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 16,
+      "length": 190,
+      "depth": 47,
+      "width": 62
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 8,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_106",
+    "split": "dev",
+    "archetype": "Tapped Manifold Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Internal_Thread",
+      "Pocket",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 12,
+      "length": 253,
+      "depth": 13,
+      "width": 148
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_107",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 15,
+      "length": 112,
+      "depth": 8,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_108",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 28,
+      "length": 212,
+      "depth": 39,
+      "width": 46
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_109",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 13,
+      "length": 73,
+      "depth": 28,
+      "width": 34
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_110",
+    "split": "dev",
+    "archetype": "T-Slot Table Plate",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "T_Slot",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 17,
+      "length": 154,
+      "depth": 24,
+      "width": 79
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_111",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 1,
+    "dims": {
+      "diameter": 10,
+      "length": 149,
+      "depth": 56,
+      "width": 146
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 8,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_112",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 60,
+      "length": 188,
+      "depth": 24,
+      "width": 48
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_113",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 59,
+      "length": 148,
+      "depth": 18,
+      "width": 47
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_114",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 50,
+      "length": 187,
+      "depth": 10,
+      "width": 40
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_115",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 12,
+      "length": 143,
+      "depth": 25,
+      "width": 116
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_116",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 128,
+      "length": 51,
+      "depth": 7,
+      "width": 68
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_117",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 50,
+      "length": 133,
+      "depth": 9,
+      "width": 40
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_118",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 17,
+      "length": 79,
+      "depth": 9,
+      "width": 14
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 3,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_119",
+    "split": "dev",
+    "archetype": "Precision Reamed Housing",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Reamed_Hole",
+      "Bore",
+      "Face",
+      "Face_Groove"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 83,
+      "length": 45,
+      "depth": 27,
+      "width": 33
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_120",
+    "split": "dev",
+    "archetype": "Tapered Sleeve",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Taper",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 22,
+      "length": 115,
+      "depth": 7,
+      "width": 18
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_121",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 50,
+      "length": 83,
+      "depth": 21,
+      "width": 40
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_122",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 33,
+      "length": 65,
+      "depth": 15,
+      "width": 26
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_123",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 52,
+      "length": 108,
+      "depth": 26,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_124",
+    "split": "dev",
+    "archetype": "Spotfaced Mounting Flange",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Spotface",
+      "Reamed_Hole",
+      "Hole",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 132,
+      "length": 59,
+      "depth": 34,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_125",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 34,
+      "length": 250,
+      "depth": 15,
+      "width": 27
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_126",
+    "split": "dev",
+    "archetype": "O-Ring Face Seal Cap",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Face_Groove",
+      "Face",
+      "Hole",
+      "Center_Drill"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 2500,
+    "dims": {
+      "diameter": 129,
+      "length": 41,
+      "depth": 31,
+      "width": 50
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_127",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 28,
+      "length": 219,
+      "depth": 8,
+      "width": 22
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_128",
+    "split": "dev",
+    "archetype": "Helical Flute Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Helical_Groove",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 48,
+      "length": 231,
+      "depth": 22,
+      "width": 38
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_129",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 51,
+      "length": 127,
+      "depth": 4,
+      "width": 41
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_130",
+    "split": "dev",
+    "archetype": "Eccentric Cam Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Eccentric",
+      "Turning",
+      "Step",
+      "Keyway",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 40,
+      "length": 211,
+      "depth": 7,
+      "width": 32
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 5,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_131",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 14,
+      "length": 215,
+      "depth": 29,
+      "width": 146
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 5,
+    "batch_category": "mass_production",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_132",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 29,
+      "length": 240,
+      "depth": 52,
+      "width": 146
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_133",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 15,
+      "length": 99,
+      "depth": 4,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_134",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 8,
+      "length": 182,
+      "depth": 22,
+      "width": 32
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_135",
+    "split": "dev",
+    "archetype": "Stepped Shaft with Retaining Groove",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Step",
+      "Groove",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 53,
+      "length": 119,
+      "depth": 11,
+      "width": 42
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_136",
+    "split": "dev",
+    "archetype": "Dovetail Slide Block",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Dovetail",
+      "Face",
+      "Shoulder",
+      "Hole"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 25,
+      "length": 217,
+      "depth": 46,
+      "width": 139
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_137",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 39,
+      "length": 137,
+      "depth": 12,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_138",
+    "split": "dev",
+    "archetype": "Splined Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Spline",
+      "Step",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 20,
+      "length": 229,
+      "depth": 11,
+      "width": 16
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_139",
+    "split": "dev",
+    "archetype": "T-Slot Table Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "T_Slot",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 20,
+    "dims": {
+      "diameter": 20,
+      "length": 222,
+      "depth": 40,
+      "width": 102
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_140",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 11,
+      "length": 176,
+      "depth": 30,
+      "width": 37
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_141",
+    "split": "dev",
+    "archetype": "V-Belt Pulley",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Groove",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 195,
+      "length": 53,
+      "depth": 32,
+      "width": 47
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_142",
+    "split": "dev",
+    "archetype": "Dovetail Slide Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Dovetail",
+      "Face",
+      "Shoulder",
+      "Hole"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 9,
+      "length": 128,
+      "depth": 25,
+      "width": 107
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_143",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 61,
+      "length": 37,
+      "depth": 14,
+      "width": 32
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_144",
+    "split": "dev",
+    "archetype": "Contoured Spindle Nose",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_Turn",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 38,
+      "length": 102,
+      "depth": 18,
+      "width": 30
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_145",
+    "split": "dev",
+    "archetype": "Gusseted Bracket",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Shoulder",
+      "Rib",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 23,
+      "length": 226,
+      "depth": 57,
+      "width": 118
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 5,
+    "batch_category": "mass_production",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_146",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 45,
+      "length": 177,
+      "depth": 12,
+      "width": 36
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_147",
+    "split": "dev",
+    "archetype": "V-Belt Pulley",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Groove",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 123,
+      "length": 29,
+      "depth": 7,
+      "width": 41
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_148",
+    "split": "dev",
+    "archetype": "Dovetail Slide Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Dovetail",
+      "Face",
+      "Shoulder",
+      "Hole"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 8,
+      "length": 151,
+      "depth": 52,
+      "width": 84
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_149",
+    "split": "dev",
+    "archetype": "Bored Bearing Sleeve",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Center_Drill",
+      "Turning",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 59,
+      "length": 117,
+      "depth": 11,
+      "width": 47
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_150",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 18,
+      "length": 180,
+      "depth": 25,
+      "width": 153
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_151",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 30,
+      "length": 142,
+      "depth": 8,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_152",
+    "split": "dev",
+    "archetype": "Engraved ID Plate",
+    "in_distribution": true,
+    "material": "Plastic",
+    "features": [
+      "Engraved_Mark",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.5mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 24,
+      "length": 189,
+      "depth": 34,
+      "width": 160
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 12.5,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_153",
+    "split": "dev",
+    "archetype": "Center-Drilled Stud",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Center_Drill",
+      "Thread",
+      "Turning",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 31,
+      "length": 181,
+      "depth": 16,
+      "width": 25
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "mass_production",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_154",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 2500,
+    "dims": {
+      "diameter": 12,
+      "length": 226,
+      "depth": 7,
+      "width": 10
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_155",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 45,
+      "length": 103,
+      "depth": 7,
+      "width": 36
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_156",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 19,
+      "length": 102,
+      "depth": 10,
+      "width": 15
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 7,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_157",
+    "split": "dev",
+    "archetype": "Cam Profile Disc",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_3D",
+      "Hole",
+      "Keyway"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 218,
+      "length": 24,
+      "depth": 19,
+      "width": 50
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_158",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 99,
+      "length": 41,
+      "depth": 25,
+      "width": 26
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_159",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 15,
+      "length": 137,
+      "depth": 4,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_160",
+    "split": "dev",
+    "archetype": "Valve Body",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Bore",
+      "Hole",
+      "Counterbore",
+      "Internal_Thread",
+      "Face_Groove",
+      "Face",
+      "Slot",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 131,
+      "length": 17,
+      "depth": 10,
+      "width": 33
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_161",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 22,
+      "length": 220,
+      "depth": 5,
+      "width": 18
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_162",
+    "split": "dev",
+    "archetype": "V-Belt Pulley",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Groove",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 139,
+      "length": 40,
+      "depth": 26,
+      "width": 67
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_163",
+    "split": "dev",
+    "archetype": "Tapered Sleeve",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Taper",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 35,
+      "length": 70,
+      "depth": 11,
+      "width": 28
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_164",
+    "split": "dev",
+    "archetype": "Cam Profile Disc",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_3D",
+      "Hole",
+      "Keyway"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 144,
+      "length": 32,
+      "depth": 7,
+      "width": 55
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_165",
+    "split": "dev",
+    "archetype": "Spotfaced Mounting Flange",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Spotface",
+      "Reamed_Hole",
+      "Hole",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 220,
+      "length": 52,
+      "depth": 17,
+      "width": 74
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_166",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 181,
+      "length": 41,
+      "depth": 11,
+      "width": 32
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_167",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 44,
+      "length": 49,
+      "depth": 23,
+      "width": 35
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 7,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_168",
+    "split": "dev",
+    "archetype": "Multi-Feature Drive Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Turning",
+      "Step",
+      "Groove",
+      "Thread",
+      "Keyway",
+      "Chamfer",
+      "Undercut"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 17,
+      "length": 75,
+      "depth": 4,
+      "width": 14
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 7,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_169",
+    "split": "dev",
+    "archetype": "Hex Bolt",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Face",
+      "Thread",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 55,
+      "length": 206,
+      "depth": 26,
+      "width": 44
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_170",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 68,
+      "length": 52,
+      "depth": 28,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_171",
+    "split": "dev",
+    "archetype": "Mounting Bracket",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Slot",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 7,
+      "length": 283,
+      "depth": 16,
+      "width": 143
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_172",
+    "split": "dev",
+    "archetype": "Internally Threaded Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Thread",
+      "Hole",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 49,
+      "length": 248,
+      "depth": 27,
+      "width": 39
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_173",
+    "split": "dev",
+    "archetype": "Splined Shaft",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Spline",
+      "Step",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 32,
+      "length": 93,
+      "depth": 11,
+      "width": 26
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_174",
+    "split": "dev",
+    "archetype": "Splined Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Spline",
+      "Step",
+      "Fillet",
+      "Chamfer"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 27,
+      "length": 51,
+      "depth": 4,
+      "width": 22
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_175",
+    "split": "dev",
+    "archetype": "Tapped Manifold Block",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Internal_Thread",
+      "Pocket",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 18,
+      "length": 141,
+      "depth": 59,
+      "width": 112
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_176",
+    "split": "dev",
+    "archetype": "Pocketed Housing",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 25,
+      "length": 138,
+      "depth": 28,
+      "width": 69
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_177",
+    "split": "dev",
+    "archetype": "Helical Flute Shaft",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Helical_Groove",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 39,
+      "length": 216,
+      "depth": 13,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_178",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 24,
+      "length": 75,
+      "depth": 12,
+      "width": 19
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_179",
+    "split": "dev",
+    "archetype": "Pocketed Housing",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 14,
+      "length": 296,
+      "depth": 18,
+      "width": 56
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_180",
+    "split": "dev",
+    "archetype": "Helical Flute Shaft",
+    "in_distribution": true,
+    "material": "Brass",
+    "features": [
+      "Helical_Groove",
+      "Turning",
+      "Step",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 15,
+      "length": 98,
+      "depth": 9,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_181",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 184,
+      "length": 28,
+      "depth": 22,
+      "width": 36
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_182",
+    "split": "dev",
+    "archetype": "Cam Profile Disc",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Contour_3D",
+      "Hole",
+      "Keyway"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 87,
+      "length": 39,
+      "depth": 6,
+      "width": 50
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_183",
+    "split": "dev",
+    "archetype": "Boss with Spotface",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Boss",
+      "Counterbore",
+      "Hole"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 174,
+      "length": 25,
+      "depth": 20,
+      "width": 77
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_184",
+    "split": "dev",
+    "archetype": "Flanged Bushing",
+    "in_distribution": true,
+    "material": "Copper",
+    "features": [
+      "Hole",
+      "Face",
+      "Chamfer",
+      "Counterbore"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 30,
+      "length": 236,
+      "depth": 16,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_185",
+    "split": "dev",
+    "archetype": "Keyed Shaft",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Step",
+      "Keyway",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 15,
+      "length": 181,
+      "depth": 6,
+      "width": 12
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_186",
+    "split": "dev",
+    "archetype": "Tapped Manifold Block",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Internal_Thread",
+      "Pocket",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 7,
+      "length": 270,
+      "depth": 58,
+      "width": 157
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_187",
+    "split": "dev",
+    "archetype": "Center-Drilled Stud",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Center_Drill",
+      "Thread",
+      "Turning",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 30,
+      "length": 88,
+      "depth": 15,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "mass_production",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_188",
+    "split": "dev",
+    "archetype": "Center-Drilled Stud",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Center_Drill",
+      "Thread",
+      "Turning",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 1000,
+    "dims": {
+      "diameter": 24,
+      "length": 238,
+      "depth": 10,
+      "width": 19
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "mass_production",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_189",
+    "split": "dev",
+    "archetype": "Pocketed Housing",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 10,
+    "dims": {
+      "diameter": 14,
+      "length": 226,
+      "depth": 41,
+      "width": 97
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "prototype",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_190",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 16,
+      "length": 297,
+      "depth": 15,
+      "width": 131
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 8,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_191",
+    "split": "dev",
+    "archetype": "Gear Blank",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Gear_Teeth",
+      "Hole",
+      "Keyway",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 101,
+      "length": 49,
+      "depth": 38,
+      "width": 20
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 4,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_192",
+    "split": "dev",
+    "archetype": "Wedge Clamp Block",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Inclined_Face",
+      "Hole",
+      "Face",
+      "Chamfer"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 25,
+      "length": 183,
+      "depth": 27,
+      "width": 96
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_193",
+    "split": "dev",
+    "archetype": "Flange Plate",
+    "in_distribution": true,
+    "material": "Cast Iron",
+    "features": [
+      "Hole",
+      "Counterbore",
+      "Countersink",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.05mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 77,
+      "length": 17,
+      "depth": 10,
+      "width": 22
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 3.2,
+    "n_features": 5,
+    "batch_category": "medium_batch",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_194",
+    "split": "dev",
+    "archetype": "Knurled Grip Handle",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Knurl",
+      "Step",
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 58,
+      "length": 58,
+      "depth": 4,
+      "width": 46
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_195",
+    "split": "dev",
+    "archetype": "Precision Dowel Pin",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Chamfer",
+      "Face"
+    ],
+    "tolerance": "0.005mm",
+    "batch_size": 2500,
+    "dims": {
+      "diameter": 29,
+      "length": 169,
+      "depth": 8,
+      "width": 23
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.4,
+    "n_features": 2,
+    "batch_category": "mass_production",
+    "machine_profile": "flexible"
+  },
+  {
+    "part_id": "DEV_196",
+    "split": "dev",
+    "archetype": "Eccentric Cam Shaft",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Eccentric",
+      "Turning",
+      "Step",
+      "Keyway",
+      "Chamfer"
+    ],
+    "tolerance": "0.01mm",
+    "batch_size": 5,
+    "dims": {
+      "diameter": 22,
+      "length": 45,
+      "depth": 13,
+      "width": 18
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 0.8,
+    "n_features": 5,
+    "batch_category": "prototype",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_197",
+    "split": "dev",
+    "archetype": "Threaded Shaft with Relief Groove",
+    "in_distribution": true,
+    "material": "Titanium",
+    "features": [
+      "Thread",
+      "Fillet",
+      "Step"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 100,
+    "dims": {
+      "diameter": 39,
+      "length": 76,
+      "depth": 12,
+      "width": 31
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 3,
+    "batch_category": "medium_batch",
+    "machine_profile": "mixed"
+  },
+  {
+    "part_id": "DEV_198",
+    "split": "dev",
+    "archetype": "Sealed Housing Cover",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Groove",
+      "Face",
+      "Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.1mm",
+    "batch_size": 250,
+    "dims": {
+      "diameter": 209,
+      "length": 59,
+      "depth": 6,
+      "width": 117
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 6.3,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "lathe"
+  },
+  {
+    "part_id": "DEV_199",
+    "split": "dev",
+    "archetype": "Gearbox Housing Half",
+    "in_distribution": true,
+    "material": "Aluminum",
+    "features": [
+      "Pocket",
+      "Hole",
+      "Counterbore",
+      "Face",
+      "Internal_Thread",
+      "Spotface",
+      "Reamed_Hole",
+      "Chamfer"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 50,
+    "dims": {
+      "diameter": 27,
+      "length": 248,
+      "depth": 34,
+      "width": 151
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 8,
+    "batch_category": "small_batch",
+    "machine_profile": "milling"
+  },
+  {
+    "part_id": "DEV_200",
+    "split": "dev",
+    "archetype": "Spotfaced Mounting Flange",
+    "in_distribution": true,
+    "material": "Steel",
+    "features": [
+      "Spotface",
+      "Reamed_Hole",
+      "Hole",
+      "Face"
+    ],
+    "tolerance": "0.02mm",
+    "batch_size": 500,
+    "dims": {
+      "diameter": 98,
+      "length": 32,
+      "depth": 9,
+      "width": 24
+    },
+    "machine_preference": "auto",
+    "required_ra_um": 1.6,
+    "n_features": 4,
+    "batch_category": "medium_batch",
+    "machine_profile": "milling"
+  }
+]

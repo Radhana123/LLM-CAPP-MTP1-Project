@@ -1,0 +1,121 @@
+part_id,split,archetype,in_distribution,material,features,tolerance,batch_size,diameter,length,depth,width,required_ra_um,machine_preference,n_features,batch_category,machine_profile
+TEST_001,test,Cam Lobe Hub,False,Cast Iron,Eccentric;Spline;Bore;Chamfer,0.005mm,20,193,59,31,24,0.4,auto,4,small_batch,mixed
+TEST_002,test,Precision Reamed Housing,True,Steel,Reamed_Hole;Bore;Face;Face_Groove,0.005mm,50,166,35,23,22,0.4,auto,4,small_batch,lathe
+TEST_003,test,Engraved ID Plate,True,Brass,Engraved_Mark;Face;Hole;Chamfer,0.5mm,50,20,273,41,96,12.5,auto,4,small_batch,milling
+TEST_004,test,Cam Lobe Hub,False,Steel,Eccentric;Spline;Bore;Chamfer,0.01mm,20,177,55,34,90,0.8,auto,4,small_batch,mixed
+TEST_005,test,Slide Guide Rail,False,Cast Iron,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,5,21,227,59,54,1.6,auto,5,prototype,milling
+TEST_006,test,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.05mm,250,19,239,49,56,3.2,auto,4,medium_batch,milling
+TEST_007,test,Helical Hub Pulley,False,Cast Iron,Helical_Groove;Groove;Keyway;Bore;Face,0.02mm,250,96,23,17,56,1.6,auto,5,medium_batch,mixed
+TEST_008,test,Wedge Clamp Block,True,Steel,Inclined_Face;Hole;Face;Chamfer,0.1mm,20,31,176,18,136,6.3,auto,4,small_batch,milling
+TEST_009,test,Slide Guide Rail,False,Cast Iron,Dovetail;T_Slot;Face;Hole;Countersink,0.01mm,1,29,288,52,143,0.8,auto,5,prototype,milling
+TEST_010,test,Clevis Fork,False,Aluminum,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,100,6,257,43,73,3.2,auto,5,medium_batch,milling
+TEST_011,test,Wedge Clamp Block,True,Aluminum,Inclined_Face;Hole;Face;Chamfer,0.1mm,100,29,195,13,104,6.3,auto,4,medium_batch,milling
+TEST_012,test,Slide Guide Rail,False,Steel,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,5,6,249,35,147,1.6,auto,5,prototype,milling
+TEST_013,test,Helical Hub Pulley,False,Cast Iron,Helical_Groove;Groove;Keyway;Bore;Face,0.05mm,250,185,23,13,106,3.2,auto,5,medium_batch,mixed
+TEST_014,test,Cam Lobe Hub,False,Steel,Eccentric;Spline;Bore;Chamfer,0.005mm,20,147,55,38,60,0.4,auto,4,small_batch,mixed
+TEST_015,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,10,31,96,11,25,0.4,auto,6,prototype,mixed
+TEST_016,test,Gear Blank,True,Steel,Gear_Teeth;Hole;Keyway;Face,0.01mm,50,178,42,7,71,0.8,auto,4,small_batch,milling
+TEST_017,test,Hex Bolt,True,Titanium,Face;Thread;Chamfer,0.02mm,5000,53,120,10,42,1.6,auto,3,mass_production,flexible
+TEST_018,test,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.005mm,1000,54,124,13,43,0.4,auto,2,mass_production,flexible
+TEST_019,test,Stepped Shaft with Retaining Groove,True,Aluminum,Step;Groove;Fillet;Chamfer,0.02mm,50,16,152,9,13,1.6,auto,4,small_batch,mixed
+TEST_020,test,Turned Pin with Undercut,True,Aluminum,Turning;Undercut;Thread;Chamfer;Parting_Off,0.02mm,20,25,70,13,20,1.6,auto,5,small_batch,lathe
+TEST_021,test,Taper Shank Holder,False,Titanium,Taper;Undercut;Internal_Thread;Face;Chamfer,0.01mm,50,35,120,9,28,0.8,auto,5,small_batch,lathe
+TEST_022,test,Slide Guide Rail,False,Cast Iron,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,1,10,157,31,98,1.6,auto,5,prototype,milling
+TEST_023,test,Helical Hub Pulley,False,Aluminum,Helical_Groove;Groove;Keyway;Bore;Face,0.05mm,250,87,53,18,21,3.2,auto,5,medium_batch,mixed
+TEST_024,test,Cam Profile Disc,True,Steel,Contour_3D;Hole;Keyway,0.01mm,10,212,44,30,86,0.8,auto,3,prototype,milling
+TEST_025,test,T-Slot Table Plate,True,Steel,T_Slot;Face;Hole;Chamfer,0.05mm,5,16,286,35,39,3.2,auto,4,prototype,milling
+TEST_026,test,Helical Hub Pulley,False,Aluminum,Helical_Groove;Groove;Keyway;Bore;Face,0.05mm,250,160,49,39,44,3.2,auto,5,medium_batch,mixed
+TEST_027,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,250,27,123,4,22,0.4,auto,6,medium_batch,mixed
+TEST_028,test,Sealed Housing Cover,True,Aluminum,Groove;Face;Hole;Chamfer,0.1mm,100,84,58,40,38,6.3,auto,4,medium_batch,lathe
+TEST_029,test,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.02mm,1000,55,213,32,44,1.6,auto,4,mass_production,lathe
+TEST_030,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.05mm,2500,13,248,7,10,3.2,auto,5,mass_production,mixed
+TEST_031,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.05mm,100,40,247,15,32,3.2,auto,5,medium_batch,mixed
+TEST_032,test,Helical Hub Pulley,False,Steel,Helical_Groove;Groove;Keyway;Bore;Face,0.05mm,20,177,25,10,26,3.2,auto,5,small_batch,mixed
+TEST_033,test,Flanged Bushing,True,Copper,Hole;Face;Chamfer;Counterbore,0.02mm,250,31,62,12,25,1.6,auto,4,medium_batch,flexible
+TEST_034,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,10,26,266,48,32,3.2,auto,5,prototype,milling
+TEST_035,test,Boss with Spotface,True,Aluminum,Boss;Counterbore;Hole,0.05mm,100,154,21,8,72,3.2,auto,3,medium_batch,flexible
+TEST_036,test,Cam Lobe Hub,False,Steel,Eccentric;Spline;Bore;Chamfer,0.005mm,5,130,49,35,46,0.4,auto,4,prototype,mixed
+TEST_037,test,Keyed Shaft,True,Cast Iron,Step;Keyway;Chamfer;Face,0.01mm,100,55,178,25,44,0.8,auto,4,medium_batch,mixed
+TEST_038,test,Gearbox Housing Half,True,Aluminum,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.01mm,50,10,286,43,85,0.8,auto,8,small_batch,milling
+TEST_039,test,Cam Lobe Hub,False,Steel,Eccentric;Spline;Bore;Chamfer,0.01mm,20,119,50,22,41,0.8,auto,4,small_batch,mixed
+TEST_040,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.005mm,50,26,197,8,21,0.4,auto,5,small_batch,lathe
+TEST_041,test,Helical Flute Shaft,True,Steel,Helical_Groove;Turning;Step;Chamfer,0.02mm,100,55,111,21,44,1.6,auto,4,medium_batch,mixed
+TEST_042,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.01mm,10,33,117,10,26,0.8,auto,5,prototype,lathe
+TEST_043,test,V-Belt Pulley,True,Steel,Groove;Hole;Keyway;Face,0.05mm,50,168,47,36,70,3.2,auto,4,small_batch,mixed
+TEST_044,test,Tapped Manifold Block,True,Steel,Internal_Thread;Pocket;Face;Hole;Chamfer,0.02mm,10,11,121,37,97,1.6,auto,5,prototype,milling
+TEST_045,test,Internally Threaded Bushing,True,Copper,Thread;Hole;Chamfer;Face,0.05mm,250,21,148,11,17,3.2,auto,4,medium_batch,flexible
+TEST_046,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.005mm,50,37,169,21,30,0.4,auto,5,small_batch,lathe
+TEST_047,test,Gear Blank,True,Steel,Gear_Teeth;Hole;Keyway;Face,0.01mm,10,151,41,17,68,0.8,auto,4,prototype,milling
+TEST_048,test,Valve Body,True,Cast Iron,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.05mm,10,205,33,23,54,3.2,auto,8,prototype,mixed
+TEST_049,test,Turned Pin with Undercut,True,Steel,Turning;Undercut;Thread;Chamfer;Parting_Off,0.02mm,100,56,245,9,45,1.6,auto,5,medium_batch,lathe
+TEST_050,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,500,9,108,11,67,3.2,auto,5,medium_batch,milling
+TEST_051,test,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.02mm,50,40,153,7,32,1.6,auto,5,small_batch,mixed
+TEST_052,test,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.05mm,100,150,25,16,88,3.2,auto,5,medium_batch,flexible
+TEST_053,test,Center-Drilled Stud,True,Titanium,Center_Drill;Thread;Turning;Chamfer,0.1mm,1000,16,94,5,13,6.3,auto,4,mass_production,lathe
+TEST_054,test,Slide Guide Rail,False,Steel,Dovetail;T_Slot;Face;Hole;Countersink,0.01mm,5,24,127,31,94,0.8,auto,5,prototype,milling
+TEST_055,test,Precision Reamed Housing,True,Cast Iron,Reamed_Hole;Bore;Face;Face_Groove,0.02mm,50,177,53,19,106,1.6,auto,4,small_batch,lathe
+TEST_056,test,Hydraulic Piston,False,Aluminum,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,250,54,88,21,43,0.4,auto,6,medium_batch,mixed
+TEST_057,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.005mm,50,59,119,20,47,0.4,auto,5,small_batch,lathe
+TEST_058,test,Valve Body,True,Cast Iron,Bore;Hole;Counterbore;Internal_Thread;Face_Groove;Face;Slot;Chamfer,0.02mm,10,158,34,10,64,1.6,auto,8,prototype,mixed
+TEST_059,test,Knurled Grip Handle,True,Plastic,Knurl;Step;Chamfer;Face,0.1mm,500,40,222,21,32,6.3,auto,4,medium_batch,lathe
+TEST_060,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.02mm,10,15,263,47,85,1.6,auto,5,prototype,milling
+TEST_061,test,Flange Plate,True,Cast Iron,Hole;Counterbore;Countersink;Chamfer;Face,0.1mm,250,204,45,6,93,6.3,auto,5,medium_batch,flexible
+TEST_062,test,Tapered Sleeve,True,Aluminum,Taper;Hole;Chamfer,0.02mm,100,24,71,14,19,1.6,auto,3,medium_batch,lathe
+TEST_063,test,O-Ring Face Seal Cap,True,Aluminum,Face_Groove;Face;Hole;Center_Drill,0.02mm,2500,199,18,12,116,1.6,auto,4,mass_production,flexible
+TEST_064,test,Helical Hub Pulley,False,Aluminum,Helical_Groove;Groove;Keyway;Bore;Face,0.02mm,20,169,47,13,85,1.6,auto,5,small_batch,mixed
+TEST_065,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.02mm,100,17,243,28,105,1.6,auto,5,medium_batch,milling
+TEST_066,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.1mm,500,32,121,19,26,6.3,auto,5,medium_batch,mixed
+TEST_067,test,Cam Lobe Hub,False,Cast Iron,Eccentric;Spline;Bore;Chamfer,0.01mm,5,100,55,31,29,0.8,auto,4,prototype,mixed
+TEST_068,test,Hydraulic Piston,False,Aluminum,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,10,11,109,5,9,0.4,auto,6,prototype,mixed
+TEST_069,test,Keyed Shaft,True,Aluminum,Step;Keyway;Chamfer;Face,0.02mm,50,32,246,16,26,1.6,auto,4,small_batch,mixed
+TEST_070,test,Stepped Shaft with Retaining Groove,True,Steel,Step;Groove;Fillet;Chamfer,0.02mm,50,53,70,25,42,1.6,auto,4,small_batch,mixed
+TEST_071,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,250,56,171,11,45,0.4,auto,6,medium_batch,mixed
+TEST_072,test,Mounting Bracket,True,Aluminum,Slot;Hole;Chamfer;Face,0.1mm,500,20,263,28,157,6.3,auto,4,medium_batch,milling
+TEST_073,test,Multi-Feature Drive Shaft,True,Steel,Turning;Step;Groove;Thread;Keyway;Chamfer;Undercut,0.02mm,5,34,109,17,27,1.6,auto,7,prototype,mixed
+TEST_074,test,Sealed Housing Cover,True,Aluminum,Groove;Face;Hole;Chamfer,0.1mm,100,83,15,12,38,6.3,auto,4,medium_batch,lathe
+TEST_075,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,100,8,200,16,70,3.2,auto,5,medium_batch,milling
+TEST_076,test,Threaded Shaft with Relief Groove,True,Titanium,Thread;Fillet;Step,0.02mm,50,19,205,8,15,1.6,auto,3,small_batch,mixed
+TEST_077,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.1mm,500,26,49,14,21,6.3,auto,5,medium_batch,mixed
+TEST_078,test,Gusseted Bracket,True,Cast Iron,Shoulder;Rib;Hole;Face;Chamfer,0.1mm,1000,22,234,19,135,6.3,auto,5,mass_production,milling
+TEST_079,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.01mm,250,15,159,9,12,0.8,auto,6,medium_batch,mixed
+TEST_080,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.005mm,250,29,61,13,23,0.4,auto,6,medium_batch,mixed
+TEST_081,test,Contoured Spindle Nose,True,Aluminum,Contour_Turn;Turning;Step;Chamfer,0.01mm,50,24,161,13,19,0.8,auto,4,small_batch,lathe
+TEST_082,test,Slide Guide Rail,False,Steel,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,5,14,144,30,114,1.6,auto,5,prototype,milling
+TEST_083,test,Engraved Dial Knob,False,Aluminum,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.1mm,500,49,63,20,39,6.3,auto,5,medium_batch,mixed
+TEST_084,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.01mm,50,41,70,21,33,0.8,auto,5,small_batch,lathe
+TEST_085,test,Spotfaced Mounting Flange,True,Cast Iron,Spotface;Reamed_Hole;Hole;Face,0.02mm,500,140,32,23,28,1.6,auto,4,medium_batch,milling
+TEST_086,test,Pocketed Housing,True,Steel,Pocket;Hole;Counterbore;Chamfer,0.05mm,100,22,248,51,108,3.2,auto,4,medium_batch,milling
+TEST_087,test,Precision Dowel Pin,True,Titanium,Chamfer;Face,0.01mm,2500,52,48,30,42,0.8,auto,2,mass_production,flexible
+TEST_088,test,Helical Hub Pulley,False,Cast Iron,Helical_Groove;Groove;Keyway;Bore;Face,0.02mm,100,219,46,6,58,1.6,auto,5,medium_batch,mixed
+TEST_089,test,Helical Hub Pulley,False,Cast Iron,Helical_Groove;Groove;Keyway;Bore;Face,0.02mm,100,136,26,9,37,1.6,auto,5,medium_batch,mixed
+TEST_090,test,Clevis Fork,False,Aluminum,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,10,32,199,22,71,3.2,auto,5,prototype,milling
+TEST_091,test,Cam Lobe Hub,False,Cast Iron,Eccentric;Spline;Bore;Chamfer,0.01mm,5,220,52,10,127,0.8,auto,4,prototype,mixed
+TEST_092,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.005mm,10,16,123,7,13,0.4,auto,5,prototype,lathe
+TEST_093,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.05mm,100,29,175,12,96,3.2,auto,5,medium_batch,milling
+TEST_094,test,Threaded Shaft with Relief Groove,True,Steel,Thread;Fillet;Step,0.02mm,100,51,207,13,41,1.6,auto,3,medium_batch,mixed
+TEST_095,test,Hydraulic Piston,False,Steel,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.01mm,250,27,199,14,22,0.8,auto,6,medium_batch,mixed
+TEST_096,test,Taper Shank Holder,False,Steel,Taper;Undercut;Internal_Thread;Face;Chamfer,0.01mm,50,47,128,6,38,0.8,auto,5,small_batch,lathe
+TEST_097,test,Gearbox Housing Half,True,Aluminum,Pocket;Hole;Counterbore;Face;Internal_Thread;Spotface;Reamed_Hole;Chamfer,0.01mm,10,31,218,44,114,0.8,auto,8,prototype,milling
+TEST_098,test,Dovetail Slide Block,True,Cast Iron,Dovetail;Face;Shoulder;Hole,0.02mm,5,16,180,40,36,1.6,auto,4,prototype,milling
+TEST_099,test,Slide Guide Rail,False,Steel,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,5,29,129,35,114,1.6,auto,5,prototype,milling
+TEST_100,test,Boss with Spotface,True,Steel,Boss;Counterbore;Hole,0.05mm,50,126,31,7,20,3.2,auto,3,small_batch,flexible
+TEST_101,test,Gusseted Bracket,True,Aluminum,Shoulder;Rib;Hole;Face;Chamfer,0.1mm,1000,11,284,18,86,6.3,auto,5,mass_production,milling
+TEST_102,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.1mm,100,33,110,16,26,6.3,auto,5,medium_batch,mixed
+TEST_103,test,Hydraulic Piston,False,Aluminum,Bore;Face_Groove;Groove;Contour_Turn;Chamfer;Fillet,0.01mm,50,31,43,4,25,0.8,auto,6,small_batch,mixed
+TEST_104,test,Taper Shank Holder,False,Titanium,Taper;Undercut;Internal_Thread;Face;Chamfer,0.005mm,10,16,130,8,13,0.4,auto,5,prototype,lathe
+TEST_105,test,Clevis Fork,False,Steel,Slot;Shoulder;Reamed_Hole;Rib;Face,0.02mm,100,14,264,56,125,1.6,auto,5,medium_batch,milling
+TEST_106,test,Eccentric Cam Shaft,True,Steel,Eccentric;Turning;Step;Keyway;Chamfer,0.02mm,50,58,202,15,46,1.6,auto,5,small_batch,mixed
+TEST_107,test,Engraved ID Plate,True,Brass,Engraved_Mark;Face;Hole;Chamfer,0.5mm,100,13,64,16,33,12.5,auto,4,medium_batch,milling
+TEST_108,test,Spotfaced Mounting Flange,True,Cast Iron,Spotface;Reamed_Hole;Hole;Face,0.05mm,250,143,22,12,79,3.2,auto,4,medium_batch,milling
+TEST_109,test,Cam Lobe Hub,False,Steel,Eccentric;Spline;Bore;Chamfer,0.005mm,5,180,18,8,106,0.4,auto,4,prototype,mixed
+TEST_110,test,Slide Guide Rail,False,Cast Iron,Dovetail;T_Slot;Face;Hole;Countersink,0.01mm,5,7,249,42,67,0.8,auto,5,prototype,milling
+TEST_111,test,Helical Flute Shaft,True,Brass,Helical_Groove;Turning;Step;Chamfer,0.02mm,5,47,173,10,38,1.6,auto,4,prototype,mixed
+TEST_112,test,Tapped Manifold Block,True,Steel,Internal_Thread;Pocket;Face;Hole;Chamfer,0.02mm,250,26,140,22,132,1.6,auto,5,medium_batch,milling
+TEST_113,test,Bored Bearing Sleeve,True,Steel,Bore;Center_Drill;Turning;Chamfer;Face,0.005mm,50,52,189,22,42,0.4,auto,5,small_batch,lathe
+TEST_114,test,Engraved Dial Knob,False,Brass,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.05mm,100,45,244,9,36,3.2,auto,5,medium_batch,mixed
+TEST_115,test,Engraved Dial Knob,False,Plastic,Knurl;Engraved_Mark;Turning;Counterbore;Internal_Thread,0.1mm,500,30,209,9,24,6.3,auto,5,medium_batch,mixed
+TEST_116,test,T-Slot Table Plate,True,Cast Iron,T_Slot;Face;Hole;Chamfer,0.05mm,1,7,156,14,57,3.2,auto,4,prototype,milling
+TEST_117,test,Flanged Bushing,True,Brass,Hole;Face;Chamfer;Counterbore,0.02mm,250,17,70,4,14,1.6,auto,4,medium_batch,flexible
+TEST_118,test,Slide Guide Rail,False,Steel,Dovetail;T_Slot;Face;Hole;Countersink,0.02mm,1,32,208,36,119,1.6,auto,5,prototype,milling
+TEST_119,test,Hex Bolt,True,Brass,Face;Thread;Chamfer,0.05mm,1000,45,54,27,36,3.2,auto,3,mass_production,flexible
+TEST_120,test,Splined Shaft,True,Titanium,Spline;Step;Fillet;Chamfer,0.01mm,50,22,115,8,18,0.8,auto,4,small_batch,mixed
