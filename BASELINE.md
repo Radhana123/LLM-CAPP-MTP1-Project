@@ -748,3 +748,59 @@ Excel me freeze-pane / print-title row header se ek row upar thi (blank row ke b
 
 ### Abhi kya nahi hai
 Handbook se confirmation (tumhare/supervisor ke haath me; ek-ek row `confirmed` karo), per-operation multi-objective parameter refinement (abhi route pehle, v1 parameters baad me), tool-life se tool selection, machining trials, baaki dimensions ka extraction, confidence/flag ka dashboard me dikhna (sheet me hai, route cards me nahi), asli live results par threshold (Step 18) aur cascade ke results.
+
+## Step 20 (WP7): extraction front end, agreement-based confirmation, corrections log aur M9, `scripts/extraction_eval.py`
+
+Report §6.5 / Objective 6 / RQ6: drawing se features nikalne wala front end sirf "AI ne kya bola" nahi dikhata, balki **kis par bharosa karna hai** bhi batata hai. Do passes (geometry, annotation) ek hi drawing padhte hain. **Dono ne jo feature dekha wo pre-accepted** (confidence high). **Sirf ek pass ne dekha to highlight**: jab tak Accept ya Reject nahi, **Generate band**. User jo badalta hai wo **corrections log** me jaata hai, aur **M9** (precision / recall / F1 per pass, union, intersection, agreement-based + har drawing par corrections) ek script se nikalta hai.
+
+### Workflow (repo root, PowerShell)
+```
+python -m streamlit run week6/app.py        # drawing upload -> "Extract Features" -> main area me review panel (drawing + table + Accept/Reject)
+
+# M9: pehle ground truth (drawings ka folder, jaise drawings/)
+python scripts/extraction_eval.py template drawings/ --out data/extraction_truth.json     # har drawing ke liye khaali entry; "features" (aur ho to "hole_diameters") bharo
+python scripts/extraction_eval.py run drawings/ --truth data/extraction_truth.json --tag fe1                       # live API calls (cache me), phir score
+python scripts/extraction_eval.py run drawings/ --truth data/extraction_truth.json --tag fe2 --evidence --dimensions   # evidence prompt + hole-diameter pass
+python scripts/extraction_eval.py run drawings/ --truth data/extraction_truth.json --tag fe1 --mode replay           # sirf cache se
+python scripts/extraction_eval.py score results/fe1_extraction results/fe2_extraction --csv results/m9              # offline, kitni bhi baar
+python scripts/extraction_eval.py log                                                                              # asli users ne kya badla (results/corrections_log.jsonl)
+```
+Truth file: `{"a.png": ["Hole", "Slot"], "b.png": {"features": ["Hole"], "hole_diameters": [8, 6.5]}}` (key me extension chhod sakti ho). Feature names 36-feature vocabulary se hone chahiye, warna saaf error aata hai; khaali entry (template jo bhari nahi) bhi refuse hoti hai. API calls: har drawing par 2 (+1 `--dimensions`); `--evidence` alag prompt hai, to nayi calls lagti hain.
+
+### Interface me kya badla
+- **Review panel** (main area, drawing ke saath): table me Feature, Seen by (both passes / geometry only / annotation only), Confidence, Status (pre-accepted / needs confirmation / accepted / rejected), Evidence. Highlighted feature ke saamne **Accept / Reject**. Decision badal sakti ho. Multiselect me highlighted feature khud jodna bhi acceptance gina jaata hai.
+- **Generate** disabled rehta hai jab tak koi highlighted feature undecided hai (sidebar me warning + caption batati hai kaun sa). Manual mode kabhi block nahi hota.
+- **Confidence** = dono passes dekhe to "high"; ek pass dekhe to us pass ki apni confidence **medium par cap** (doosre pass ne nahi dekha).
+- **Unrecognised names** (vocabulary ke bahar, jaise "Counter Bore") chupchaap drop nahi hote: panel me nearest feature ke saath "Use Counterbore" button (sirf suggestion, user decide karta hai); close match na ho to note.
+- **Purane results** (jisme per-pass data nahi) pura pre-accepted rehte hain, pehle jaisa. Agar sirf ek pass chala to koi feature "dono ne dekha" nahi ho sakta, to sab highlighted aur panel kehta hai "Only 1 of the 2 passes worked".
+- **Evidence (opt-in)**: sidebar checkbox "Ask the AI for a short evidence note per feature", default **off**. Alag prompt hai (har feature ke saath annotation text ya view, max 12 words), to **default prompt, uske cache keys aur recall bilkul nahi badle** (test: default prompt ka hash Step 19 wale jaisa, `33c64a8869bd6e13`). Evidence na ho to table me passes ke notes dikhte hain.
+
+### "Correction" kya gina jaata hai
+**Correction** = user ne feature **jodi** (model ne nahi di), **pre-accepted feature hataya**, ya unrecognised name **map** kiya. **Highlighted feature par Accept / Reject ek decision hai, correction nahi**: interface ne khud maanga tha. Dono alag gine jaate hain, kyunki RQ6 poochta hai ki agreement rule corrections ghataata hai ya nahi, aur uski keemat decisions ki ginti hai. Corrections log (`results/corrections_log.jsonl`, `CAPP_CORRECTIONS_LOG` se badal sakti ho; `results/` gitignored hai, to push nahi hota) me har Generate par ek line: model ka original output (union, agreement, kis pass ne dekha, highlighted, unrecognised), user ki final list, events, `n_corrections`, `n_decisions`, drawing ka naam aur **short hash** (drawing khud store nahi hoti). Same drawing same state me dobara Generate karo to doosri line nahi banti (material badalne se drawing do baar nahi giniyegi). Log likhne me dikkat ho to page chalta rehta hai.
+
+### M9 ke variants (`capp/extraction_eval.py`)
+Har drawing par G = truth, g / a = dono passes, u = g ∪ a (v1), b = g ∩ a. Sab variants **sirf unhi drawings par** jahan dono passes chale (taaki same drawings par compare ho; baaki "left out" me naam ke saath):
+
+| variant | dikhayi gayi list | corrections / drawing |
+|---|---|---|
+| geometry, annotation | ek pass akela | list ko G banane ke edits (galat hatao + chhoote jodo) |
+| union (v1) | u | wahi |
+| both (intersection) | b | wahi |
+| agreement | b pre-accepted, u − b highlighted | `|b − G| + |G − u|` (galat pre-accepted hatao + dono ne jo chhoda wo jodo); `|u − b|` decisions alag "confirmations" me |
+
+Pooled precision / recall / F1 (95% interval drawings par bootstrap, seed 7), drawing-average F1, exact-match share, per-feature table (support ke saath), passes ka overlap ("dono ne dekha: itna sahi; ek ne dekha: itna sahi"), unrecognised names, hole diameters (dimension pass, 0.05 mm ke andar match, har true diameter ek baar), CSV (`_variants`, `_features`, `_drawings`; drawings me `missed_by_both` bhi).
+
+### Jo honestly likhna hai
+1. **M9 abhi nikal nahi sakta: repo me annotated drawings nahi hain** (sirf `sample_drawings/flange_plate.png`). 30-50 drawings aur unki ground truth (tumhe ya Prof. Deb ko likhni hai; do annotators ek subset par ho to agreement ceiling bhi milti hai). Module aur CLI synthetic records par haath se nikaale numbers se test hue hain (3 drawings ka table test me comment me hai).
+2. **"agreement" variant ek ORACLE upper bound hai**: maanta hai user har highlighted feature sahi accept/reject karta hai. Asli users ka number `log` command deta hai; report me dono ko alag likho. Corrections log me final list user ki hai, independent truth nahi (user galti miss kar sakta hai): wo "kitna badla" naapta hai, "kitna sahi" nahi.
+3. **Dono passes ek hi model hain, sirf prompt alag**: unki agreement independent saboot nahi (galtiyan correlated ho sakti hain). Jo feature dono miss karein wo kabhi highlight nahi hoga; table me `missed_by_both` isi ke liye hai.
+4. **Evidence prompt aur dimension pass maine real API par nahi chalaye** (fake transport par hi test hue); pehle live run me model ka format alag aa sakta hai (`_clean_evidence` aur parser bachaate hain, par recall naapna tumhara kaam hai). Evidence ke saath aur bina features ka farak `fe1` vs `fe2` score se dekho.
+5. Feature list ek **set** hai (3 holes wali drawing me Hole ek baar), v1 ki tarah. Sirf hole diameters ki extraction hai; baaki dimensions (depth, width, Ra) abhi user type karta hai.
+6. **Protocol**: prompts ek development subset par badlo, **freeze** karo, M9 baaki drawings par report karo. 30-50 drawings par har interval chauda hoga, wahi likho.
+7. `use_container_width` jaise Streamlit ke deprecation warnings purane code ke hain, behaviour nahi badla.
+
+### Tests (+177)
+`tests/test_extraction_review.py` (64): agreement rule (both / one / legacy / counts-only / ek pass fail), confidence cap, evidence per pass, unrecognised + nearest feature, pending / decide / status, mapping, log entry ke har event type, log file (bad lines), summary aur report. `tests/test_extraction_eval.py` (57): truth file ke saare errors, template, drawings ka matching, `run` (fake extractor: records, options, exception, key-missing par turant stop, run tag restore), **3-drawing case haath se** (har variant ke tp/fp/fn, precision/recall/F1, corrections, confirmations, overlap), left-out drawings, holes, report, CSV, CLI. `tests/test_extraction_passes.py` (25): per-pass data, default call byte-same, default prompt hash, evidence prompt alag + cache entries alag, failed pass. `tests/test_review_ui.py` (31): Generate disabled / enabled, Accept / Reject, mapping, evidence, image, manual mode, log line ke events, duplicate nahi, log fail ho to page chale, evidence checkbox extractor tak pahunchta hai (file upload ke saath).
+
+### Abhi kya nahi hai
+Live runs aur annotated drawings (upar 1), asli users ka log, baaki dimensions ka extraction, dono passes ke alawa teesra independent pass ya alag model se cross-check, flag ko raw signals (agreement, valid share) par rakhna (Step 18 ke `confidence_tune` ke baad), dashboard route cards me confidence / flag ka dikhna.

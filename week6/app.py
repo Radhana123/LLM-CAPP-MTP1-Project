@@ -12,7 +12,7 @@
 #   - Per-operation detail table
 
 import streamlit as st
-import sys, os, time
+import sys, os, time, json
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 
@@ -42,6 +42,7 @@ from capp import analysis_view as AV      # physics + feasibility numbers (analy
 from capp import process_plan as PP       # route sheet (Step 19): machine, tool, parameters, time per operation
 from capp import routesheet as RS         # ... and its PDF / XLSX / HTML
 from capp import dimensions as DIM        # hole diameters read from the drawing (Step 14): parse, validate, pre-fill rule
+from capp import extraction_review as ER  # evidence, selective confirmation and the corrections log of the extraction (Step 20)
 
 # ── Page Config ───────────────────────────────────────────────
 st.set_page_config(
@@ -467,6 +468,98 @@ def show_route_sheet(steps, part, key, context):
                 st.caption(f"{label}: {exc}")
 
 
+# ── Extraction review (Step 20, report 6.5): evidence, selective confirmation, corrections log ──
+CORRECTIONS_LOG = os.environ.get("CAPP_CORRECTIONS_LOG") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                                          "results", "corrections_log.jsonl")
+SEEN_BY_TEXT = {"both": "both passes", ER.UNKNOWN: "-"}
+
+
+def _decide(feature, decision):
+    """Callback of the Accept / Reject buttons: runs before the page is drawn again, so the list and the Generate button already agree."""
+    feats, dec = ER.decide(st.session_state.get("confirmed_features", []), st.session_state.get("feature_decisions", {}), feature, decision)
+    st.session_state["confirmed_features"] = feats
+    st.session_state["feature_decisions"] = dec
+
+
+def _map_name(name, feature):
+    feats, mp = ER.map_unrecognised(st.session_state.get("confirmed_features", []), st.session_state.get("unrec_mappings", {}), name, feature)
+    st.session_state["confirmed_features"] = feats
+    st.session_state["unrec_mappings"] = mp
+
+
+def _seen_by_text(row):
+    if row["agreement"] == "one":
+        return (row["seen_by"][0] + " only") if row["seen_by"] else "one pass only"
+    return SEEN_BY_TEXT.get(row["agreement"], "-")
+
+
+def show_review_panel(extraction_info, review):
+    """The drawing beside the feature table, with the evidence of each feature; Accept / Reject for the highlighted ones."""
+    decisions = st.session_state.get("feature_decisions", {})
+    features = st.session_state.get("confirmed_features", [])
+    st.markdown("#### 🔎 Review the detected features")
+    left, right = st.columns([1, 1.4])
+    with left:
+        img = st.session_state.get("uploaded_image_bytes")
+        if img:
+            try:
+                st.image(img, caption="Your drawing", use_container_width=True)
+            except Exception:                                   # a drawing that cannot be shown must not hide the table
+                st.caption("(the drawing could not be shown)")
+    with right:
+        if review["has_agreement"]:
+            st.caption("Seen by **both passes** (geometry and annotation) = pre-accepted. Seen by **one pass only** = highlighted: accept or reject "
+                       "it before you can generate the route. Add what the AI missed, or remove a pre-accepted feature, with the Features list in "
+                       "the sidebar: those edits go to the corrections log.")
+        else:
+            st.caption("This extraction has no per-pass data, so every feature is pre-accepted. Edit the Features list in the sidebar if needed.")
+        for n in review["notes"]:
+            st.warning("⚠️ " + n)
+        label = ER.status(review, decisions, features)
+        st.dataframe([{"Feature": r["feature"], "Seen by": _seen_by_text(r), "Confidence": r["confidence"] or "-", "Status": label[r["feature"]],
+                       "Evidence": r["evidence_text"] or "-"} for r in review["rows"]], use_container_width=True, hide_index=True)
+        if not any(r["evidence_text"] for r in review["rows"]):
+            notes = ER.pass_notes(extraction_info)
+            if notes:
+                st.caption("Notes of the passes: " + "; ".join(f"{n}: {t}" for n, t in notes.items()))
+        for r in review["rows"]:
+            if not r["needs_confirmation"]:
+                continue
+            f = r["feature"]
+            c0, c1, c2 = st.columns([3, 1, 1])
+            c0.markdown(f"**{f}** — {_seen_by_text(r)}" + (f": {r['evidence_text']}" if r["evidence_text"] else ""))
+            c1.button("✅ Accept", key=f"acc_{f}", on_click=_decide, args=(f, ER.ACCEPT), disabled=label[f] == "accepted")
+            c2.button("❌ Reject", key=f"rej_{f}", on_click=_decide, args=(f, ER.REJECT), disabled=label[f] == "rejected")
+        mappings = st.session_state.get("unrec_mappings", {})
+        for u in review["unrecognised"]:
+            seen = ", ".join(u["seen_by"]) or "the extraction"
+            if u["name"] in mappings:
+                st.caption(f"✓ “{u['name']}” (not in the vocabulary) was mapped to {mappings[u['name']]}.")
+            elif u["suggestion"]:
+                c0, c1 = st.columns([3, 2])
+                c0.caption(f"⚠️ “{u['name']}” ({seen}) is not in the vocabulary. Nearest feature: **{u['suggestion']}**.")
+                c1.button(f"Use {u['suggestion']}", key=f"map_{u['name']}", on_click=_map_name, args=(u["name"], u["suggestion"]))
+            else:
+                st.caption(f"⚠️ “{u['name']}” ({seen}) is not in the vocabulary and has no close match: add the right feature in the sidebar, or ignore it.")
+
+
+def log_corrections(extraction_info, features):
+    """One line of the corrections log per Generate (report 6.5), unless the same drawing was just logged in the same state (pressing
+    Generate again after changing only the material must not count the drawing twice). The log is for analysis; a problem writing it
+    never stops the page."""
+    try:
+        entry = ER.build_log_entry(extraction_info, features, st.session_state.get("feature_decisions"), st.session_state.get("unrec_mappings"),
+                                   drawing_id=st.session_state.get("uploaded_name", ""), image_bytes=st.session_state.get("uploaded_image_bytes"))
+        state = json.dumps([entry["image_sha256"], entry["drawing_id"], entry["model_output"], entry["final_features"], entry["events"]],
+                           sort_keys=True)
+        if st.session_state.get("_last_logged") == state:
+            return
+        ER.append_log(CORRECTIONS_LOG, entry)
+        st.session_state["_last_logged"] = state          # only after the write worked: a failed write is tried again at the next Generate
+    except Exception as exc:
+        st.caption(f"(the corrections log could not be written: {type(exc).__name__}: {exc})")
+
+
 def show_assumptions_and_sources(view):
     with st.expander("🧾 Assumptions behind these numbers"):
         for line in view["assumptions"]:
@@ -500,6 +593,8 @@ with st.sidebar:
 
     features = []
     extraction_info = None
+    review = None
+    pending_features = []
 
     INPUT_UPLOAD = "🖼️ Upload a drawing (AI extraction)"
     INPUT_MANUAL = "✍️ Select the features myself"
@@ -517,6 +612,9 @@ with st.sidebar:
         uploaded_image = st.file_uploader("Upload a 2D engineering drawing / sketch",
             type=["png", "jpg", "jpeg"])
 
+        use_evidence = st.checkbox("Ask the AI for a short evidence note per feature", key="use_evidence",
+                                   help="A different prompt (more tokens, new API calls): every feature comes with the annotation text or the view it is "
+                                        "based on. Off by default: the extraction is then exactly the one validated so far.")
         if uploaded_image is not None:
             if st.button("🔍 Extract Features from Image", use_container_width=True):
                 with st.spinner("Analyzing image with AI vision model..."):
@@ -524,10 +622,16 @@ with st.sidebar:
                     from image_feature_extractor import extract_features_from_image
                     img_bytes = uploaded_image.getvalue()
                     img_format = uploaded_image.type.split("/")[-1]
-                    extraction_info = extract_features_from_image(img_bytes, image_format=img_format, with_dimensions=True)
+                    extraction_info = extract_features_from_image(img_bytes, image_format=img_format, with_dimensions=True,
+                                                                  with_evidence=bool(use_evidence))
                 st.session_state["extraction_result"] = extraction_info
                 st.session_state["uploaded_image_bytes"] = img_bytes
-                st.session_state["confirmed_features"] = extraction_info["features"]
+                st.session_state["uploaded_name"] = uploaded_image.name
+                st.session_state["feature_decisions"] = {}
+                st.session_state["unrec_mappings"] = {}
+                # only what both passes saw is pre-accepted; the rest waits for Accept / Reject (a result without per-pass data: everything)
+                st.session_state["confirmed_features"] = (ER.initial_features(ER.build_review(extraction_info))
+                                                          if extraction_info["success"] else extraction_info["features"])
 
         # Show extraction result (persisted in session_state across reruns)
         if "extraction_result" in st.session_state:
@@ -539,7 +643,8 @@ with st.sidebar:
                 if extraction_info["notes"]:
                     st.caption(f"AI notes: {extraction_info['notes']}")
                 if extraction_info["rejected_features"]:
-                    st.warning(f"⚠️ Ignored unrecognized terms: {', '.join(extraction_info['rejected_features'])}")
+                    st.warning(f"⚠️ Not in the feature vocabulary (not used unless you map them in the review panel): "
+                               f"{', '.join(extraction_info['rejected_features'])}")
                 if "dimensions" in extraction_info:
                     holes = extraction_info.get("hole_diameters") or []
                     if holes:
@@ -561,6 +666,11 @@ with st.sidebar:
                 # session_state se sync karo — rerun pe multiselect reset ho jaata hai
                 if not features and "confirmed_features" in st.session_state:
                     features = st.session_state["confirmed_features"]
+                review = ER.build_review(extraction_info)
+                pending_features = ER.pending(review, st.session_state.get("feature_decisions", {}), features)
+                if pending_features:
+                    st.warning(f"⚠️ {len(pending_features)} feature(s) seen by one pass only need your Accept or Reject before you can generate: "
+                               + ", ".join(pending_features) + ". The buttons are in the main area, beside the drawing.")
             else:
                 st.error(f"❌ Extraction failed: {extraction_info.get('error', 'unknown error')}")
                 st.info("Try uploading a clearer image.")
@@ -628,7 +738,10 @@ with st.sidebar:
     st.caption("Auto = system minimizes changeovers")
 
     st.markdown("---")
-    run_btn = st.button("🚀 Generate Process Plan", type="primary", use_container_width=True)
+    run_btn = st.button("🚀 Generate Process Plan", type="primary", use_container_width=True,
+                        disabled=bool(pending_features) and not manual_input)
+    if pending_features and not manual_input:
+        st.caption("Generate stays off until every highlighted feature is accepted or rejected.")
     st.markdown("---")
     st.caption("LLM-CAPP v2.0 | IIT Kharagpur SRIC")
     st.caption("Prof. Sankha Deb | Summer 2026")
@@ -639,6 +752,9 @@ st.markdown('<p class="hero-title">⚙️ LLM-Based Intelligent Process Planning
 st.markdown('<p class="hero-sub">Dynamic Route Builder · Machine-Aware Grouping · NSGA-II · INR Costing · Pareto Front</p>', unsafe_allow_html=True)
 
 if not run_btn:
+    if review is not None and not manual_input and st.session_state.get("extraction_result", {}).get("success"):
+        show_review_panel(st.session_state["extraction_result"], review)
+        st.markdown("---")
     cols = st.columns(5)
     for col, (n, l) in zip(cols, [
         (str(len(GEOMETRY_FEATURES)),"Features"), ("41","Operations"),
@@ -670,6 +786,9 @@ else:
     if not features:
         st.error("❌ Please select at least one feature!")
         st.stop()
+
+    if not manual_input and st.session_state.get("extraction_result", {}).get("success"):
+        log_corrections(st.session_state["extraction_result"], features)
 
     part = {"material": material, "features": features,
             "tolerance": tolerance, "batch_size": batch_size, "dims": dims}

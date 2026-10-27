@@ -154,6 +154,21 @@ RULES:
 """
 
 
+# Step 20 (WP7): optional evidence variant (with_evidence=True). The same prompt, except that the model also gives ONE short evidence
+# phrase per feature (the annotation text it read, or the view where it saw the shape), shown to the user next to the feature (report 6.5).
+# It is a separate prompt, so the default prompt above (its messages, its cache keys, its recall) is untouched; the two are compared in
+# scripts/extraction_eval.py (--evidence).
+_OUTPUT_RULE_AT = VISION_SYSTEM_PROMPT.index("5. Output ONLY")
+VISION_SYSTEM_PROMPT_EVIDENCE = VISION_SYSTEM_PROMPT[:_OUTPUT_RULE_AT] + """5. For every feature you report give ONE short evidence phrase
+   (max 12 words): the annotation text you read, or the view where you saw the shape.
+   Never invent text that is not on the drawing.
+6. Output ONLY a JSON object in exactly this format, nothing else:
+   {{"features": ["Hole", "Thread", ...],
+     "evidence": {{"Hole": "circle with diameter callout in the front view", "Thread": "note M10 next to the hole"}},
+     "confidence": "high/medium/low", "notes": "ONE short sentence, max 20 words"}}
+"""
+EVIDENCE_MAX_CHARS = 160
+
 # Step 14: optional THIRD pass (with_dimensions=True): the hole diameters that are written on the drawing. It has its own prompt, so the
 # two feature passes above are untouched (same messages, same cache keys, same recall) and one extra call is made per image.
 # The reply is cleaned by capp/dimensions.py; the numbers only pre-fill a field the user edits (AI is verified, not trusted).
@@ -209,7 +224,19 @@ def _encode_image(image_bytes: bytes) -> str:
     return base64.b64encode(image_bytes).decode("utf-8")
 
 
-def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str, sample_id: int = 0) -> dict:
+def _clean_evidence(raw, valid_features) -> dict:
+    """{feature: short text} for the features that were kept; anything else the model wrote there is dropped. Never raises."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for f, text in raw.items():
+        if f in valid_features and isinstance(text, str) and text.strip():
+            out[f] = " ".join(text.split())[:EVIDENCE_MAX_CHARS]
+    return out
+
+
+def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str, sample_id: int = 0,
+                    with_evidence: bool = False) -> dict:
     """Ek single Groq API call karke parse + validate karta hai. Internal
     helper -- extract_features_from_image() isse N baar call karke union
     leta hai consistency ke liye."""
@@ -219,7 +246,8 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": VISION_SYSTEM_PROMPT.format(feature_guide=feature_guide_str, focus=focus_text)},
+                        {"type": "text", "text": (VISION_SYSTEM_PROMPT_EVIDENCE if with_evidence else VISION_SYSTEM_PROMPT)
+                                                 .format(feature_guide=feature_guide_str, focus=focus_text)},
                         {"type": "image_url", "image_url": {
                             "url": f"data:image/{image_format};base64,{b64_image}"
                         }},
@@ -254,6 +282,7 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
             "rejected_features": rejected,
             "confidence": parsed.get("confidence", "medium"),
             "notes": parsed.get("notes", ""),
+            "evidence": _clean_evidence(parsed.get("evidence"), valid_features) if with_evidence else {},
             "raw_response": raw,
         }
     except llm_client.NoApiKey:
@@ -270,7 +299,8 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
         }
 
 
-def extract_features_from_image(image_bytes: bytes, image_format: str = "png", with_dimensions: bool = False) -> dict:
+def extract_features_from_image(image_bytes: bytes, image_format: str = "png", with_dimensions: bool = False,
+                                with_evidence: bool = False) -> dict:
     """
     Main entry point. 2D image (raw bytes) leke Groq vision model se
     manufacturing features extract karta hai.
@@ -279,6 +309,14 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
     the result then has "hole_diameters" (mm, largest first, may be empty) and "dimensions" (the full report of that call:
     success, dropped values, note, error). A failure of that call never fails the extraction. Default False: exactly the
     two feature passes, as before.
+
+    with_evidence=True (Step 20) uses the evidence variant of the prompt: every pass then also gives a short evidence phrase per feature
+    (result["passes"][name]["evidence"]). Default False: the prompt, and so the cache keys, are exactly those of before.
+
+    The result always carries "passes": what each pass reported on its own ({"success", "features", "rejected_features",
+    "confidence", "notes", "evidence"}, or {"success": False, "error"} for a failed pass), and "passes_ok", the number of passes that
+    worked: capp/extraction_review.py needs them to tell which features both passes saw (pre-accepted) from those one pass saw
+    (to be confirmed), and capp/extraction_eval.py scores each pass alone.
 
     Recall ke liye EXTRACTION_PASSES (geometry + annotation) alag-alag padhta hai aur
     unke valid features ka UNION final result hota hai -- ek call kisi
@@ -312,7 +350,7 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
     )
 
     samples = [
-        _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS[p])
+        _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS[p], with_evidence=with_evidence)
         for p in EXTRACTION_PASSES        # the two passes differ in their prompt text, so they get different cache keys
     ]
 
@@ -341,6 +379,12 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
     if len(successful) > 1 and any(agreement[f] < len(successful) for f in union_features):
         combined_notes += f" (combined from {len(successful)} passes; not every feature was seen in every pass)"
 
+    passes = {}
+    for name, smp in zip(EXTRACTION_PASSES, samples):
+        if smp["success"]:
+            passes[name] = {k: smp[k] for k in ("success", "features", "rejected_features", "confidence", "notes", "evidence")}
+        else:
+            passes[name] = {"success": False, "error": smp.get("error", "")}
     result = {
         "success": True,
         "features": union_features,
@@ -349,6 +393,8 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
         "notes": combined_notes,
         "raw_response": successful[-1]["raw_response"],
         "sample_agreement": agreement,
+        "passes": passes,
+        "passes_ok": len(successful),
     }
     if with_dimensions:
         dim = _extract_dimensions(b64_image, image_format)
