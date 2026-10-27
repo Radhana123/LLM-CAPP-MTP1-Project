@@ -1,0 +1,34 @@
+{
+  "name": "ablation_dev",
+  "description": "Table 4 (ablation grid A0-A9) on the development set: first 20 parts, 3 repeats, three LLMs on Groq. A template: copy it, then fix the choices of the rows marked 'decide' once the rows before them are in. For the final grid use a copy with \"dataset\": \"test_v2\" (or bench_v1), \"limit\": null, \"repeats\": 5 and run it only for the final results.",
+  "dataset": "dev_v2",
+  "limit": 20,
+  "repeats": 3,
+  "results_dir": "results",
+  "pool": "dev_v2",
+  "resamples": 1000,
+  "seed": 7,
+  "shared_tag": "abl_shared",
+  "models": [
+    {"id": "qwen",   "label": "Qwen3.8-27B",  "model": "qwen/qwen3.8-27b",     "tag": "abl_qwen"},
+    {"id": "gpt120", "label": "gpt-oss-120b", "model": "openai/gpt-oss-120b",  "tag": "abl_gpt120"},
+    {"id": "gpt20",  "label": "gpt-oss-20b",  "model": "openai/gpt-oss-20b",   "tag": "abl_gpt20"}
+  ],
+  "rows": [
+    {"id": "A0", "label": "B1: one LLM call, whole-route replacement", "system": "b1", "parent": null},
+    {"id": "A1", "label": "B0: five samples, whole-route replacement (v1 default)", "system": "b0", "parent": "A0"},
+    {"id": "A2", "label": "A1 + localized minimal-edit repair", "system": "b0_r1", "parent": "A1"},
+    {"id": "A3", "label": "A2 + two-step planner, with Route Builder hint", "system": "b0_r1+ts+h1", "parent": "A2"},
+    {"id": "A4", "label": "A2 + two-step planner, without hint", "system": "b0_r1+ts", "parent": "A2"},
+    {"id": "A5", "label": "Better of A3 and A4 + multi-candidate selection", "system": "n5_r1_s3+ts+h1", "parent": "A3",
+     "note": "decide: this takes A3 (with hint). If A4 is better, use \"n5_r1_s3+ts\" and parent \"A4\"; decide on the development set, before the sealed set."},
+    {"id": "A6", "label": "A5 + retrieval-based few-shot", "system": "n5_r1_s3+ts+h1+fs2", "parent": "A5",
+     "note": "decide: k = 2 retrieved examples (fs2); fs4 is the other choice. Examples come only from the development data."},
+    {"id": "A7", "label": "A6 + extended verifier (feasibility rules)", "system": "n5_r1_s3+ts+h1+fs2+fz2", "parent": "A6",
+     "note": "decide: fz2 = hard findings and risk insertions; fz1 = hard findings only. fz does not change the prompt, so it costs no new sample calls."},
+    {"id": "A8", "label": "A7 + model cascade (optional)", "system": "n5_r1_s3+ts+h1+fs2+fz2+cas1", "parent": "A7",
+     "note": "optional. The cascade chooses its own models (small gpt-oss-20b, then large gpt-oss-120b), so it is the same run in every column and A8 vs A7 mixes the effect of the cascade with a change of model: read it with scripts/cascade_pareto.py (validity against cost)."},
+    {"id": "A9", "label": "Constrained planner (optional)", "system": null, "parent": "A7",
+     "note": "optional, WP10, not built"}
+  ]
+}

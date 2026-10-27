@@ -837,3 +837,44 @@ python scripts/risk_compare.py results/dev_rb results/dev_n5_r1_s3+fz2 --penalti
 
 ### Abhi kya nahi hai
 Risk ko Efficiency ke andar daalna (v1 score ka badalna, alag design decision hai), severity-weighted flags, asli run ka output (tumhare `results/` par chalana hai), dashboard me ye view.
+
+## Step 22 (WP11 prep): Table 4 regenerator, `scripts/make_tables.py`
+
+Report 7.3-7.4: "har experiment ek config file se define hota hai ... aur sab tables aur figures **ek command se** regenerate ho sakte hain". Ye wahi hai. Ye script **koi API call nahi karti aur koi run shuru nahi karti**: sirf `results/<tag>_<system>/` ke finished runs padhti hai aur Table 4 (A0-A9), paired tests, figures banati hai. Runs `scripts/run_eval.py` se hi bante hain (`commands` step exact lines deta hai).
+
+```
+python scripts/make_tables.py status   configs/ablation_template.json    # kaun sa run hai, kaun sa kaam ka hai
+python scripts/make_tables.py commands configs/ablation_template.json    # jo runs baaki hain unki run_eval lines (PowerShell)
+python scripts/make_tables.py build    configs/ablation_template.json    # results/tables/ablation_dev/ me sab kuch
+python scripts/make_tables.py build my_grid.json --out tables_final --strict --no-figures
+```
+
+### Config (`configs/ablation_template.json`)
+Dataset, `limit`, `repeats`, 3 LLMs (`id`, `label`, `model`, `tag`) aur har row ki ek line (`id`, `label`, `system`, `parent`). `parent` = jis row me ye ek component jodti hai; paired comparison usi se hota hai. Template dev set par hai (20 parts, 3 repeats). **Final grid ke liye copy banao**: `"dataset": "test_v2"` (ya `bench_v1`), `"limit": null`, `"repeats": 5`, aur sirf final run (WP11) me chalao.
+Rows A0-A8 report ke hisaab se: `b1`, `b0`, `b0_r1`, `b0_r1+ts+h1`, `b0_r1+ts`, `n5_r1_s3+ts+h1`, `...+fs2`, `...+fz2`, `...+cas1`; A9 (constrained planner) `"system": null` = **not built**.
+**Faisle jo tumhe lene hain** (config me `note` me likhe hain): A5 me A3 ya A4 (hint ke saath ya bina), A6 me k = 2 ya 4, A7 me fz1 ya fz2. Ye dev set par A3/A4 ke results dekh kar tay karo, **sealed set dekhne se pehle**. Sealed set ke results dekhne ke baad koi row, prompt ya setting nahi badal sakti (`commands` sealed dataset par WARNING chhapta hai).
+
+### Ek run kisi cell me tabhi ginta hai jab...
+records aur `run.json` dono kahein ki wo wahi system hai, wahi dataset, wahi model (`CAPP_MODEL_PRIMARY` jo column ke `model` se milna chahiye), aur parts ke features/material dataset se match karein. Warna wo cell `–` hota hai aur `issues.txt` me wajah aati hai (galat system/dataset/model, duplicate (part, repeat), corrupt file ...). **Adhoore run** (kam repeats, kuch parts gayab) table me **†** ke saath aate hain aur footnote batata hai; `--strict` me koi bhi issue exit code 1 deta hai. `+ms`, `+ml`, `+cas1` jaisi rows apne models khud chunti hain: ek hi run (`shared_tag`) har column me dikhta hai.
+
+### Kya nikalta hai
+`table4.md` / `.csv` / `.tex` (har LLM ke liye ek table; LaTeX booktabs fragment), `paired.md` / `.csv`, `consistency.md`, `per_part.csv`, `issues.txt`, `fig_ablation.png`, `fig_cost.png`, `manifest.json` (config ka hash aur har run ki records file ka hash; same runs + config = byte-identical text files).
+Metrics wahi jo `run_eval` ke summary me (`summary.summarize_set`): **M1** first-pass valid, **M2** final valid aur **M2 LLM-final** (kitne finals LLM route hain, Route Builder fallback nahi), **M4** similarity, **M5** ops kept (LLM ke kitne operations repair/replacement ke baad bache), **M6** efficiency gap (pts), **M7** API calls/part aur USD/part. Cell = mean +- SD over repeats (ek repeat ho to sirf value).
+**Paired tests (7.4):** har row apne parent se, parts par paired: continuous metrics par bootstrap 95% interval (parts resample hote hain, ek part ke repeats saath), validity par McNemar exact. Phir `consistency.md`: har LLM ka verdict aur "sab LLMs me same hai ya nahi".
+
+### Jo honestly likhna hai
+1. **Mere dekhe numbers nakli planner ke hain** (tests ke messy planner wale 3 "LLMs"), tumhare asli runs ke nahi. Asli Table 4 tabhi banega jab tumhare live runs aayenge.
+2. **M2 "final valid" lagbhag hamesha 1.0 hota hai by construction** (Route Builder fallback). Isliye validity ka asli number **"M2 LLM-final"** hai, aur McNemar bhi usi par (aur raw samples ki M1 par) chalta hai.
+3. **M4 dev set par "proxy_rb" hai**: rule-based plans se closeness, expert se nahi. Table ke upar ye likha aata hai. Expert reference sirf `bench_v1` par hota hai.
+4. **McNemar me repeats > 1 ho to pairs part ke andar clustered hain**, to p-value approximate hai; asli saboot parts par bootstrap hai. Aur **8-10 comparisons ke liye koi multiple-comparison correction nahi** hai.
+5. 20 parts par intervals chaude honge; "no clear difference" ka matlab "koi farq nahi" nahi, "ye data kuch nahi keh sakta" hai.
+6. **A8 (cascade) ek alag model setup hai** (small phir large), to A8 vs A7 cascade ka asar aur model ka badlav mila hua hai. Isko `scripts/cascade_pareto.py` (validity vs cost) ke saath padho.
+7. USD list price par hai (`capp/config.py`, abhi [TO CONFIRM]); jis model ka price nahi, uska USD `n/a`, kabhi 0 nahi. Purane records (Step 17 se pehle) ke bina model-id wale calls column ke model ke hisaab se gine jaate hain.
+8. Figures sirf 3 LLMs tak (validated palette 3 series ke liye hai); chautha LLM tables me rehta hai.
+9. **API budget:** template ke size par har LLM ke liye lagbhag 2,100 naye calls (20 parts x 3 repeats x ~35 calls: `b0` 5, `ts` rows 10 + 10, `fs2` row 10; `b1`, `b0_r1`, `n5_r1_s3`, `fz2` same cache se, koi naya call nahi). Ye mera andaza hai, Groq console se check karo; `--limit` aur `repeats` config me kam kar sakti ho.
+
+### Tests (+125)
+`tests/test_tables.py`: config (template A0-A9 report ke hisaab se, har system parse hota hai, 25 galat configs ke reasons), **haath se nikle statistics** (McNemar ke exact values, paired counts, bootstrap ke special cases, verdict ki direction), cells `summarize_set` ke barabar (mean aur SD over repeats, M5 do tarah ki fix ka pooled), API calls summary ke barabar, purane records ka cost column ke model par, run-integrity (galat system/dataset/model, kam repeats/parts, duplicate, features dataset se alag, corrupt, analyse na ho sake), shared run, paired aur consistency labels, missing/partial/not-built rendering, Markdown/CSV/LaTeX (escaping), manifest hashes, **byte-identical regeneration**, figures (PNG, palette, 4th LLM), `commands` (template par 25 lines, cache ka order, partial/unusable runs, sealed warning), CLI (`status`, `commands`, `build`, `--strict`, bad config).
+
+### Abhi kya nahi hai
+Asli runs ka Table 4 (tumhare live runs), M9 ka table (annotated drawings chahiye), failure case studies (WP8, 7.5), row A9, mixed-effects ya multiplicity correction.
