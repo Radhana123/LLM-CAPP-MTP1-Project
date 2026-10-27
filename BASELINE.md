@@ -972,7 +972,7 @@ python scripts/freeze.py diff FREEZE_tier1.json FREEZE.json    # do freezes ke b
 
 ### Kya fingerprint hota hai (SHA-256; line endings normalise, to Windows aur Linux checkout ka hash same)
 - **files**: `capp/`, `week1`-`week6`, `scripts/` ke top-level `.py` aur `.json` (tests nahi). Har file ka **kind**: `analysis` (wo code jo sirf finished runs padhta hai: tables, case studies, summary, route sheet, benchmark tools, UI, saari scripts) ya `behaviour` (baaki sab; **nayi ya anjaani file behaviour maani jaati hai**).
-- **config**: `capp/config.py` ke saare UPPER_CASE constants (temperature, max_tokens ...), har role ka model id **jaisa abhi resolve hota hai** (to `CAPP_MODEL_PRIMARY` freeze se alag set ho to drift), structured-output mode. Prices sirf record hoti hain, compare nahi (wo baad me token ko cost banati hain).
+- **config**: `capp/config.py` ke saare UPPER_CASE constants (temperature, max_tokens ...), har role ka model id **jaisa abhi resolve hota hai** (to `CAPP_MODEL_PRIMARY` freeze se alag set ho to drift; **ek apwaad**: primary model grid ke `models` me se koi bhi ho to drift nahi, kyunki 3 LLM ke runs ek ke baad ek isi tarah chalte hain, dekho niche "Step 26 me fix"), structured-output mode. Prices sirf record hoti hain, compare nahi (wo baad me token ko cost banati hain).
 - **datasets**: dev_v2, test_v2, bench_v1 (jo exist karein) + `--dataset`. Hash + parts ki ginti.
 - **grids**: final runs ka ablation config (canonical JSON, indentation se fark nahi). Rows ki list (kaun sa system) is freeze ka hissa hai, isliye `--grid` zaroori hai.
 - **extras**: koi aur file (`--extra`): tuned confidence threshold, A5/A6/A7 ka decision.
@@ -1006,8 +1006,74 @@ Freeze ke baad **bench_v1 ka nayi bann jaana drift nahi** (information hai); dat
 5. `--run-tests` do minute lagata hai; failing tests ke saath freeze refuse hota hai.
 6. Mujhe `git tag` ya `git commit` chalane ka haq nahi hai tumhari machine par: script sirf batati hai ki kya chalana hai (dirty working tree ka warning bhi).
 
-### Tests (+68)
+### Step 26 me fix (multi-LLM)
+Pehle version me `CAPP_MODEL_PRIMARY` ko frozen primary se alag set karna drift tha. Lekin paper ke grid me 3 LLM hain aur har LLM ka run alag `CAPP_MODEL_PRIMARY` se chalta hai, to dusre aur teesre LLM par `run_eval` ka gate (aur freeze status) galat drift dikhata. Ab `grid_snapshot` har grid ke `models` bhi record karta hai, aur compare me primary model ko tab theek maana jaata hai jab wo kisi frozen grid ke `models` me ho. Grid ke bahar ka model abhi bhi `config MODELS` drift hai. **Isliye Step 25 ka zip freeze karne ke liye mat use karo: Step 26 ka (cumulative) zip use karo.** Fix ke tests `test_freeze.py` me (ab 71 tests; `run_eval` har grid-LLM par chalta hai, grid ke bahar ka model rukta hai).
+
+### Tests (+68, ab 71 fix ke baad)
 `tests/test_freeze.py`: hashing (CRLF, JSON layout), kinds (real repo ki har analysis module exist karti hai), scan (sirf top-level `.py`/`.json`), config snapshot (real config env se badalta hai), datasets (naya/hata/badla), grid/extras (layout se fark nahi, bahar ke paths), pytest summary parsing, git info (asli git repo me dirty/tag), create (once, `--force` se `replaces`, grid zaroori, failing tests refuse, id state se banti hai time/note se nahi, sorted keys), **verify** (har behaviour file, nayi/hata hui file, analysis, tests/README/subpackage/`__pycache__` ka na badalna, Windows checkout, config/model/structured mode/price, dataset, grid, extras, manifest ka na milna), status (none/ok/analysis/drift/unreadable, 10 se zyada differences, kabhi raise nahi), do manifests ka compare, text output, CLI (create/verify/show/diff/strict/exit codes), **harness run.json**, **run_eval subprocess** (manifest nahi, drift, unreadable, ok, override, rb aur dev par gate nahi), **Table 4** flags aur manifest keys. 14 jaan-boojh kar bugs daal kar bhi check kiya, sab pakde gaye.
 
 ### Abhi kya nahi hai
 Release ke time ka freeze report (Markdown) jo paper me chipka sako, aur WP12 ke baaki (datasheet pehle se hai Step 16 me).
+
+## Step 26 (WP12): paper draft, `scripts/paper_draft.py`
+
+Report 8.4 ka deliverable "paper draft" ka ek hissa: results ke saare **facts** (tables, paired comparisons, case studies, benchmark datasheet, M9, freeze id) draft me khud bhar jaate hain; **prose tumhari** hai, alag file me. Saath me ek **readiness check**: paper ke numbers use karne se pehle kya baaki hai. **Koi API call nahi, koi run shuru nahi** (`tables.analyse` read-only chalta hai).
+
+```
+# rehearsal (dev grid): kuch bhi tayyar na ho to bhi chalta hai
+python scripts\paper_draft.py configs\ablation_template.json --out paper
+
+# final form (ek hi line me)
+python scripts\paper_draft.py configs\final.json --benchmark data\bench_v1.json --case-studies results\case_studies\final --extraction results\fe1_extraction --freeze FREEZE.json --tables-dir results\tables\final --out paper --strict
+```
+`--extraction` repeat ho sakta hai (har M9 run ke liye). `--strict` me blocking item khula ho to exit 1 (draft phir bhi likha jaata hai).
+
+### Teen files (`--out`, default `paper/`)
+| file | kya hai | regenerate par |
+|---|---|---|
+| `paper_draft.md` | Title se Conclusion tak, tables aur facts ke saath, aakhir me Appendix A (readiness), B (reproduce commands), C (table build ke issues) | har baar naya banta hai |
+| `readiness.txt` | neeche wali checks | har baar naya |
+| `paper_text.json` | **tumhari prose**: har section ek key (`title`, `authors`, `abstract`, `introduction`, `related_work`, `method`, `setup`, `rq1`..`rq6`, `case_studies`, `discussion`, `limitations`, `conclusion`, `acknowledgements` optional). Pehli baar khali strings | **kabhi overwrite nahi**: sirf missing keys jud'te hain; kuch jodna na ho to file ko chhoota bhi nahi |
+
+Draft me har section ke niche tumhari prose aati hai; khali ho to `_TO WRITE: <section>_` placeholder (word budget aur hint ke saath). Unknown keys (orphans) file me rehti hain, ek note chhapta hai. `--text FILE` se prose kahin aur rakho.
+
+### Script kya likhti hai aur kya nahi
+- **Likhti hai**: configurations table (har row ka system, parent, option ka matlab), data (parts, sources), LLMs (id, price jahan hai), metrics aur statistics ka legend, reproducibility (freeze id, commit, commands), **Table 4** (ek hi code `make_tables` ke saath, isliye identical), headline numbers, har RQ ke paired comparisons (CI ke saath, McNemar), M3, M5, baseline failure table, further components, case study list, limitations ki **generated** list.
+- **Kabhi nahi likhti**: koi vaakya jo batata ho ki numbers ka *matlab* kya hai ("improves", "proves", "confirms"). Ye test se pakda jaata hai (regex). Matlab nikalna tumhara kaam hai.
+- **Headline rows**: *baseline* = pehli built row jisme data hai; *deepest* = jis row ki parent-chain sabse lambi hai (barabari par baad wali row). Ye rule results nahi dekhta, isliye "best row chun li" wala bias nahi.
+
+### RQ mapping (kaun si row kis question ka jawab hai)
+Har row ko apne parent se compare karke dekhte hain ki kya badla (`components`): samples, repair, selection, two-step, hint, few-shot, feasibility, cascade, model, constrained. Phir:
+**constrained -> RQ5; two-step / hint / few-shot -> RQ2; repair -> RQ3; samples / selection -> RQ4; baaki (feasibility, cascade, model) -> "Further components"**. Agar ek row ek saath kai cheezein badle to upar wali priority jeetti hai (test se pinned). `ablation_template.json` par: A1:RQ4, A2:RQ3, A3:RQ2, A4:RQ2, A5:RQ4, A6:RQ2, A7 aur A8: further, A9:RQ5. RQ1 (baseline failure types) aur RQ6 (M9) alag data se aate hain.
+
+### Readiness checks (`blocking` ho to `--strict` exit 1; draft phir bhi likha jaata hai)
+| check | level | kab fail |
+|---|---|---|
+| `sealed` | blocking | grid dev set par hai (draft par "DEVELOPMENT RESULTS, NOT PAPER RESULTS" banner) |
+| `llms` | blocking | grid me 3 se kam LLM |
+| `runs` | blocking | kisi built row ka koi run incomplete / unchecked |
+| `unbuilt` | advisory | kuch rows built nahi (Table 4 se bahar) |
+| `errors` | blocking | table issues me error |
+| `freeze`, `freeze_runs` | blocking | FREEZE.json nahi / drift; ya runs alag freeze ids ke (sealed grid par) |
+| `input` | blocking | koi optional input (benchmark, cases, extraction) padha nahi gaya |
+| `bench_real` | blocking | benchmark me synthetic PLACEHOLDER part (`source` me "placeholder", jo `benchmark.py` ke rehearsal se aate hain) |
+| `bench_size`, `bench_review`, `m10` | advisory | 40 se kam parts / supervisor review baaki / do annotators ka agreement 15 se kam parts par |
+| `bench_given` | blocking | grid benchmark par hai par `--benchmark` nahi diya |
+| `m4` | blocking (benchmark grid) / advisory | M4 expert plans ke against nahi, `proxy_rb` hai |
+| `cases`, `m9` | advisory | case studies nahi / commentary nahi; extraction 30 drawings se kam |
+| `text_missing`, `text_placeholders` | blocking | koi required section khali; `TODO`, `_TO WRITE`, `[TO CONFIRM]` bacha hai |
+| `text_budget`, `text_total` | advisory | section apne word budget ke bahar; kul prose 2500-6000 words ke bahar |
+
+### Honestly
+1. **Dev grid par draft ek rehearsal hai.** Isme dev_v2 ke numbers hain, paper ke nahi; banner isliye hai. Asli draft tab: sealed grid, freeze `ok`, 3 LLM, benchmark.
+2. **M4 abhi `proxy_rb` hai**, expert plan ke against nahi (jab tak benchmark par run nahi). Draft me yehi likha aata hai aur check advisory hai; benchmark grid par blocking ho jaata hai.
+3. **Oracle (RQ6)** upper bound hai, result nahi: draft me alag likha jaata hai.
+4. **Benchmark placeholder check**: `bench_real` tab tak blocking hai jab tak benchmark me sample/TODO parts hain. Ye check data ki imaandari ke liye hai, isse bypass karne ka option nahi diya.
+5. Word budgets mere andaze hain (6-8 pages ke hisaab se); apne supervisor ke format ke hisaab se `TEXT_FIELDS` me badal sakti ho.
+6. Word/LaTeX chahiye to: `pandoc paper\paper_draft.md -o paper\paper_draft.docx` (pandoc install karna padega; tables pipe tables hain).
+
+### Tests (+54 test_paperdraft, ab 62)
+`tests/test_paperdraft.py`: component diff aur RQ mapping (priority samet), text file semantics (khali shuruaat, kabhi overwrite nahi, missing key judna, untouched file, unknown keys), draft ke sections ka order aur placeholders, **Table 4 wahi hai jo `make_tables` banata hai**, headline rows ka rule, har RQ me sahi paired comparisons, **hand se nikala hua "+4.00 [+4.00, +4.00] costlier"**, "interpretation" regex (koi claim nahi), readiness ke saare variants (sealed ready path, drift, dusra freeze id, freeze nahi, benchmark placeholders, benchmark grid, cases, extraction, unreadable inputs), CLI (exit codes, `--strict`, `--text`, regenerate). Sealed fixture: asli `FREEZE.json` wala fake repo. 14 jaan-boojh kar bugs daal kar bhi check kiya (galat RQ order, headline = best row, text overwrite, blocking check ignore, dev banner hata dena ...): **ek bach gaya tha (RQ priority order), uska test jodh diya**, ab sab pakde gaye.
+
+### Abhi kya nahi hai
+Asli prose (title se conclusion), asli numbers (sealed runs), benchmark annotation, figures ka paper-quality version (Table 4 ke figures `make_tables.py build` se aate hain, draft unhe link karta hai), LaTeX template, bibliography.

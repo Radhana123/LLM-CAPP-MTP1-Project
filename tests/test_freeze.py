@@ -334,6 +334,33 @@ def test_a_changed_config_constant_or_model_is_drift(repo):
     assert verdict(repo, fake_cfg(NEW_CONSTANT=1))["config"] == [("NEW_CONSTANT", None, 1)]
 
 
+def test_each_llm_of_the_grid_may_be_the_primary_model(repo):
+    """The final grid runs every LLM with CAPP_MODEL_PRIMARY set to its id: that must not read as drift (and run_eval must not stop on it)."""
+    grid = dict(GRID, models=[{"id": "a", "model": "pm"}, {"id": "b", "model": "other/llm-2"}, {"id": "c", "model": "third/llm-3"}])
+    edit(repo, "configs/grid.json", json.dumps(grid))
+    man = frozen(repo)
+    assert man["grids"]["configs/grid.json"]["models"] == ["pm", "other/llm-2", "third/llm-3"]
+    other = lambda role: {"primary": "other/llm-2", "small": "sm"}[role]
+    assert verdict(repo, fake_cfg(model=other))["status"] == "ok"
+    assert F.status(repo, cfg=fake_cfg(model=other))["status"] == "ok"
+    res = verdict(repo, fake_cfg(model=lambda role: {"primary": "not/in-the-grid", "small": "sm"}[role]))
+    assert res["status"] == "drift" and res["config"][0][0] == "MODELS" and res["config"][0][2]["primary"] == "not/in-the-grid"
+    res = verdict(repo, fake_cfg(model=lambda role: {"primary": "other/llm-2", "small": "different-small"}[role]))        # the cascade models are pinned
+    assert res["status"] == "drift" and res["config"][0][2] == {"primary": "pm", "small": "different-small"}
+    edit(repo, "configs/grid.json", json.dumps(dict(grid, models=grid["models"][:1])))                                  # the list of LLMs is part of the grid
+    assert verdict(repo, fake_cfg(model=other))["grids"] == [("configs/grid.json", "changed")]
+
+
+def test_a_manifest_without_the_model_list_still_works_and_is_strict(repo):
+    man = frozen(repo)
+    for g in man["grids"].values():
+        g.pop("models")
+    path = os.path.join(repo, F.MANIFEST_NAME)
+    json.dump(man, open(path, "w"))
+    assert verdict(repo)["status"] == "ok"
+    assert verdict(repo, fake_cfg(model=lambda role: {"primary": "other/llm-2", "small": "sm"}[role]))["status"] == "drift"
+
+
 def test_a_changed_dataset_is_drift_a_new_one_is_not(repo):
     frozen(repo)
     edit(repo, "data/test_v2.json", json.dumps(PARTS))
@@ -541,9 +568,11 @@ def test_every_run_records_its_freeze_status(repo, tmp_path, monkeypatch):
     assert run()["status"] == "drift" and run()["differences"][0] == "changed capp/planners.py"
 
 
-def run_eval(tmp_path, *args):
+def run_eval(tmp_path, *args, primary=None):
     env = dict(os.environ, GROQ_API_KEY="", PYTHONIOENCODING="utf-8", CAPP_CACHE_DIR=str(tmp_path / "cache"))
     env.pop("CAPP_MODEL_PRIMARY", None)
+    if primary:
+        env["CAPP_MODEL_PRIMARY"] = primary
     env.pop("CAPP_STRUCTURED", None)
     return subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "run_eval.py"), *args, "--out", str(tmp_path / "out")],
                           capture_output=True, text=True, cwd=ROOT, env=env, timeout=180)
@@ -589,6 +618,15 @@ def test_run_eval_goes_on_with_a_matching_freeze(tmp_path, real_manifest):
     man = json.load(open(real_manifest, encoding="utf-8"))
     assert f"Freeze {man['id']}: ok" in res.stderr or f"Freeze {man['id']}: analysis-changed" in res.stderr
     assert "STOPPED: sealed dataset" not in res.stderr                                             # it got as far as the API key
+
+
+def test_run_eval_accepts_every_llm_of_the_grid_and_stops_on_another(tmp_path, real_manifest):
+    man = json.load(open(real_manifest, encoding="utf-8"))
+    for model in man["grids"]["configs/ablation_template.json"]["models"]:
+        res = run_eval(tmp_path, "--system", "b1", "--dataset", "test_v2", "--limit", "1", "--freeze", real_manifest, primary=model)
+        assert f"Freeze {man['id']}: " in res.stderr and "STOPPED: sealed dataset" not in res.stderr, model
+    res = run_eval(tmp_path, "--system", "b1", "--dataset", "test_v2", "--limit", "1", "--freeze", real_manifest, primary="not/in-the-grid")
+    assert res.returncode == 2 and "differs from the freeze" in res.stderr and "config MODELS" in res.stderr
 
 
 def test_run_eval_override_is_loud_and_recorded(tmp_path):

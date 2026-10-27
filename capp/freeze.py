@@ -13,7 +13,8 @@ What is fingerprinted (SHA-256 of the content, line endings normalised so that a
                a KIND: "analysis" for the code that only reads finished runs (tables, case studies, summaries, route sheet, benchmark
                tools, the UI, the scripts), "behaviour" for everything else, so that a file that is new or unknown counts as behaviour.
     config     every upper-case constant of capp/config.py (temperatures, token limits, ...) and the model id of each role as resolved now
-               (so CAPP_MODEL_PRIMARY set differently from the frozen run is drift). Prices are recorded, not compared: they only turn token
+               (so a changed small / large model is drift). The primary model is checked against the models listed in the frozen grid
+               config: each LLM of the final grid is run with CAPP_MODEL_PRIMARY set to its own id, which is not a change; any other is. Prices are recorded, not compared: they only turn token
                counts into a cost afterwards.
     datasets   the development set, the test set and the benchmark (those that exist), plus any --dataset
     grids      the ablation config(s) of the final runs, as canonical JSON (whitespace does not matter)
@@ -181,10 +182,12 @@ def grid_snapshot(root: str, paths=(), strict: bool = True) -> dict:
         except ValueError as exc:
             if strict:
                 raise FreezeError(f"grid config {g} is not valid JSON: {exc}")
-            out[_rel(root, p)] = {"sha256": sha256_file(p), "dataset": None, "rows": []}
+            out[_rel(root, p)] = {"sha256": sha256_file(p), "dataset": None, "rows": [], "models": []}
             continue
         rows = [[r.get("id"), r.get("system")] for r in cfg.get("rows", []) if isinstance(r, dict)] if isinstance(cfg, dict) else []
-        out[_rel(root, p)] = {"sha256": sha256_json_file(p), "dataset": cfg.get("dataset") if isinstance(cfg, dict) else None, "rows": rows}
+        models = [m["model"] for m in cfg.get("models", []) if isinstance(m, dict) and isinstance(m.get("model"), str)] if isinstance(cfg, dict) else []
+        out[_rel(root, p)] = {"sha256": sha256_json_file(p), "dataset": cfg.get("dataset") if isinstance(cfg, dict) else None, "rows": rows,
+                              "models": models}
     return out
 
 
@@ -296,15 +299,28 @@ def _diff_map(a: dict, b: dict, key=lambda v: v.get("sha256")):
     return out
 
 
+def _primary_as_frozen(frozen: dict, now: dict) -> dict:
+    """The config of `now` for the comparison. The primary model is the one setting that legitimately differs between the runs of a final grid:
+    each LLM of the grid is run with CAPP_MODEL_PRIMARY set to its model id. So a primary model that is one of the models the frozen grids
+    list is not a change; any other primary model, and any change of the small / large model (the cascade rows), is."""
+    cfg = copy.deepcopy(now["config"])
+    allowed = {m for g in frozen["grids"].values() for m in g.get("models", [])}
+    models = cfg.get("MODELS")
+    if isinstance(models, dict) and models.get("primary") in allowed and isinstance(frozen["config"].get("MODELS"), dict):
+        models["primary"] = frozen["config"]["MODELS"].get("primary")
+    return cfg
+
+
 def compare(frozen: dict, now: dict) -> dict:
     """`frozen` and `now` are manifests or fingerprints. Returns the differences, by part:
     behaviour / analysis: [(file, changed|added|removed)], config: [(key, frozen value, now value)], datasets / grids / extras:
     [(name, changed|added|removed)]; and 'status'."""
     files = _diff_map(frozen["files"], now["files"])
     kind = lambda f: (now["files"].get(f) or frozen["files"].get(f))["kind"]
+    cfg_now = _primary_as_frozen(frozen, now)
     out = {"behaviour": [(f, w) for f, w in files if kind(f) == "behaviour"], "analysis": [(f, w) for f, w in files if kind(f) == "analysis"],
-           "config": [(k, frozen["config"].get(k), now["config"].get(k)) for k in sorted(set(frozen["config"]) | set(now["config"]))
-                      if frozen["config"].get(k) != now["config"].get(k)],
+           "config": [(k, frozen["config"].get(k), cfg_now.get(k)) for k in sorted(set(frozen["config"]) | set(cfg_now))
+                      if frozen["config"].get(k) != cfg_now.get(k)],
            "datasets": _diff_map(frozen["datasets"], now["datasets"]), "grids": _diff_map(frozen["grids"], now["grids"]),
            "extras": _diff_map(frozen["extras"], now["extras"])}
     if any(out[k] for k in ("behaviour", "config", "grids", "extras")) or any(w != "added" for _, w in out["datasets"]):
@@ -373,7 +389,8 @@ def format_manifest(man: dict) -> str:
          f"  models: " + ", ".join(f"{r} {m}" for r, m in sorted(man["config"].get("MODELS", {}).items())),
          "  datasets: " + (", ".join(f"{n} ({d['n_parts']} parts)" for n, d in man["datasets"].items()) or "none")]
     for gname, g2 in man["grids"].items():
-        L.append(f"  grid {gname}: dataset {g2.get('dataset')}, rows " + ", ".join(f"{i}={s}" for i, s in g2.get("rows", [])))
+        L.append(f"  grid {gname}: dataset {g2.get('dataset')}, rows " + ", ".join(f"{i}={s}" for i, s in g2.get("rows", []))
+                 + (f"; LLMs " + ", ".join(g2["models"]) if g2.get("models") else ""))
     for e in man["extras"]:
         L.append(f"  extra: {e}")
     t = man.get("tests")
