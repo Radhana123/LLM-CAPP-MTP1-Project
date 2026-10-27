@@ -18,6 +18,12 @@ A part record (JSON object):
   --- optional ---
   reference_routes   list of expert-accepted routes (each a list of operations). Filled for the expert benchmark (WP2).
 
+The expert benchmark (WP2, split "bench", capp/benchmark.py) uses the same record with these differences: real parts, so dims may also
+have "hole_diameter" (mm, optional: it enables HOLE-DEEP and the hole operations of CAP-POWER); required_ra_um is what the drawing says
+(None if it says nothing; not derived from the tolerance); in_distribution is None; reference_routes is required; extra optional fields
+name, source, drawing, notes, reference_meta, second_annotator_routes (the second person's plan, kept apart so that M4 is measured
+against the reference plan only, M10 = agreement between the two). Like test, a bench set is sealed: final runs only.
+
 Everything here is plain Python (no I/O except load/save), so the evaluation harness can import it freely.
 """
 import csv
@@ -38,9 +44,13 @@ from material_tokens import (                   # noqa: E402
 
 DATA_DIR = os.path.join(_ROOT, "data")
 
-SPLITS = ("dev", "test")
+SPLITS = ("dev", "test", "bench")
+SEALED_PREFIXES = ("test", "bench")      # datasets whose name starts with one of these are used for the final runs only
 MACHINE_PREFERENCES = ("auto", "prefer_lathe", "prefer_milling")
 DIM_KEYS = ("diameter", "length", "depth", "width")
+OPTIONAL_DIM_KEYS = ("hole_diameter",)      # bench parts only in practice; dev/test data do not have it
+HOLE_LIMITS = (0.5, 200.0)                  # mm; the same bounds as capp/dimensions.py and the hole field of the app
+BENCH_RA_LIMITS = (0.1, 50.0)               # um; a plausible drawing value
 
 # Same limits as the sliders / number inputs in week6/app.py.
 DIM_LIMITS = {"diameter": (1.0, 500.0), "length": (1.0, 1000.0), "depth": (1.0, 300.0), "width": (1.0, 500.0)}
@@ -120,29 +130,41 @@ def validate_part(part: dict) -> list:
         errs.append(f"batch_size {b!r} must be an int in {BATCH_LIMITS}")
 
     dims = part["dims"]
-    if not isinstance(dims, dict) or set(dims) != set(DIM_KEYS):
-        errs.append(f"dims must have exactly the keys {DIM_KEYS}")
+    if not isinstance(dims, dict) or not set(DIM_KEYS) <= set(dims) <= set(DIM_KEYS) | set(OPTIONAL_DIM_KEYS):
+        errs.append(f"dims must have exactly the keys {DIM_KEYS} (and optionally {OPTIONAL_DIM_KEYS})")
     else:
         for k in DIM_KEYS:
             lo, hi = DIM_LIMITS[k]
             v = dims[k]
             if not isinstance(v, (int, float)) or isinstance(v, bool) or not (lo <= v <= hi):
                 errs.append(f"dims.{k}={v!r} outside [{lo}, {hi}]")
+        if "hole_diameter" in dims:
+            v = dims["hole_diameter"]
+            if not isinstance(v, (int, float)) or isinstance(v, bool) or not (HOLE_LIMITS[0] <= v <= HOLE_LIMITS[1]):
+                errs.append(f"dims.hole_diameter={v!r} outside [{HOLE_LIMITS[0]}, {HOLE_LIMITS[1]}]")
 
     if part["machine_preference"] not in MACHINE_PREFERENCES:
         errs.append(f"machine_preference '{part['machine_preference']}' invalid")
 
+    if part["split"] == "bench":      # real part: Ra is what the drawing says (None = not given), not derived from the tolerance
+        ra = part["required_ra_um"]
+        if ra is not None and (not isinstance(ra, (int, float)) or isinstance(ra, bool) or not (BENCH_RA_LIMITS[0] <= ra <= BENCH_RA_LIMITS[1])):
+            errs.append(f"required_ra_um {ra!r} must be None or in {BENCH_RA_LIMITS}")
+
     if not errs:   # derived checks only make sense when the inputs above are valid
-        if part["required_ra_um"] != required_ra(part["tolerance"]):
+        if part["split"] != "bench" and part["required_ra_um"] != required_ra(part["tolerance"]):
             errs.append(f"required_ra_um {part['required_ra_um']} != {required_ra(part['tolerance'])} for {part['tolerance']}")
         for k, v in derived_fields(part).items():
             if part[k] != v:
                 errs.append(f"derived field {k}={part[k]!r}, expected {v!r}")
 
-    ref = part.get("reference_routes")
-    if ref is not None:
-        if not isinstance(ref, list) or not all(isinstance(r, list) and r and all(isinstance(s, str) for s in r) for r in ref):
-            errs.append("reference_routes must be a list of non-empty lists of operation names")
+    for key in ("reference_routes", "second_annotator_routes"):
+        ref = part.get(key)
+        if ref is not None:
+            if not isinstance(ref, list) or not all(isinstance(r, list) and r and all(isinstance(s, str) for s in r) for r in ref):
+                errs.append(f"{key} must be a list of non-empty lists of operation names")
+    if part["split"] == "bench" and not part.get("reference_routes"):
+        errs.append("a bench part needs at least one reference route")
     return errs
 
 
@@ -203,17 +225,27 @@ def save_dataset(parts: list, name_or_path: str) -> str:
     cols = ["part_id", "split", "archetype", "in_distribution", "material", "features", "tolerance",
             "batch_size", "diameter", "length", "depth", "width", "required_ra_um", "machine_preference",
             "n_features", "batch_category", "machine_profile"]
+    if any("hole_diameter" in p["dims"] for p in parts):          # bench parts: the extra columns appear only when used
+        cols += ["hole_diameter"]
+    if any(p.get("reference_routes") for p in parts):
+        cols += ["source", "n_reference_routes"]
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(cols)
         for p in parts:
-            row = dict(p, features=";".join(p["features"]), **p["dims"])
+            row = {**p, **p["dims"], "features": ";".join(p["features"]), "hole_diameter": p["dims"].get("hole_diameter", ""),
+                   "source": p.get("source", ""), "n_reference_routes": len(p.get("reference_routes") or [])}
             w.writerow([row[c] for c in cols])
     return path
 
 
+def is_sealed(name: str) -> bool:
+    """True for the datasets that are used for the final runs only (test_v2, bench_v1, any name starting with test or bench)."""
+    return os.path.basename(str(name)).startswith(SEALED_PREFIXES)
+
+
 def load_dataset(name_or_path: str, validate: bool = True) -> list:
-    """Load by short name ('dev_v2', 'test_v2') or by path. Raises ValueError if validation fails."""
+    """Load by short name ('dev_v2', 'test_v2', 'bench_v1') or by path. Raises ValueError if validation fails."""
     path = name_or_path if name_or_path.endswith(".json") else dataset_path(name_or_path)
     with open(path, encoding="utf-8") as f:
         parts = json.load(f)

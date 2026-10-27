@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import sys
-import threading
 
 import pytest
 
@@ -15,6 +14,7 @@ from capp import llm_client            # noqa: E402
 from capp import summary as SM         # noqa: E402
 import route_builder as rb             # noqa: E402
 from capp import verify as V           # noqa: E402
+from harness_clock import count_sleeps   # noqa: E402
 
 
 def _meta(cached=False):
@@ -102,13 +102,6 @@ def test_repeats_use_distinct_run_tags_and_restore_the_environment(parts):
 def test_rb_ignores_repeats(parts):
     out = H.run_experiment("rb", parts[:3], repeats=5, tag="t", progress=None, write=False)
     assert len(out["records"]) == 3 and out["run_info"]["repeats"] == 1
-
-
-def count_sleeps(monkeypatch, slept):
-    """Record the sleeps of the calling thread only: time.sleep is patched for the whole process, and a background thread left by an
-    earlier test (a Streamlit AppTest) may sleep at the same moment (test_twostep's throttle test failed once in a full run for that)."""
-    caller = threading.current_thread()
-    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s) if threading.current_thread() is caller else None)
 
 
 def test_unknown_system_and_throttle(parts, monkeypatch):

@@ -24,6 +24,17 @@ def _stage_val(s, stage, key):
     return s["M5_localized_repair"]["by_stage"].get(stage, {}).get(key)
 
 
+def _m4_source(s):
+    """The reference the M4 numbers of a run are measured against: expert routes if the parts have them, else the Route Builder."""
+    m4 = s.get("M4") or {}
+    return "expert" if "expert" in m4 else "proxy_rb" if "proxy_rb" in m4 else None
+
+
+def _m4_val(s, kind, key):
+    src = _m4_source(s)
+    return "n/a" if src is None else _fmt(s["M4"][src][kind][key])
+
+
 def table(runs: list) -> str:
     """runs: list of (label, summary). Returns an aligned text table."""
     def prov(s, name):
@@ -43,6 +54,11 @@ def table(runs: list) -> str:
         ("  fell back to R0 after R1 / R2", lambda s: f"{s['M2']['r1_failed_total']}/{s['M2']['r2_failed_total']}"),
         ("extra re-prompt calls / part", lambda s: _fmt(s["M7"]["repair_calls_per_part"], 2)),
         ("replacement found no route", lambda s: str(s["M2"]["replacement_failed_total"])),
+        ("M4 reference (expert, else proxy_rb)", lambda s: _m4_source(s) or "n/a"),
+        ("M4 final: exact-match rate", lambda s: _m4_val(s, "final", "exact_rate")),
+        ("M4 final: LCS ratio", lambda s: _m4_val(s, "final", "lcs_ratio_mean")),
+        ("M4 final: Kendall tau (0 = same order)", lambda s: _m4_val(s, "final", "kendall_tau_mean")),
+        ("M4 raw LLM: LCS ratio", lambda s: _m4_val(s, "raw_llm", "lcs_ratio_mean")),
         ("M5 edit distance (R0)", lambda s: _fmt(s["M5_whole_route_replacement"]["edit_distance_mean"], 2)),
         ("M5 LLM ops surviving (R0)", lambda s: _fmt(s["M5_whole_route_replacement"]["survived_share_mean"])),
         ("M5 edit distance (R1 stage)", lambda s: _fmt(_stage_val(s, "r1", "edit_distance_mean"), 2)),

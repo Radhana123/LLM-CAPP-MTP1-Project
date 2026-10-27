@@ -559,3 +559,51 @@ python scripts/part_diff.py results/dev_rb results/dev_n5_r1_s3 --group archetyp
 
 ### Abhi kya nahi hai
 Model cascade, confidence threshold tuning, expert benchmark (WP2), process plan aur route sheet (WP9), baaki dimensions ka extraction. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 16 (WP2): expert benchmark pipeline, `scripts/benchmark.py`
+
+Report §7.1: 40-60 asli parts, supervisor review, 15-20 parts pe doosra annotator, aur M10 (do logon ke plans ki aapas ki agreement) jo M4 ka ceiling hai. Ye step uska **tooling** hai: plans insaan likhte hain, code spec padhta hai, workbooks banata hai, bhare hue workbooks import karta hai, plans ko rule base aur physics se check karta hai, M10 nikalta hai aur datasheet likhta hai. API call nahi.
+
+### Workflow (repo root, PowerShell)
+```
+python scripts/benchmark.py template --out bench/spec.xlsx                     # 1. khali parts spec (Excel), har part ek row
+#   ... spec bharo: material, features, tolerance, batch, ASLI dimensions, hole_diameter (optional), Ra (drawing se), source ...
+python scripts/benchmark.py sheets --spec bench/spec.xlsx --out-dir bench `
+    --annotator "Prof. Deb" --second-name "Second annotator" --second-n 18      # 2. annotators ke workbooks + bench/bench_spec.json
+#   Prof. Deb annotate_primary.xlsx bharte hain (review columns ke saath), doosra annotate_second.xlsx (18 parts), alag-alag
+python scripts/benchmark.py import --spec bench/bench_spec.json `
+    --primary bench/annotate_primary.xlsx --second bench/annotate_second.xlsx --dry-run    # 3. sirf problems dikhao
+python scripts/benchmark.py import --spec bench/bench_spec.json `
+    --primary bench/annotate_primary.xlsx --second bench/annotate_second.xlsx              # data/bench_v1.json + .csv + datasheet
+```
+Asli parts aane se pehle poori chain rehearse karne ke liye: `python scripts/benchmark.py select --from test_v2 --n 50 --out bench/spec_placeholder.xlsx`. Ye synthetic parts se **PLACEHOLDER** spec banata hai (source aur notes me "placeholder" likha hota hai, datasheet ke upar WARNING aati hai). Isse M4 ka koi number "expert" nahi hai.
+
+### Kya karta hai (`capp/benchmark.py`)
+- **Spec:** `parse_part_row` har row ke saare errors ek saath deta hai (empty cell, material/feature/tolerance galat, typo pe "did you mean", limits). Material aliases (`aluminium`, `castiron`), tolerance `0.05` / `0.05 mm` / `0.05MM`, features `;` ya `,` se. Row numbers file ke hisaab se (header = row 1).
+- **Workbooks:** Routes sheet me har part ke liye row A (plan) aur B, C (sirf agar doosra plan *barabar* acceptable hai), har step ek dropdown cell (41 operations), `Operations` sheet me machine aur usually-serves-features. Primary workbook me supervisor review columns (accepted / changed / rejected, reviewed_by, comment); second me nahi, aur sirf uska subset.
+- **Import:** operation ka naam case/space ignore karke match hota hai; galat naam blocking error hai, suggestion ke saath (`Drillng` -> `Drilling`). Plan ke bina part blocking hai (`--allow-missing` se bahar). Har plan rule base (precedence, missing, invented) aur 15 feasibility rules se **asli dimensions pe** check hota hai.
+- **Record:** `capp/dataset.py` ka bench split: `dims` me optional `hole_diameter`, `required_ra_um` drawing se (None ho sakta hai, tolerance se derive nahi), `reference_routes` zaroori, `second_annotator_routes` alag, `reference_meta` (annotator, review, conflicts, physical).
+- **M10:** doosre annotator ke pehle plan ka M4 (exact, LCS ratio, Kendall tau) reference plan(s) ke saath, jo parts dono ne kiye unpe, 95% bootstrap interval ke saath.
+- **Datasheet:** markdown, data se generate (composition, plans, review, conflicts, physical findings, M10, limits, `[TO CONFIRM]` items).
+- **Harness / compare:** jin parts me `reference_routes` hain unpe M4 expert routes se naapa jata hai (pehle se tha), ab `compare_runs.py` table me "M4 reference (expert, else proxy_rb)" aur M4 ki 4 rows aati hain. `bench_*` sealed hai (`test_*` ki tarah): `run_eval` warning deta hai aur retrieval pool (`--pool`) ke roop me refuse hota hai.
+
+### Jo honestly likhna hai
+1. **Placeholder asli benchmark nahi hai.** `select` sirf pipeline rehearse karne ke liye hai; usse bane koi number report me expert result ke naam se nahi jaane chahiye.
+2. **Pre-fill nahi.** Workbook me koi plan pehle se bhara nahi hota: bhara plan annotator ko anchor karta hai, aur Route Builder ka bhara plan har baad ki comparison me RB ko favour karta. Ye jaanbujhkar hai.
+3. **Rule base se reject hua plan bhi reference rehta hai** (expert ground truth hai) aur conflicts me listed hota hai. Har conflict ya expert ki slip hai ya rule base ki kami: kaun sa, ye supervisor ke saath tay hota hai, code ke nahi.
+4. **Reference plans ek expert ki practice dikhate hain.** Alternatives (row B, C) aur supervisor review isse kam karte hain, hatate nahi.
+5. **M10 15-20 parts pe indicative hai**, precise nahi: interval ki chaudai dekhni hai. "Inspection last" rule base ka convention hai aur annotators ko wahi follow karna kaha gaya hai.
+6. `hole_diameter` optional hai (dataset v2 me nahi hai, isliye wahan HOLE-DEEP 61% parts pe evaluate nahi hota); benchmark me asli dimension honi chahiye.
+7. Benchmark sealed hai: sirf final runs (WP11). Uske results dekhne ke baad koi prompt, rule ya threshold nahi badalna.
+
+### Test fix (flaky throttle tests)
+Teen throttle tests kabhi-kabhi full run me fail hote the. Asli kaaran mila: harness `git rev-parse` ko `subprocess.run(timeout=...)` se chalata hai, jo `time.sleep` se poll karta hai. Tests `time.sleep` ko poore process me patch karte the, to loaded machine pe woh polling bhi "harness ke sleeps" me gin li jaati thi (6000+ entries). Ab tests sirf harness ka apna `time` replace karte hain (`tests/harness_clock.py`). Pehle ek aisa `git` jo pipes band karke der se exit ho, purane tests ko har baar fail karta tha; ab pass. (Pehle "thread filter se fix" likha tha: wo ghalat tha, thread ka isse lena-dena nahi tha.)
+
+Do chhote bugs tests ne pakde: `save_dataset` bench part par (jisme `hole_diameter` ho) crash karta tha, aur tolerance `0.05MM` (capital) reject hota tha. Dono fix.
+
+### Tests
+`tests/test_benchmark.py` (80): spec parsing aur errors, template/CSV/XLSX round trip, placeholder select, workbook structure (koi pre-fill nahi, dropdown, review columns), simulated annotators se fill aur import, typo suggestions, missing plan aur `--allow-missing`, rule conflicts aur physical findings, alternatives, M10 (handcrafted pairs, bootstrap), datasheet, bench split ki validation, save/load, sealing (`is_sealed`, pool, `run_eval`), harness pe expert-M4, compare table, aur `scripts/benchmark.py` ke saare subcommands (`--dry-run`, errors).
+
+### Abhi kya nahi hai
+Asli parts aur plans (tumhara/supervisor ka kaam; tooling taiyaar hai), model cascade, confidence threshold tuning, process plan aur route sheet (WP9), baaki dimensions ka extraction. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.

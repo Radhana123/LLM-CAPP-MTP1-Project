@@ -43,7 +43,7 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 
-Do NOT run the sealed test set (test_v2) until the final runs (WP11).
+Do NOT run the sealed sets (test_v2, the expert benchmark bench_v1) until the final runs (WP11).
 """
 import argparse
 import os
@@ -61,7 +61,7 @@ def main():
     ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
     ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis (kc, tool wear, Ra) and the physical-feasibility check of the final and raw routes")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")
-    ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default) or test_v2 (sealed)")
+    ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default), or test_v2 / bench_v1 (sealed: final runs only)")
     ap.add_argument("--limit", type=int, default=None, help="only the first N parts")
     ap.add_argument("--offset", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1, help="repeated runs for B1/B0 (default 1; 5 for the final runs)")
@@ -83,8 +83,8 @@ def main():
         pspec = systems.planner_spec(args.system)
     except ValueError as exc:
         ap.error(str(exc))
-    if pspec.few_shot and args.pool.startswith("test"):
-        ap.error("--pool: few-shot examples must not come from the sealed test set")
+    if pspec.few_shot and dataset.is_sealed(args.pool):
+        ap.error("--pool: few-shot examples must not come from the sealed test set or the expert benchmark")
     weights = None
     if args.weights:
         try:
@@ -92,8 +92,9 @@ def main():
             systems.normalize_weights(weights)
         except ValueError as exc:
             ap.error(f"--weights: {exc}")
-    if args.dataset.startswith("test") and args.system != "rb":
-        print("WARNING: test_v2 is sealed (final runs only). Continue only if this is the final run.", file=sys.stderr)
+    if dataset.is_sealed(args.dataset) and args.system != "rb":
+        print(f"WARNING: {args.dataset} is sealed (final runs only: no prompt or setting may change after its results are seen). "
+              "Continue only if this is the final run.", file=sys.stderr)
     if args.mode:
         os.environ["CAPP_LLM_MODE"] = args.mode
 

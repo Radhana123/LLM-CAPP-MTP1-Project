@@ -111,8 +111,8 @@ def _resolve_pool(pool, pspec):
     if isinstance(pool, planners.Pool):
         return pool
     name = pool or "dev_v2"
-    if name.startswith("test"):
-        raise HarnessError("the retrieval pool must not be the sealed test set: examples come from the development data only")
+    if dataset.is_sealed(name):
+        raise HarnessError("the retrieval pool must not be the sealed test set or the expert benchmark: examples come from the development data only")
     return planners.Pool.from_dataset(dataset.load_dataset(name), name=name)
 
 

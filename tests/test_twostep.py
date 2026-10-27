@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 import sys
-import threading
 import types
 
 import pytest
@@ -22,6 +21,7 @@ from capp import summary as SM          # noqa: E402
 from capp import systems as SY          # noqa: E402
 from capp import twostep as T           # noqa: E402
 from capp import verify as V            # noqa: E402
+from harness_clock import count_sleeps  # noqa: E402
 import llm_planner                      # noqa: E402
 import route_builder as rb              # noqa: E402
 
@@ -459,10 +459,7 @@ def test_replay_reproduces_a_finished_two_step_run_offline(dev, monkeypatch):
 
 def test_throttle_waits_only_after_live_two_step_parts(dev, monkeypatch):
     slept = []
-    caller = threading.current_thread()
-    # time.sleep is patched for the whole process: count only the sleeps of this thread (a background thread left by an earlier
-    # test, e.g. a Streamlit AppTest, may sleep at the same moment; this test failed once in a full run for that reason)
-    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s) if threading.current_thread() is caller else None)
+    count_sleeps(monkeypatch, slept)       # only the harness's own pauses are recorded (see harness_clock.py)
     fake()
     H.run_experiment("b1+ts", dev[:2], tag="th", throttle=0.5, progress=None, write=False)
     assert slept == [0.5, 0.5]
