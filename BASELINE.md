@@ -878,3 +878,41 @@ Metrics wahi jo `run_eval` ke summary me (`summary.summarize_set`): **M1** first
 
 ### Abhi kya nahi hai
 Asli runs ka Table 4 (tumhare live runs), M9 ka table (annotated drawings chahiye), failure case studies (WP8, 7.5), row A9, mixed-effects ya multiplicity correction.
+
+## Step 23 (WP8): failure case studies, `scripts/case_studies.py`
+
+Report 7.5: har main M3 failure type ke 3-5 cases, ek **fixed rule** se chune hue, har case me part + features, LLM route, violation report, repair, final route aur ek chhota commentary. Ye script **koi API call nahi karti**: sirf finished runs (`records.jsonl`, `run.json`) padhti hai. **Facts script nikalti hai; commentary (model kyun fail hua, repair ne sahi decisions bachaye ya nahi) tumhe likhni hai** — wo ek alag file me rehti hai aur regenerate karne par kabhi overwrite nahi hoti.
+
+```
+python scripts/case_studies.py results/n5_r1_s3_ts_h1_qwen
+python scripts/case_studies.py results/b0_qwen results/n5_qwen --per-type 4
+python scripts/case_studies.py results/n5_qwen --types order,missing,differs
+python scripts/case_studies.py results/n5_qwen --instructive "DEV_016:1:0=repair ne ek galat boring-before-drilling decision rakha"
+python scripts/case_studies.py results/n5_qwen --out case_studies_final --strict
+```
+
+### Selection rule (jo report me likhna hai, wahi code me hai)
+- **Failure** = ek raw LLM route (ek repeat ka ek sample) jiska strict check us type ka violation de: `order`, `missing`, `invented`, `duplicate`, `machine_grouping`; ya jiska physical-feasibility check `infeasible` finding de (iske liye run `analysis` ke saath bana hona chahiye, default hai). Ek route do tarah se fail ho to dono types ka candidate hai.
+- **Har type me**: parts ko id ke natural order me lo (DEV_002, DEV_010 se pehle), har part ka **pehla** failing route (repeat, phir sample id), aur pehle K parts. K = `--per-type` (default 3, 1-10; report 3-5 maangti hai). **Ek part ek type me ek hi case.** Koi aur cheez decide nahi karti: na metric, na ye ki repair chala ya nahi.
+- **`differs`**: final route strict-valid hai par kisi reference route se exact match nahi. Expert routes ho to unse, warna Route Builder variants se (**proxy**: tab case batata hai rule-based plan se kahan alag hai, expert se nahi; har case me ye likha aata hai).
+- **`--instructive PART[:REPEAT[:SAMPLE]]=wajah`**: tumhara chuna hua case. **Wajah zaroori hai**; case "instructive, chosen by the author" label ke saath alag section me aata hai, rule ke cases ko nahi chhuta. Sample na do to us part ka pehla invalid route.
+
+### Kya nikalta hai (`--out`, default `<results>/case_studies/<run>`)
+`case_studies.md` (selection rule, har run ka **M3 aggregate table**: har type kitne raw routes me, kitne % me, kitne parts me, kitne cases; phir har case), `cases.json`, `selection.csv`, `commentary.json`.
+**Har case me**: part (material, features, tolerance, batch, archetype, expert reference hai ya nahi), LLM route (jo operation repair ne hataya wo ~~kata hua~~), strict violations (rule id + message, soft wale "(soft)"), feasibility findings (hard/soft), repair ka outcome (R1 / R2 / R0 ke baad kaun sa stage chala), R1 ne kya hataya/joda/reorder kiya (feasibility ke liye joda alag likha, flagged findings bhi), R2 ka jawab accept hua ya nahi, repair ke baad ka route (jodi hui ops **bold**), part ka final route (ye wahi sample hai ya doosra), aur "Facts" ki list: kitne LLM operations same order me bache (survived share), edit distance, final route ki Efficiency best Route Builder variant se kitni neeche, reference se LCS ratio.
+Jis case ki commentary nahi likhi, usme `_TO WRITE: ..._` ka nishaan rehta hai. `commentary.json` me `{case id: text}` hai; nayi cases ke liye khaali entry jud jaati hai. Rule badalne se jo purani commentary kisi case se match nahi karti wo file me rehti hai aur report me gini jaati hai. `--strict`: koi case bina commentary ka ho to exit 1 (report me daalne se pehle chalao).
+
+### Jo honestly likhna hai
+1. **Mere dekhe cases nakli planner ke hain** (tests ka messy planner, jo har tarah ki galti banata hai), tumhare asli runs ke nahi. Asli cases tumhare live runs se aayenge; commentary tumhari hogi.
+2. **Facts "kya hua" batate hain, "kyun" nahi.** "Repair ne sahi decisions bachaye" ka mechanical hissa (survived share, kya hata/juda) script deti hai; ye ki wo decisions sahi the ya nahi, engineer ka judgement hai.
+3. **Dev set ke cases report me tabhi jaayein jab clearly dev kahe ja rahe hon.** Sealed dataset (`test_v2`, `bench_v1`) ke run par report me note aata hai: 7.5 ke hisaab se wahan ke cases **final run se** hi lo, configuration freeze hone ke baad.
+4. `infeasible` cases tabhi milte hain jab records me `raw_feasibility` ho (`analysis=True`, jo default hai). Bina analysis wale run me table me "no feasibility analysis in these records" aata hai, case nahi.
+5. `differs` ka matlab "expert se alag" tabhi hai jab part me expert reference route ho (`bench_v1`). Dev set par ye Route Builder se alag hona hai; kai baar LLM ka alag route bhi sahi hota hai (feasibility repair ne `Reaming` jod diya jo RB variant me nahi tha), isliye ise failure nahi, "dekhne layak" cases samjho.
+6. Ek hi route do type me aa sakta hai (jaise order aur infeasible); aggregate table me wo dono me gina jaata hai, to type ki ginti ka jod raw routes se zyada ho sakta hai.
+7. Rule "pehle K parts" hai, to cases dataset ke shuru ke parts ki taraf jhukte hain. Report me ye line likh do ya `--instructive` se alag parts jodo (label ke saath).
+
+### Tests (+89)
+`tests/test_casestudy.py`: natural order, `--instructive` parsing (aur 7 galat forms), route diff, repair outcome ke shabd, R1/R2 facts, run loading ke errors, **selection rule har type par records se alag likh kar match** (pehla failing route, id order, ek part ek case, records ka order shuffle karne par same), `per-type` aur types ki validation, ek route do types me, soft `machine_grouping`, diff/survival metrics se match, violations verifier ke shabdon me, final route block, expert vs proxy references, **R2 accept hone aur refuse hone (R0 par girna) wale asli harness runs**, aggregate table `summarize_set` aur `per_candidate.csv` se match, bina analysis ke run, Route Builder run, `differs` (expert/proxy, invalid final kabhi nahi), instructive cases ki labelling aur errors, commentary (rehti hai, nayi entries, orphan, bad file, whitespace), deterministic Markdown, sealed note, teen output files (LF newlines), CLI (files, commentary bachna, default out, `--strict`, errors par kuch adha nahi likha jaata). Maine 6 jaan-boojh kar bugs daal kar bhi check kiya ki tests unhe pakadte hain.
+
+### Abhi kya nahi hai
+Asli runs ke cases aur commentary, cascade runs ke liye alag case view (small ne kya kiya, large ne kya), cases ka docx/LaTeX output (Markdown se pandoc se ban jaata hai), row A9.
