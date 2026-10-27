@@ -304,6 +304,14 @@ def _read_run(cfg, row, model, folder, expected):
             errors.append(f"run.json says dataset {ds!r}, the config says {cfg['dataset']!r}")
         elif not ds:
             warnings.append("run.json does not name the dataset")
+        if dataset.is_sealed(cfg["dataset"]):
+            fz = info.get("freeze")
+            if not isinstance(fz, dict):
+                warnings.append("run.json has no freeze status: was this run made before capp/freeze.py (scripts/freeze.py)?")
+            elif fz.get("status") not in ("ok", "analysis-changed"):
+                warnings.append(f"this run on a sealed dataset was made with freeze status {fz.get('status')!r}"
+                                + (f" ({'; '.join(fz.get('differences') or [])[:200]})" if fz.get("differences") else "")
+                                + ": it is not a run of a frozen configuration")
         if not row["independent"]:
             if info.get("model") and info["model"] != model["model"]:
                 errors.append(f"run.json says model {info['model']!r}, the column {model['id']} is {model['model']!r}: "
@@ -538,6 +546,12 @@ def analyse(cfg: dict, results_dir: str = None) -> dict:
                                         "so that no conclusion rests on one model"))
     if dataset.is_sealed(cfg["dataset"]):
         issues.append(_issue("warning", f"dataset {cfg['dataset']!r} is sealed (final runs only): no setting may change once its results are seen"))
+    if dataset.is_sealed(cfg["dataset"]):
+        ids = sorted({(run.get("run_info") or {}).get("freeze", {}).get("id") for run in runs.values()
+                      if isinstance((run.get("run_info") or {}).get("freeze"), dict) and (run["run_info"]["freeze"].get("id"))})
+        if len(ids) > 1:
+            issues.append(_issue("warning", f"the runs were made under {len(ids)} different freeze manifests ({', '.join(ids)}): a final "
+                                            "grid should come from one freeze (python scripts/freeze.py diff A B shows what changed between two)"))
     if loaded["expected"][2] == "unavailable":
         issues.append(_issue("warning", f"dataset {cfg['dataset']!r} could not be loaded: the parts and their features were not checked "
                                         "against it (the first run read defines them)"))
@@ -941,7 +955,9 @@ def run_commands(cfg: dict, loaded: dict) -> list:
     out, warn = [], []
     if dataset.is_sealed(cfg["dataset"]):
         warn = [f"# WARNING: {cfg['dataset']} is sealed. Run it only for the final results (WP11): once its results are seen no prompt,",
-                "# setting or choice of row (A5, A7, A8 ...) may change. Develop and decide on the development set first.", ""]
+                "# setting or choice of row (A5, A7, A8 ...) may change. Develop and decide on the development set first, then freeze:",
+                "#   python scripts/freeze.py create --grid <this config> --run-tests ; git add FREEZE.json ; git commit -m Freeze ; git tag freeze-v1",
+                "# run_eval stops on a sealed dataset if FREEZE.json is missing or the working tree has drifted from it.", ""]
     todo = 0
 
     def line(row, tag, why):
@@ -1016,7 +1032,9 @@ def manifest(res: dict, files: dict) -> dict:
                          "folder": None if not run["folder"] else os.path.relpath(run["folder"], res["results_dir"]).replace("\\", "/"),
                          "records_sha256_16": run["records_sha"], "n_records": len(run["records"]), "n_parts": len(run["parts"]),
                          "repeats": run["repeats"], "run_json": {k: info.get(k) for k in ("system", "tag", "dataset", "model", "git_commit",
-                                                                                         "cascade_level") if k in info}})
+                                                                                         "cascade_level") if k in info},
+                         "freeze": (info.get("freeze") or {}).get("status") if isinstance(info.get("freeze"), dict) else None,
+                         "freeze_id": (info.get("freeze") or {}).get("id") if isinstance(info.get("freeze"), dict) else None})
     return {"tool": "capp.tables (scripts/make_tables.py)", "config_sha256_16": config_sha(cfg), "config": cfg,
             "dataset_checked_against": res["expected"][2], "runs": runs, "issues": res["issues"], "files": files}
 

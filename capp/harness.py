@@ -8,7 +8,7 @@ Writes to <out_dir>/<tag>_<system>/
     per_part.csv       one row per part and repeat (final route, validity, provenance, scores, M4)
     per_candidate.csv  one row per LLM sample and Route Builder route (first-pass validity, failure kinds, tokens, latency)
     summary.json       metrics M1..M8, overall and per part class
-    run.json           what was run: system, dataset, model, settings, git commit, time
+    run.json           what was run: system, dataset, model, settings, git commit, freeze status (capp/freeze.py), time
 
 Repeats use the cache run tag "<tag>-r<k>", so repeat k is a different, reproducible draw. Use the SAME tag for B1 and B0 if
 you want them paired: B1's single call is then B0's first sample (same cache entry, no extra API call).
@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 from capp import verify as V
 from capp import cascade as CASC
-from capp import config, feasibility, llm_client, physics, summary as S, systems
+from capp import config, feasibility, freeze, llm_client, physics, summary as S, systems
 
 NO_KEY_MSG = "GROQ_API_KEY not configured"
 
@@ -257,7 +257,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "confidence_flag_threshold": systems.CONFIDENCE_FLAG if spec else None,
         "max_tokens": (config.CG_MAX_TOKENS if pspec.constrained else config.PLANNER_MAX_TOKENS) if uses_llm else None,
         "llm_mode": config.get_mode(), "front_uses_dims": front_uses_dims,
-        "git_commit": _git_commit(), "python": sys.version.split()[0], "platform": platform.platform(),
+        "git_commit": _git_commit(), "freeze": freeze.status(config.ROOT),
+        "python": sys.version.split()[0], "platform": platform.platform(),
         "started_utc": datetime.fromtimestamp(t_start, timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.time() - t_start, 1),
         "llm_client_summary": llm_client.summary() if uses_llm else None,

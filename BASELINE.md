@@ -956,3 +956,58 @@ Dev set par ek route me ~6.2 ops, ~**2.1 real choice calls** (0 se 6; 12/200 par
 
 ### Abhi kya nahi hai
 Asli API par koi run (reasoning model ka behaviour dekhna baaki), choice quality ka M4 se analysis, `cg` ke saath `+fs`/`+ts` (nahi banaya, prompts alag hain), graph ke baahar ke constraints (feasibility) generation ke dauraan.
+
+## Step 25 (WP0 / WP11): configuration freeze, `scripts/freeze.py`
+
+Report 7.2: test benchmark "sirf final runs ke liye, jab saare components frozen hon, aur test results dekhne ke baad koi prompt ya setting nahi badalti". Pehle ye sirf ek warning thi. Ab ye **checkable** hai: ek manifest (`FREEZE.json`) jo likhta hai ki final run kis cheez se bana hai, aur ek `verify` jo batata hai ki freeze ke baad kuch badla ya nahi. **Koi API call nahi, koi run shuru nahi.**
+
+```
+python scripts/freeze.py create --grid configs/ablation_template.json --run-tests --note "final" [--extra results\threshold.json] [--name tier1]
+git add FREEZE.json; git commit -m "Freeze"; git tag freeze-v1
+python scripts/freeze.py verify                  # exit 0 ok / sirf analysis code badla; exit 1 drift; exit 2 manifest nahi mila
+python scripts/freeze.py verify --strict         # analysis code badalne par bhi exit 1
+python scripts/freeze.py show
+python scripts/freeze.py diff FREEZE_tier1.json FREEZE.json    # do freezes ke beech kya badla
+```
+
+### Kya fingerprint hota hai (SHA-256; line endings normalise, to Windows aur Linux checkout ka hash same)
+- **files**: `capp/`, `week1`-`week6`, `scripts/` ke top-level `.py` aur `.json` (tests nahi). Har file ka **kind**: `analysis` (wo code jo sirf finished runs padhta hai: tables, case studies, summary, route sheet, benchmark tools, UI, saari scripts) ya `behaviour` (baaki sab; **nayi ya anjaani file behaviour maani jaati hai**).
+- **config**: `capp/config.py` ke saare UPPER_CASE constants (temperature, max_tokens ...), har role ka model id **jaisa abhi resolve hota hai** (to `CAPP_MODEL_PRIMARY` freeze se alag set ho to drift), structured-output mode. Prices sirf record hoti hain, compare nahi (wo baad me token ko cost banati hain).
+- **datasets**: dev_v2, test_v2, bench_v1 (jo exist karein) + `--dataset`. Hash + parts ki ginti.
+- **grids**: final runs ka ablation config (canonical JSON, indentation se fark nahi). Rows ki list (kaun sa system) is freeze ka hissa hai, isliye `--grid` zaroori hai.
+- **extras**: koi aur file (`--extra`): tuned confidence threshold, A5/A6/A7 ka decision.
+
+### Verdict
+| status | matlab |
+|---|---|
+| `ok` | kuch nahi badla |
+| `analysis-changed` | sirf analysis code badla (table bug fix wagairah): allowed, report hota hai |
+| `drift` | behaviour file, config constant, model id, dataset, grid ya extra badla (nayi behaviour file bhi): results frozen configuration ke nahi |
+| `none` / `unreadable` | manifest nahi hai / padha nahi ja raha (sirf run.json me) |
+
+Freeze ke baad **bench_v1 ka nayi bann jaana drift nahi** (information hai); dataset badalna ya hatna drift hai.
+
+### Kahan use hota hai
+1. **`run.json`** (har run, dev ho ya sealed): `freeze` = `{status, id, manifest, differences (pehli 10)}`.
+2. **`run_eval.py` sealed dataset par** (`test_v2`, `bench_v1`, LLM system): manifest nahi hai ya `drift` hai to **STOPPED, exit 2**, koi call nahi. `--freeze FILE` se dusra manifest, `--no-freeze-check` se jaan-boojh kar override (loud warning; status phir bhi run.json me jaata hai). `rb` system aur dev set par gate nahi.
+3. **`make_tables.py`**: sealed config ke har run me freeze status `ok`/`analysis-changed` nahi hai (ya run.json me status hi nahi) to issue (warning); alag-alag freeze ids ke runs ek grid me hon to issue; manifest.json me har run ka `freeze` aur `freeze_id`; `commands` sealed config par freeze karne ki line bhi chhapta hai.
+
+### Kab freeze karna hai (abhi nahi)
+- **Gate G2** (Tier-1 features frozen): dev set par A3/A4 (hint ke saath ya bina), A5 (k, selection) tay karke. `--name tier1`.
+- **Gate G4**: baaki rows (A6, A7, A8, A9) tay hone ke baad, **test_v2 / bench_v1 par pehla LLM run chalne se pehle**. Ek aur freeze, `diff` se dikha sakti ho ki tier1 ke baad kya jud gaya.
+- **Abhi mat karo**: aage ke steps nayi behaviour files jodenge to wo drift ginenge (`create --force --note ...` se dobara freeze karna padega; purana id `replaces` me rehta hai).
+- **`baseline-v0` tag**: report kehta hai foundation system "kisi bhi modification se pehle" tag hona chahiye. Agar tag nahi laga to `git log --oneline --reverse` me wo commit dhundo jahan MTP-1 ka internship code aaya tha: `git tag baseline-v0 <hash>; git push origin baseline-v0`. Mujhe nahi pata kaun sa commit hai, isliye maine ye nahi kiya.
+
+### Jo honestly likhna hai
+1. **Ye saabit karta hai ki files wahi hain jo freeze me thi; ye nahi ki tumne freeze se pehle test results nahi dekhe.** Order of events (freeze, phir pehla sealed run) manifest ki `created_utc`, run.json ke `started_utc` aur git tag se dikhta hai, par imaandari tumhari hai. Report me aise likho: "the configuration was frozen (commit X, tag freeze-v1, manifest id Y) before the first run on the test set".
+2. **Analysis code ko "allowed" maanna ek faisla hai**: tables ya summary me bug fix routes badal nahi sakta, par numbers badal sakta hai (galat metric theek karna). Isliye `analysis-changed` report hota hai, chhupta nahi. Metrics ka code (`capp/metrics.py`, `verify.py`) maine **behaviour** me rakha hai (conservative).
+3. `scripts/` ko analysis maana hai (CLI wrappers). `run_eval.py` ke defaults jo planner ko chhoote hain wo `config.py` aur `systems.py` me hain, jo behaviour hain.
+4. Hash sirf us tree ka hai jo chal raha hai: installed library versions (openai/groq SDK, numpy) nahi. `python` aur `platform` manifest me hain par compare nahi hote.
+5. `--run-tests` do minute lagata hai; failing tests ke saath freeze refuse hota hai.
+6. Mujhe `git tag` ya `git commit` chalane ka haq nahi hai tumhari machine par: script sirf batati hai ki kya chalana hai (dirty working tree ka warning bhi).
+
+### Tests (+68)
+`tests/test_freeze.py`: hashing (CRLF, JSON layout), kinds (real repo ki har analysis module exist karti hai), scan (sirf top-level `.py`/`.json`), config snapshot (real config env se badalta hai), datasets (naya/hata/badla), grid/extras (layout se fark nahi, bahar ke paths), pytest summary parsing, git info (asli git repo me dirty/tag), create (once, `--force` se `replaces`, grid zaroori, failing tests refuse, id state se banti hai time/note se nahi, sorted keys), **verify** (har behaviour file, nayi/hata hui file, analysis, tests/README/subpackage/`__pycache__` ka na badalna, Windows checkout, config/model/structured mode/price, dataset, grid, extras, manifest ka na milna), status (none/ok/analysis/drift/unreadable, 10 se zyada differences, kabhi raise nahi), do manifests ka compare, text output, CLI (create/verify/show/diff/strict/exit codes), **harness run.json**, **run_eval subprocess** (manifest nahi, drift, unreadable, ok, override, rb aur dev par gate nahi), **Table 4** flags aur manifest keys. 14 jaan-boojh kar bugs daal kar bhi check kiya, sab pakde gaye.
+
+### Abhi kya nahi hai
+Release ke time ka freeze report (Markdown) jo paper me chipka sako, aur WP12 ke baaki (datasheet pehle se hai Step 16 me).

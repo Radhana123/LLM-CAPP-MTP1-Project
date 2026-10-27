@@ -55,7 +55,9 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
     python scripts/run_eval.py --summarize-only results/dev_n5_r1_s3 --confidence-flag 0.93   # same run, plans flagged below confidence 0.93 (scripts/confidence_tune.py picks T)
 
-Do NOT run the sealed sets (test_v2, the expert benchmark bench_v1) until the final runs (WP11).
+Do NOT run the sealed sets (test_v2, the expert benchmark bench_v1) until the final runs (WP11). A sealed run with LLM calls needs a freeze:
+`python scripts/freeze.py create --grid <config>` first (capp/freeze.py); run_eval stops if FREEZE.json is missing or the working tree has
+drifted from it (--no-freeze-check to override; the freeze status of every run is written to run.json).
 """
 import argparse
 import os
@@ -64,12 +66,15 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from capp import dataset, harness, summary, systems   # noqa: E402
+from capp import config, dataset, freeze, harness, summary, systems   # noqa: E402
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1/+ts/+fz1/+ms/+ml/+cas1/+cas2/+cg1 (see above)")
+    ap.add_argument("--freeze", help="freeze manifest checked before a sealed dataset is run (default FREEZE.json in the repository)")
+    ap.add_argument("--no-freeze-check", action="store_true",
+                    help="run a sealed dataset although the freeze is missing or differs (the status is still written to run.json and flagged in Table 4)")
     ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
     ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis (kc, tool wear, Ra) and the physical-feasibility check of the final and raw routes")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")
@@ -116,6 +121,18 @@ def main():
     if dataset.is_sealed(args.dataset) and args.system != "rb":
         print(f"WARNING: {args.dataset} is sealed (final runs only: no prompt or setting may change after its results are seen). "
               "Continue only if this is the final run.", file=sys.stderr)
+        fz = freeze.status(config.ROOT, args.freeze)
+        if fz["status"] in freeze.OK_STATUSES:
+            print(f"Freeze {fz['id']}: {fz['status']} ({fz['manifest']})", file=sys.stderr)
+        elif args.no_freeze_check:
+            print(f"WARNING: freeze status is {fz['status']!r}; continuing because of --no-freeze-check. The status is written to run.json "
+                  "and Table 4 will flag this run.", file=sys.stderr)
+        else:
+            why = {"none": f"no freeze manifest ({fz['manifest']}): create it with `python scripts/freeze.py create --grid <config>`, then commit and tag",
+                   "drift": "the working tree differs from the freeze: " + "; ".join(fz.get("differences", [])[:5]) + " (python scripts/freeze.py verify)",
+                   "unreadable": f"the freeze manifest cannot be used: {fz.get('why')}"}.get(fz["status"], fz["status"])
+            print(f"\nSTOPPED: sealed dataset {args.dataset} and {why}. For a deliberate exception use --no-freeze-check.", file=sys.stderr)
+            sys.exit(2)
     if args.mode:
         os.environ["CAPP_LLM_MODE"] = args.mode
 
