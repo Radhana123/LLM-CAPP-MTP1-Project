@@ -22,7 +22,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from capp import config, llm_client, physics, summary as S, systems
+from capp import verify as V
+from capp import config, feasibility, llm_client, physics, summary as S, systems
 
 NO_KEY_MSG = "GROQ_API_KEY not configured"
 
@@ -125,6 +126,16 @@ def _physics(final: dict, part: dict):
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _feasibility(steps, part):
+    """Physical-feasibility check of a route (capp/feasibility.py); never allowed to stop a run."""
+    if not steps:
+        return None
+    try:
+        return feasibility.condense(feasibility.evaluate(steps, part))
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
                    front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
@@ -136,7 +147,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     ones and both are guarded. `planner_factory(part) -> planner` replaces `planner` for planner options; by default it is built
     from the system name. `pool` (a planners.Pool or a dataset name, default dev_v2) is where few-shot examples come from.
     `weights` (time, cost, energy) are the priorities of selection S2. `analysis` adds the physics analysis (cutting energy kc,
-    Taylor tool-wear cost, Ra risk) of every final route to its record; it needs no API call and does not change the route."""
+    Taylor tool-wear cost, Ra risk) and the physical-feasibility check (capp/feasibility.py) of every final route and of every raw LLM
+    route to its record; it needs no API call and does not change any route or any validity decision."""
     try:
         spec = systems.parse_system(system)
         pspec = systems.planner_spec(system)
@@ -188,6 +200,10 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                 rec["repeat"] = r
                 if analysis:
                     rec["final"]["physics"] = _physics(rec["final"], part)
+                    rec["final"]["feasibility"] = _feasibility(V.clean_steps(rec["final"]["steps"]), part)
+                    for cand in rec["candidates"]:                         # the raw LLM route, as sampled: is a strict-valid route feasible?
+                        if cand.get("llm_ok") and cand.get("llm_steps"):
+                            cand["raw_feasibility"] = _feasibility(V.clean_steps(cand["llm_steps"]), part)
                 rec["run_tag"] = os.environ["CAPP_RUN_TAG"]
                 rec["part"] = part
                 records.append(rec)
@@ -210,7 +226,7 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "planner_options": (pspec.name or "v1") if uses_llm else None,
         "few_shot_k": pspec.few_shot if uses_llm else None, "few_shot_leave_out": pspec.loo if pspec.few_shot else None,
         "hint": pspec.hint if uses_llm else None,
-        "two_step": pspec.two_step if uses_llm else None, "physics_analysis": analysis,
+        "two_step": pspec.two_step if uses_llm else None, "physics_analysis": analysis, "feasibility_analysis": analysis,
         "structured_output_requested": config.structured_mode() if uses_llm and pspec.two_step else None,
         "pool": [pool_obj.name, len(pool_obj)] if pool_obj is not None else None,
         "n_samples": spec[0] if spec else None, "repair": spec[1] if spec else None, "selection": spec[2] if spec else None,

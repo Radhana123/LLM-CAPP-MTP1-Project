@@ -322,3 +322,65 @@ python scripts/run_eval.py --system rb --dataset dev_v2 --tag dev --no-analysis
 
 ### Abhi kya nahi hai
 Extended verifier (15-20 physical-feasibility rules; power limit aur Ra yahan Violation objects ban sakte hain taaki R1 repair ya flag kare), UI ke dono modes, extraction front end, expert benchmark (WP2), model cascade, confidence threshold tuning.
+
+## Step 11 (WP6): extended verifier, 15 physical-feasibility rules
+
+Code: naya `capp/feasibility.py`, naya `scripts/feasibility_check.py`; `capp/verify.py` (naya soft kind `risk`, Violation me `action` field), `capp/harness.py` (final aur raw LLM route ka check),
+`capp/summary.py` + `capp/compare.py` (feasibility numbers). Tests: `tests/test_feasibility.py` (47).
+
+### Kya hai (report 6.6)
+Precedence-valid route bhi physically galat ho sakta hai (hole hi nahi hai jispe reaming ho, part machine me fit nahi hota, slender part bina support). Ye rules wahi pakadte hain.
+Har finding ek `verify.Violation` hai (rule id `PHYS:<RULE>`, positions, aur `action` jaise `insert:Reaming`, `support:tailstock`, `reduce:feed to 0.098 mm/rev`), yani precedence violations jaisa format.
+- **Do kinds:** `infeasible` (hard: route as planned ho hi nahi sakta) aur `risk` (soft: support/feed/finishing chahiye ya assumption pe tika hai; route ko invalid nahi karta).
+- **Scope:** `route` rules route judge karte hain; `part` rule (TOL-SPEC) specification judge karta hai, route se independent, isliye part me ek baar gina jata hai.
+- **Dims chahiye wale rules sirf tab chalte hain jab dims hon** (report 6.6). Data na ho to rule `not_evaluated` me jaata hai (reason ke saath), chupchap pass nahi hota.
+- **Analysis-only:** M2 validity, repair, selection, baselines (B0/B1/RB) **nahi badle**. `verify.PHYSICAL_RULES` abhi bhi khaali hai. Agar kabhi strict check me jodna ho: `feasibility.install()`
+  (tab `infeasible` route ko strict-invalid karega, `risk` nahi); test me dikhaya hai.
+- Har final route aur har raw LLM route ke saath `feasibility` store hota hai (`--no-analysis` se band). Summary me "feasibility" lines, `per_part.csv` me `feas_*` columns, `per_candidate.csv` me `raw_feas_*`.
+  **Report ka promised number:** "raw LLM routes: strict-valid but physically infeasible" (summary line 2) = precedence-valid par physically infeasible routes ka share.
+
+### Rules (id, kind, source status)
+| Category | Rule | Kind | Status |
+|---|---|---|---|
+| capability | CAP-LATHE-DIA, CAP-LATHE-LEN, CAP-MILL-ENV (part machine envelope me fit) | infeasible | assumption (Machine defaults) |
+| capability | CAP-POWER (spindle power > machine power; hole ops tab tak skip jab tak `hole_diameter` na ho) | risk | model |
+| surface | RA-FEED (standard feed pe predicted Ra > required; message me kitna feed chalega) | risk | model |
+| surface | RA-FLOOR (required Ra route ke finest cutting process ke floor se neeche) | risk | assumption |
+| workholding | HOLD-TAILSTOCK (L/D 3-6), HOLD-STEADY (6-20, 12 ke upar reduced parameters), HOLD-SLENDER-MAX (>20) | risk | web (CADEM) |
+| hole | HOLE-DEEP (depth > 3 x D peck, > 5 x D multi-peck; `hole_diameter` chahiye) | risk | web (Mt Hood CC) |
+| hole | HOLE-EXISTS (Reaming/Tapping/Thread Milling/Counterboring/Countersinking/Internal Grooving se pehle Drilling ya Boring) | infeasible | derived |
+| hole | HOLE-PILOT (Drilling se pehle Center Drilling) | risk | web (CIMCO) |
+| finishing | TOL-HOLE (hole tolerance drilling IT10 / boring IT8 se fine ho to Reaming IT6) | risk | web (ISO 286, Engineering ToolBox) |
+| finishing | TOL-SPEC (tolerance vocabulary ke best process se bhi fine: turned diameter IT7, hole IT6; grinding/honing/lapping vocabulary me nahi) | risk, part | web |
+| sequence | SEQ-PARTOFF (Parting-off ke baad koi lathe op nahi) | infeasible | derived |
+
+### Dev set pe pehla look: `python scripts/feasibility_check.py --dataset dev_v2` (offline), 200 parts, RB routes
+- **RB ke first route me koi hard finding nahi.** Risks: TOL-HOLE 47 parts (23%), HOLD-TAILSTOCK 27, HOLD-STEADY 24, TOL-SPEC 24 (12%), RA-FEED 15, RA-FLOOR 14, CAP-POWER 10, HOLD-SLENDER-MAX 1. 51 parts (25%) ko tailstock/steady rest chahiye.
+- **Rule base ka asli defect mila:** HOLE-EXISTS RB ke 2637 variants me se **60 (2.3%)** pe fire karta hai, hamesha `Internal Grooving` Drilling se *pehle*. Precedence graph me `Drilling -> Internal Grooving` edge hai hi nahi. First route me ye nahi aata (isliye RB baseline sahi dikhta hai),
+  par variants (M4/M6 ke references, R0 fallback) me aata hai. Baselines frozen hain, to maine graph nahi badla; ek edge jodna agle kisi step ka candidate hai (decision tumhara/supervisor ka).
+- **TOL-SPEC dataset ka finding hai:** tolerance 0.005 mm wale 10/17 aur 0.01 mm wale 14/33 parts (jinme turned diameter ya hole feature hai) ki tolerance vocabulary ke kisi operation se hold nahi hoti (grinding/honing/lapping nahi hain). Tolerance ko +-T padha hai (band 2T); band padhte to aur zyada parts aate.
+- **HOLE-DEEP 61% parts me evaluate nahi hota** (Drilling hai par `hole_diameter` nahi). CAP-POWER bhi isi wajah se hole ops skip karta hai: isliye feasibility me 5% parts over-power dikhte hain, physics line ke 23% nahi (wo hole = part diameter wala artefact tha).
+  Benchmark parts aur extraction front end ko hole diameter record karna chahiye.
+- CAP-LATHE-*/CAP-MILL-ENV dev par kabhi fire nahi hote (machine envelope assumed, parts chhote); unit tests se check hue hain.
+
+### Jo honestly likhna hai
+1. **Report kehti hai "har rule ka handbook citation". Mere paas handbook nahi tha, isliye koi rule "handbook" status ka nahi hai.** Status: web 7, derived 2, model 2, assumption 4 (`feasibility.rule_table()`). Har rule me jo source maine padha wahi likha hai (URL ke saath):
+   CADEM blog (L/D thumb rule, 2025), Mt Hood CC CNC course (3 x D / 5 x D), CIMCO CNC handbook ch. 7, Wikipedia "IT Grade" (ISO 286 table), Engineering ToolBox (process -> IT grade, ANSI B4.1 cite karta hai).
+   **Tumhe / supervisor ko har web rule ke liye handbook page (Kalpakjian, Groover, Machinery's Handbook, HMT jo bhi) lagana hai**; tab status "handbook" hoga. Report ka "pehle 10 rules jinka handbook basis sabse clear" abhi 9 (web + derived) hain.
+2. **15 rules implement hue, par ye sab source-backed nahi:** 4 assumption pe hain (machine envelope x3, Ra floor). Jin rules ka source nahi mila wo **encode nahi kiye** (`feasibility.NOT_ENCODED`): minimum chuck grip, boring bar overhang, thin walls, end-mill L/D, material-wise operation bans.
+   Ra floors ke liye web tables (turning 0.05-25 um jaise) itne wide hain ki floor tay nahi hota; `physics.RA_FLOOR_UM` assumption hi hai.
+3. **Support rules route edit se theek nahi hote:** vocabulary me tailstock/steady rest operation nahi hai, to ye `risk` hain jo plan sheet/UI me dikhenge. "Precedence-valid par physically infeasible" ka number sirf hard rules (HOLE-EXISTS, SEQ-PARTOFF, machine capability) se banta hai. Ye zyada tar LLM galtiyan pakadega; RB par ~0.
+4. Ra rules me optimism bacha hai (Facing ko floor se nikala hai kyunki har route me hota hai, par ye nahi pata ki critical surface kaun si hai). TOL-HOLE maanta hai ki part tolerance hole ki hai; part-level tolerance ko feature se jodna dataset me nahi hai.
+5. ISO 286 values sirf 6-250 mm ke liye load hain (verified table); isse bade size pe TOL rules `not_evaluated`.
+6. R1 abhi in actions ko use nahi karta (`insert:Reaming`, `insert:Drilling`...). Violation format wahi hai, to agla step (feasibility-aware R1/selection) iske upar ban sakta hai.
+
+### Chalane ka tareeka
+```
+python scripts/feasibility_check.py --dataset dev_v2 --json results/feasibility_check.json
+python scripts/run_eval.py --system rb --dataset dev_v2 --tag dev                     # summary me "feasibility" lines
+python scripts/run_eval.py --system n5_r1_s3 --dataset dev_v2 --limit 20 --tag dev    # raw LLM routes ka strict-valid-but-infeasible number (agar b0 ka cache is tag ke saath hai to API nahi)
+python -c "import json; from capp import feasibility as F; print(json.dumps(F.rule_table(), indent=1))"
+```
+
+### Abhi kya nahi hai
+Feasibility-aware repair/selection, UI ke dono modes, extraction front end (hole diameter record karna), expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9).

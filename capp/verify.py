@@ -11,7 +11,7 @@ Rule ids (stable strings, used in reports and by repair)
   SET-UNKNOWN             operation outside the 41 canonical operations
   SET-DUP                 operation repeated
   MACH-GROUP              more machine changeovers than needed (soft)
-  PHYS:<name>             physical rules added in WP6 (they set rule_id themselves)
+  PHYS:<name>             physical-feasibility rules of capp/feasibility.py (WP6); they set rule_id themselves
 
 Kinds
   order             Facing not first, Inspection not last, or a precedence rule (a must come before b) broken
@@ -19,7 +19,9 @@ Kinds
   invented          an operation that is not one of the 41 canonical operations
   duplicate         the same operation appears more than once
   machine_grouping  more machine changeovers than the Route Builder needs for these features (SOFT: quality, not validity)
-  infeasible        physical infeasibility; rules are added in WP6 (registry PHYSICAL_RULES below), none exist yet
+  infeasible        physical infeasibility (HARD): the route cannot be carried out as planned. Rules: capp/feasibility.py
+  risk              physical risk (SOFT): needs a support, a different parameter or a finishing operation, or rests on an
+                    assumption; shown to the user, never makes a route invalid
 
 Two validity notions, because they differ:
   v1_valid  what v1 calls valid: precedence/order rules + feature coverage (week1.precedence_graph + route_builder.is_complete)
@@ -38,11 +40,12 @@ from routes import ALL_OPERATIONS
 MARKER = "--- Machine Changeover ---"       # Route Builder inserts this string into steps; it is not an operation
 CANONICAL_OPS = frozenset(ALL_OPERATIONS)
 
-KINDS = ("order", "missing", "invented", "duplicate", "machine_grouping", "infeasible")
-SOFT_KINDS = ("machine_grouping",)
+KINDS = ("order", "missing", "invented", "duplicate", "machine_grouping", "infeasible", "risk")
+SOFT_KINDS = ("machine_grouping", "risk")
 HARD_KINDS = tuple(k for k in KINDS if k not in SOFT_KINDS)
 
-PHYSICAL_RULES = []     # WP6: callables f(clean_steps, part) -> list[Violation] (kind="infeasible")
+PHYSICAL_RULES = []     # callables f(clean_steps, part) -> list[Violation]; empty by default (the baselines are untouched).
+                        # capp.feasibility.install() adds the WP6 rules here, so check_route(route, features, part) reports them
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,7 @@ class Violation:
     feature: str = ""        # missing: the feature that is not covered
     rule_id: str = ""        # which rule failed (see module docstring)
     positions: tuple = ()    # 0-based indices in the route without markers: order (pos of a, pos of b); invented/duplicate: every occurrence
+    action: str = ""         # the action the rule asks for, e.g. "insert:Reaming", "support:tailstock", "reduce:feed" ("" for precedence rules)
 
     def __post_init__(self):
         if self.kind not in KINDS:

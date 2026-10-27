@@ -54,6 +54,19 @@ def _physics_columns(ph):
             "ra_best_um": t["ra"]["best_um"], "ra_risk": t["ra"]["risk"]}
 
 
+def _feas(f):
+    """The stored feasibility dict of a route, or None (not analysed, or the analysis failed)."""
+    return f if isinstance(f, dict) and "violations" in f else None
+
+
+def _feasibility_columns(f):
+    f = _feas(f)
+    if f is None:
+        return {"feas_infeasible": "", "feas_risk": "", "feas_spec": "", "feas_rules": ""}
+    rules = sorted({v["rule_id"] for v in f["violations"] if v["scope"] == "route"})
+    return {"feas_infeasible": f["route_infeasible"], "feas_risk": f["route_risk"], "feas_spec": f["part_risk"], "feas_rules": ";".join(rules)}
+
+
 def part_rows(records: list) -> list:
     rows = []
     for rec in records:
@@ -83,6 +96,7 @@ def part_rows(records: list) -> list:
             "efficiency_v1": fin["scores"]["efficiency_score"],
             "eff_gap_to_rb_best": None if gap is None else gap["efficiency_gap"],
             **_physics_columns(fin.get("physics")),
+            **_feasibility_columns(fin.get("feasibility")),
             "m4_source": src if sim else "", "m4_exact": None if not sim else sim["exact"],
             "m4_lcs_ratio": None if not sim else sim["lcs_ratio"],
             "m4_kendall_tau": None if not sim else sim["kendall_tau"],
@@ -136,6 +150,8 @@ def candidate_rows(records: list) -> list:
                 "api_calls": c["meta"].get("n_calls", 1 if c["meta"] else 0),
                 "structured": c["meta"].get("structured_used", ""), "parser": c["meta"].get("parser", ""),
                 "faithful": c["meta"].get("faithful", ""), "reasoning_chars": len(c["meta"].get("reasoning") or "") or "",
+                "raw_feas_infeasible": "" if _feas(c.get("raw_feasibility")) is None else c["raw_feasibility"]["route_infeasible"],
+                "raw_feas_risk": "" if _feas(c.get("raw_feasibility")) is None else c["raw_feasibility"]["route_risk"],
             })
     return rows
 
@@ -176,6 +192,39 @@ def _physics_block(records):
             "over_power_share": sum(1 for _, t in rows if t["ops_over_power"]) / n,
             "near_power_share": sum(1 for _, t in rows if t["ops_near_power"] and not t["ops_over_power"]) / n,
             "ra_risk_share": risks, "ra_ratio_mean": mean([t["ra"]["ratio"] for _, t in rows])}
+
+
+def _feasibility_block(records):
+    """Physical-feasibility check (capp/feasibility.py) of the final routes and of the raw LLM routes; {"n": 0} when not analysed.
+    `infeasible` = a HARD physical violation (the route cannot be carried out as planned); `risk` = needs a support, a smaller feed,
+    a finishing operation, or rests on an assumption. Part-level findings (the tolerance is beyond the operation vocabulary) do not
+    depend on the route and are counted once per part, apart."""
+    fin = [_feas(r["final"].get("feasibility")) for r in records]
+    fin = [f for f in fin if f is not None]
+    if not fin:
+        return {"n": 0}
+    n = len(fin)
+    by_rule = {}
+    for f in fin:
+        for rid in {v["rule_id"] for v in f["violations"]}:
+            by_rule[rid] = by_rule.get(rid, 0) + 1
+    unevaluated = {}
+    for f in fin:
+        for rid in f["not_evaluated"]:
+            unevaluated[rid] = unevaluated.get(rid, 0) + 1
+    raw = [(c.get("first_pass"), _feas(c.get("raw_feasibility"))) for r in records for c in r["candidates"]]
+    raw = [(fp, f) for fp, f in raw if fp is not None and f is not None]
+    valid_raw = [f for fp, f in raw if fp["valid"]]
+    return {"n": n,
+            "final_infeasible_share": sum(1 for f in fin if f["route_infeasible"]) / n,
+            "final_risk_share": sum(1 for f in fin if f["route_risk"]) / n,
+            "final_spec_share": sum(1 for f in fin if f["part_risk"]) / n,
+            "by_rule_share": {k: v / n for k, v in sorted(by_rule.items(), key=lambda kv: (-kv[1], kv[0]))},
+            "not_evaluated_share": {k: v / n for k, v in sorted(unevaluated.items())},
+            "raw_n": len(raw), "raw_strict_valid_n": len(valid_raw),
+            "raw_infeasible_share": (sum(1 for _, f in raw if f["route_infeasible"]) / len(raw)) if raw else None,
+            "raw_valid_infeasible_share": (sum(1 for f in valid_raw if f["route_infeasible"]) / len(valid_raw)) if valid_raw else None,
+            "raw_valid_risk_share": (sum(1 for f in valid_raw if f["route_risk"]) / len(valid_raw)) if valid_raw else None}
 
 
 def _two_step_block(calls):
@@ -349,6 +398,7 @@ def summarize_set(records: list) -> dict:
         "planner_prompt": _prompt_block(calls),
         "two_step": _two_step_block(calls),
         "physics": _physics_block(records),
+        "feasibility": _feasibility_block(records),
         "front_size_mean": M.mean_std([len(r["front"]) for r in records if r["front"]])[0],
         "confidence": _confidence_block(records),
         "selection": sorted({r["info"].get("selection") for r in records if r["info"].get("selection")}),
@@ -459,6 +509,17 @@ def format_summary(system: str, s: dict) -> str:
                  f"({_fmt(ph['edges_per_batch_mean'], 1)} edges/batch; v1 cost {_fmt(ph['v1_cost_inr_mean'], 0)}), "
                  f"peak spindle {_fmt(ph['peak_spindle_kw_mean'], 1)} kW, over machine power in {_fmt(ph['over_power_share'], 2)} of parts; "
                  f"Ra risk low {_fmt(rr['low'], 2)} / medium {_fmt(rr['medium'], 2)} / high {_fmt(rr['high'], 2)} / unknown {_fmt(rr['unknown'], 2)}")
+    fb = s.get("feasibility") or {"n": 0}
+    if fb["n"]:
+        top = ", ".join(f"{k} {_fmt(v, 2)}" for k, v in list(fb["by_rule_share"].items())[:4]) or "none"
+        L.append(f"feasibility     : final routes with a hard infeasibility {_fmt(fb['final_infeasible_share'], 2)}, with risks {_fmt(fb['final_risk_share'], 2)} "
+                 f"(most frequent {top}); specification beyond the operation vocabulary {_fmt(fb['final_spec_share'], 2)}")
+        if fb["raw_valid_infeasible_share"] is not None:
+            L.append(f"                  raw LLM routes: strict-valid but physically infeasible {_fmt(fb['raw_valid_infeasible_share'], 3)} "
+                     f"of {fb['raw_strict_valid_n']} strict-valid, with risks {_fmt(fb['raw_valid_risk_share'], 2)}; "
+                     f"infeasible among all {fb['raw_n']} parsed raw routes {_fmt(fb['raw_infeasible_share'], 3)}")
+        if fb["not_evaluated_share"]:
+            L.append("                  rules not evaluable for lack of data: " + ", ".join(f"{k} {_fmt(v, 2)}" for k, v in fb["not_evaluated_share"].items()))
     ts = s.get("two_step") or {"n": 0}
     if ts["n"]:
         L.append(f"two-step        : {ts['n']} samples; structured output used {ts['structured_used']}, parser {ts['parser']}; "

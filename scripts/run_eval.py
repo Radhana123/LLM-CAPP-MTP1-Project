@@ -50,7 +50,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1 (see above)")
     ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
-    ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis of the final routes (kc, tool wear, Ra)")
+    ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis (kc, tool wear, Ra) and the physical-feasibility check of the final and raw routes")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")
     ap.add_argument("--dataset", default="dev_v2", help="dev_v2 (default) or test_v2 (sealed)")
     ap.add_argument("--limit", type=int, default=None, help="only the first N parts")

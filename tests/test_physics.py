@@ -396,7 +396,10 @@ def test_analysis_does_not_change_routes_or_scores(parts, tmp_path):
     rb_ = [json.loads(l) for l in (tmp_path / "b" / "a_n3_r1_s3" / "records.jsonl").read_text().splitlines()]
     for x, y in zip(ra, rb_):
         x["final"].pop("physics")
-        assert x["final"] == y["final"] and x["info"] == y["info"]
+        x["final"].pop("feasibility")
+        for c in x["candidates"]:
+            c.pop("raw_feasibility", None)
+        assert x["final"] == y["final"] and x["info"] == y["info"] and x["candidates"] == y["candidates"]
     for k in ("M1", "M2", "M3", "M4"):
         assert a["summary"][k] == b["summary"][k]
 
