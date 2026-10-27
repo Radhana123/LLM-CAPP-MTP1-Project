@@ -284,6 +284,20 @@ def _two_step_block(calls):
             "reasoning_chars_mean": M.mean_std([len(m.get("reasoning") or "") for m in ms])[0]}
 
 
+def reflag(records: list, threshold: float) -> list:
+    """Copies of the records whose plans are flagged for review at a different confidence threshold (flag when confidence < threshold).
+    Only info.flagged changes (plus info.flag_threshold, so the summary can say which); routes, scores and counts are untouched.
+    The records on disk are never rewritten."""
+    out = []
+    for r in records:
+        info = dict(r["info"])
+        c = info.get("confidence")
+        info["flagged"] = c is not None and c < threshold
+        info["flag_threshold"] = threshold
+        out.append(dict(r, info=info))
+    return out
+
+
 def _confidence_block(records):
     rows = []
     for r in records:
@@ -299,6 +313,7 @@ def _confidence_block(records):
     paired = [(c, g) for c, f, g in rows if g is not None]
     return {"n": len(rows), "mean": M.mean_std([c for c, _, _ in rows])[0],
             "flagged_share": M.rate([f for _, f, _ in rows]), "n_flagged": sum(1 for _, f, _ in rows if f),
+            **({"flag_threshold": records[0]["info"]["flag_threshold"]} if "flag_threshold" in records[0]["info"] else {}),
             "gap_flagged_mean": M.mean_std(gf)[0], "gap_unflagged_mean": M.mean_std(gu)[0],
             "spearman_confidence_vs_gap": M.spearman([c for c, _ in paired], [g for _, g in paired]) if len(paired) > 1 else None,
             "selected_mean_distance_mean": M.mean_std([r["info"].get("selected_mean_distance") for r in records])[0]}
@@ -630,7 +645,8 @@ def format_summary(system: str, s: dict) -> str:
     cf = s.get("confidence") or {"n": 0}
     if cf["n"]:
         L.append(f"confidence      : selection {'/'.join(s['selection']) or 'n/a'}; mean {_fmt(cf['mean'])}, flagged "
-                 f"{cf['n_flagged']}/{cf['n']} ({_fmt(cf['flagged_share'], 2)}); gap to best RB (pts) flagged "
+                 f"{cf['n_flagged']}/{cf['n']} ({_fmt(cf['flagged_share'], 2)}"
+                 f"{'' if 'flag_threshold' not in cf else ', confidence below ' + format(cf['flag_threshold'], 'g')}); gap to best RB (pts) flagged "
                  f"{_fmt(cf['gap_flagged_mean'], 2)} vs unflagged {_fmt(cf['gap_unflagged_mean'], 2)}; "
                  f"Spearman(confidence, gap) {_fmt(cf['spearman_confidence_vs_gap'], 2)}")
     for key, groups in s.get("by_class", {}).items():

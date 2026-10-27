@@ -169,6 +169,38 @@ def test_route_only_every_material_runs():
         assert any("Feasibility Check" in m.value for m in at.markdown), mat
 
 
+# ---------------------------------------------------------------- Step 19: route sheet
+def _sheet_shown(at):
+    heads = [m.value for m in at.markdown if "Route Sheet" in m.value]
+    draft = [w.value for w in at.warning if w.value.startswith("DRAFT FOR REVIEW")]
+    return heads, draft
+
+
+def test_full_analysis_shows_the_route_sheet_with_downloads():
+    at = generate(start())
+    heads, draft = _sheet_shown(at)
+    assert len(heads) == 1 and len(draft) == 1
+    assert "none is confirmed against a handbook" in draft[0]
+    assert len(at.get("download_button")) >= 1              # HTML always; PDF and XLSX when reportlab / openpyxl are installed
+
+
+def test_route_only_shows_the_route_sheet_on_the_reference_part():
+    at = generate(start(mode=ROUTE_ONLY))
+    heads, draft = _sheet_shown(at)
+    assert len(heads) == 1 and len(draft) == 1
+    assert any("Estimated" in c.value and "per part" in c.value for c in at.caption)
+
+
+def test_route_sheet_failure_does_not_stop_the_page(monkeypatch):
+    from capp import process_plan
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(process_plan, "build_plan", boom)
+    at = generate(start())
+    assert any("could not be built" in w.value for w in at.warning)
+    assert any("STEP 5" in h for h in headers(at))
+
+
 # ---------------------------------------------------------------- unchanged behaviour
 def test_no_features_still_asks_for_one():
     at = AppTest.from_file(APP, default_timeout=60)

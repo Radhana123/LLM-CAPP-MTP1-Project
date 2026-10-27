@@ -45,6 +45,7 @@ Examples (repo root, PowerShell):
     python scripts/cascade_pareto.py results/dev_n5_r1_s3+ms results/dev_n5_r1_s3+ml results/dev_n5_r1_s3+cas1   # validity against cost
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
+    python scripts/run_eval.py --summarize-only results/dev_n5_r1_s3 --confidence-flag 0.93   # same run, plans flagged below confidence 0.93 (scripts/confidence_tune.py picks T)
 
 Do NOT run the sealed sets (test_v2, the expert benchmark bench_v1) until the final runs (WP11).
 """
@@ -73,10 +74,19 @@ def main():
     ap.add_argument("--mode", choices=["live", "replay", "nocache"], help="sets CAPP_LLM_MODE (default: live)")
     ap.add_argument("--throttle", type=float, default=0.0, help="seconds to sleep after a part that made live API calls")
     ap.add_argument("--summarize-only", metavar="DIR", help="print the summary of an existing results folder and exit")
+    ap.add_argument("--confidence-flag", type=float, metavar="T",
+                    help="flag a plan for human review when its confidence is below T (default systems.CONFIDENCE_FLAG = 0.8; "
+                         "pick T with scripts/confidence_tune.py on the development set). With --summarize-only the existing records are re-flagged.")
     args = ap.parse_args()
 
+    if args.confidence_flag is not None:
+        if not 0.0 < args.confidence_flag <= 1.0 + 1e-9:
+            ap.error("--confidence-flag must be in (0, 1]: confidence is an agreement between 0 and 1")
+        systems.CONFIDENCE_FLAG = args.confidence_flag
     if args.summarize_only:
         recs = harness.load_records(args.summarize_only)
+        if args.confidence_flag is not None:
+            recs = summary.reflag(recs, args.confidence_flag)
         print(summary.format_summary(recs[0]["system"], summary.summarize(recs)))
         return
     if not args.system:

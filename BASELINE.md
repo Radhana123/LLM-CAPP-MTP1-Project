@@ -661,3 +661,90 @@ Har run ek point: USD/part, tokens/part, latency, **LLM routes** (= final route 
 
 ### Abhi kya nahi hai
 Asli API pe cascade ka koi run, confirmed prices, confidence threshold tuning, process plan aur route sheet (WP9), baaki dimensions ka extraction, asli benchmark parts/plans. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 18 (WP5): confidence threshold tuning, `scripts/confidence_tune.py`
+
+Report §6.4: "plans with low confidence are flagged for human review". Abhi flag `confidence < 0.8` par lagta hai (`systems.CONFIDENCE_FLAG`, kabhi tune nahi hua); tumhare live run me confidence ~0.95 aur 0 plans flagged the, matlab flag kuch nahi kar raha. Ye step finished runs par offline (API call nahi) batata hai: kaunse plans "bad" hain, confidence unhe kitna pakadti hai, aur threshold kahan rakhna chahiye.
+
+### Workflow (repo root, PowerShell)
+```
+python scripts/confidence_tune.py results/dev_n5_r1_s3 --plot results/conf.png --csv results/conf.csv
+python scripts/confidence_tune.py results/dev_n5_r1_s3 --budget 0.15 --recall 0.9          # kitna review manzoor hai / kitne bad plans pakadne hain
+python scripts/confidence_tune.py results/dev_n5_r1_s3 --label not_raw                    # bad = LLM ka apna route use nahi hua
+python scripts/confidence_tune.py results/dev_n5_r1_s3 --label lcs --bad-lcs 0.8          # bad = reference se door (expert refs ho to asli label)
+python scripts/run_eval.py --summarize-only results/dev_n5_r1_s3 --confidence-flag 0.93   # wahi run, 0.93 se neeche wale flagged
+python scripts/run_eval.py --system n5_r1_s3 --limit 20 --tag dev --confidence-flag 0.93  # cache se, naya API call nahi
+```
+Har run folder alag judge hota hai (systems pool nahi hote). Plots ke liye matplotlib.
+
+### Kya batata hai (`capp/calibration.py`)
+- **Bad plan ka label (tum chunti ho, `--label`):** `gap` = efficiency gap best Route Builder variant se `--bad-gap` points (default 3) se zyada; `lcs` = M4 LCS ratio reference se `--bad-lcs` (default 0.8) se kam; `not_raw` = final route LLM ka raw route nahi (repair ya replace hua). Base rate aur gap ke percentiles chhapte hain: base rate 0 ya 100% ho to script saaf bolti hai ki koi threshold nahi ban sakta, label badlo.
+- **Teen scores, AUROC ke saath (0.5 = koi information nahi):** `confidence` (repair ke baad agreement; abhi isi par flag lagta hai), aur do diagnostics: `raw_agreement` (repair se pehle raw samples ka agreement) aur `raw_valid_share` (kitne raw samples strict-valid the). Teeno x teeno labels ki table.
+- **Har threshold:** flagged share, recall (kitne bad plans pakde), precision, lift. Threshold do observed values ke beech rakha jaata hai, to chhapa hua T bilkul wahi flagged set deta hai (pipeline ka apna rule: `confidence < T`).
+- **Do recommendations:** `--budget` (default 20%) ke andar best recall, aur `--recall` (default 0.8) ke liye sabse kam flags.
+- **95% bootstrap interval parts par** (ek part ke repeats saath chalte hain, independent nahi).
+- **Sealed split:** `test_v2` / `bench_v1` runs par tuning refuse hoti hai. Wahan sirf `--evaluate-at T` chalta hai: dev par chuna hua T fixed rakh ke flagged share, recall, precision (sweep ya recommendation nahi). Protocol: dev par tune, T freeze, sealed par ek baar evaluate.
+- `summary.reflag(records, T)` records ko nayi threshold par flag karta hai (disk wale records nahi badalte); summary line me "confidence below T" tabhi aata hai jab T badla ho.
+
+### Jo honestly likhna hai
+1. **Labels proxy hain.** dev_v2 par M4 ka reference Route Builder hai, expert nahi; `gap` best RB variant se hai. Asli "kaunsa plan insaan ko dikhana chahiye" ka label expert benchmark par hi banega (sealed hai, to wahan sirf evaluate).
+2. **Confidence repair ke baad hai, to R1/R0 use inflate karte hain.** Repair samples ko ek hi route ki taraf kheench deta hai, isiliye 0.95 aur 0 flagged aaya. Agar `raw_agreement` ya `raw_valid_share` ka AUROC `confidence` se saaf upar aaye to flag unpar lagana ek agla (chhota) step hai; abhi flag sirf `confidence` par lagta hai, baaki sirf diagnostic.
+3. **Chhota sample.** 20-25 dev parts par 3-5 bad plans: AUROC aur recall ke intervals bahut chaude aate hain, aur jab saare bad plans pakde jaayein to bootstrap interval [1.0, 1.0] jaisa jhootha-tight dikhta hai. Isse "T = ye" nahi, "T ka ilaaka ye" padho.
+4. **Selection optimism.** Recommended T usi data se chuna jaata hai jis par naapa jaata hai; intervals is selection ko count nahi karte. Isiliye ek baar sealed par confirm.
+5. `gap` label degenerate ho sakta hai (jaise synthetic planner par p50 = 0, koi bad plan nahi): tab `--bad-gap` kam karo ya `--label not_raw` dekho. Label tum chunti ho, script nahi.
+6. Flag ka matlab "insaan ko dikhao" hai, "plan galat hai" nahi. Review budget (kitne plans supervisor/engineer dekh sakta hai) design ka faisla hai: `--budget` usi se aata hai.
+
+### Tests ne jo bugs pakde
+Threshold ka midpoint rounding bahut chhote gap me flagged set badal deta tha (printed T se wo plans flag nahi hote the): ab sabse chhoti rounding chunti hai jo gap ke andar rahe. Aur `--plot` ek aise label par crash karta tha jisme koi bad plan nahi: ab "no bad plans under this label" likhta hai.
+
+### Tests
+`tests/test_calibration.py` (33): AUROC, at-threshold, sweep aur recommendations 12 records par jinke confidence/gap test set karta hai (haath se nikale jawab), midpoint, part-bootstrap (repeats saath), reliability bins, raw signals, unscored plans, one-class labels, errors, sealed mode, report text, `reflag` aur summary line, `run_eval --confidence-flag` (range check, run.json me threshold, `--summarize-only`), script ke options/CSV/JSON, kai runs, sealed refusal aur `--evaluate-at`, `--plot`, purane records.
+
+### Abhi kya nahi hai
+Asli live runs par threshold (tumhare dev results chahiye), raw signals par flag, dashboard me confidence/flag ka dikhna (WP9 me jaayega), process plan aur route sheet, baaki dimensions ka extraction, asli benchmark parts/plans, cascade ka live run. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 19 (WP9): process plan + route sheet, `scripts/route_sheet.py`
+
+Report §6.7: "route pehle, parameters baad me". Route chunne ke baad har operation ke liye machine, tool (type, size, material), cutting parameters (Vc, rpm, feed, ap x passes), estimated time aur "ye operation kyun" (feature + rule) ek **route sheet** me aata hai: PDF / Excel / HTML. Sheet route kabhi nahi badalti; sirf use describe karti hai. API call nahi.
+
+### Workflow (repo root, PowerShell)
+```
+pip install reportlab openpyxl                                     # PDF aur Excel ke liye (HTML/Markdown/JSON bina iske chalte hain)
+# dashboard: python -m streamlit run week6/app.py  ->  "Route Sheet" section, dono modes me, download buttons
+python scripts/route_sheet.py make --material Steel --features Hole,Chamfer,Slot --diameter 40 --length 120 --depth 15 --width 32 --hole-diameter 8 --ra 1.6 --batch 100 --out results/sheet.pdf results/sheet.xlsx results/sheet.html
+python scripts/route_sheet.py from-run results/dev_n5_r1_s3 --part DEV_004 --out results/DEV_004.pdf
+python scripts/route_sheet.py from-run results/dev_n5_r1_s3 --part DEV_004 --repeat 1 --confidence-flag 0.9
+python scripts/route_sheet.py tables --table all --csv results/process_tables.csv      # tool rules + ranges, status aur sources ke saath
+```
+`--out` ka extension format chunta hai (`.pdf .xlsx .html .md .json`); `--out` na do to Markdown screen par. Dimensions na do to v1 ka reference part (Ø25, L50, depth 20) lagta hai aur sheet ye likhti hai. `from-run` kisi bhi system ke record se banta hai (final route, provenance, plan confidence + review flag, repair se pehle/baad ka route, two-step planner ka reasoning).
+
+### Sheet me kya hai
+Part ka header, **DRAFT banner**, operations ki table (No., operation + description, machine, tool, Vc, n, feed (mm/rev ya mm/tooth, mm/min ke saath), ap x passes, time, feature / rule, notes), machine changeover ki alag rows, totals (cutting + tool change + position change + changeover), checks (strict verifier, physical feasibility, physics flags), "Before and after repair", planner ka reasoning, assumptions, tables ka status aur sources, aur Prepared / Checked / Approved ka khaali block. PDF landscape A4, har page par DRAFT footer.
+
+### Parameters kahan se aate hain
+- **Parameters = v1 model ke per-material speeds/feeds** (`week3/agents.py`, wahi numbers jo Time agent use karta hai; `capp/physics.py` ke raaste). Isliye estimated time = v1 cutting time + v1 ke set-up penalties (tool change 2, position change 1, changeover 15 min) aur **plan ka total `agents.time_agent` se match karta hai** (jab hole diameter nahi diya; test 12 dev parts par check karta hai). Route search ko kuch nahi chhua.
+- **Reference ranges** (`capp/process_tables.py`): har (speed class, material) ke liye Vc aur feed range, har row par `status`: `web` (range ke saare bounds padhe hue pages se), `mixed` (ek bound page se, doosra typical practice), `indicative` (koi page nahi padha), `confirmed` (handbook [8] se tumne/supervisor ne check kiya). Sources S1-S4 (Aims Industrial, UFlorida MAE, UToronto drill press, incoherency lathe speeds) tables ke upar aur `tables` command me URLs ke saath hain. Plan ke parameters in ranges se compare hote hain: **"above" = check karo**, "below" = conservative (zyada time, kam wear; sirf info), range nahi = tapping/reaming/forming/engraving (koi range nahi), threading pitch se feed hoti hai (sirf Vc check).
+- **Tool rules** (operation x material -> tool type + tool material): general machining practice, sab `indicative`.
+
+### Jo honestly likhna hai (sheet me bhi likha hai)
+1. **Koi row handbook se confirmed nahi hai** (handbook [8] mere paas nahi tha; `capp/feasibility.py` jaisa hi). Banner har page par "DRAFT" kehta hai aur ranges ke status counts chhapta hai; banner tabhi badlega jab use hui saari ranges `confirmed` hon. Confirm karne ka tareeqa: row check karo, `status = "confirmed"` aur `source_note` me page number likho (`capp/process_tables.py` edit karne ke liye hi bani hai; `tests/test_process_plan.py` table ko consistent rakhta hai).
+2. **Web sources handbook nahi hain**: tool-maker aur course pages hain, aur aapas me carbide turning par ~2x tak alag hain, isliye range unhe span karti hai. Drilling feeds 6-12 mm drills ke hain. Koi bhi tumhare grade, hardness, tool ya machine ke liye nahi. Plastic drilling `indicative` hai (koi page nahi).
+3. **v1 ke parameters ek real finding dete hain**: jaise Titanium drilling ka v1 Vc (20 m/min) HSS-Co range (6-14) se upar hai, to sheet "above: check" flag karti hai. Ye model ki kamzori hai, sheet ki nahi; thesis me likhne layak.
+4. **Facing / Chamfering / Boring milling machine par** alag tool se hote hain (face mill, chamfer mill, boring head); sheet wo tool dikhati hai, par speed/feed v1 ke turning-type values hain, aur flag ye kehta hai ("set the milling feed per tooth at the machine").
+5. **Assumed (sheet me `*` aur Assumptions)**: hole diameter na ho to hole operations part diameter lete hain; machine (7.5 kW, `feasibility.DEFAULT_MACHINE`) assumed hai, spindle load usi ka hai (rpm/torque limits modelled nahi); jis segment me koi machine-decider operation nahi use lathe maana jaata hai (part ki preference ho to wahi, bina `*`); stock = part diameter ki bar; milling cutter sizes v1 ke standard.
+6. Estimated time shop-floor standard time **nahi** hai (batch set-up, waiting aur batch inspection nahi). Koi machining trial nahi hua.
+7. Excel/PDF libraries optional hain (`requirements.txt` me nahi): na hon to saaf error "pip install ..." aata hai aur HTML (browser se Print -> PDF) hamesha chalta hai.
+
+### UI
+"Route Sheet" section dono modes me (Route Only par reference part par), table + DRAFT banner + download buttons (HTML / PDF / Excel). Download button `on_click="ignore"` se chalta hai, to click par app rerun nahi hota aur results gayab nahi hote (purane Streamlit par ye option nahi, wahan plain button). Sheet ban na paye to page chalta rehta hai ("could not be built").
+
+### Tests ne jo bug pakda
+Excel me freeze-pane / print-title row header se ek row upar thi (blank row ke baad ka row count galat tha): ab header append karke uski asli row li jaati hai. Aur feasibility lines me rule id gayab tha (reviewer ko pata nahi chalta kaunsa rule): ab `risk PHYS:HOLE-PILOT: ...` aata hai.
+
+### Tests
+`tests/test_process_plan.py` (53): tables complete (41 operations x 7 materials, 329 rows), validate() ke error cases, koi range "confirmed" nahi, range check within/below/above, machine assignment (segments, preference, mixed segment), plan route nahi badalta, **time = v1 Time agent** (haath ke route par aur 12 dev parts par), changeover next operation par charge, har operation x material, threading pitch feed, Titanium above flag, hole diameter given/assumed, Route Only reference part, unknown operation / material, feasibility flags, justification rules, repair view, run records (confidence, flag threshold, reasoning, purane records). `tests/test_routesheet.py` (45): display rows, banner (status counts, "confirmed" par badalna), header, sections, HTML escaping + well-formed, Markdown table, JSON round trip, XLSX (numbers numbers hain, time column total se match, sheets), PDF (landscape, har page par DRAFT footer, awkward characters, library na ho to error), `write()`, CLI (make / from-run / tables, errors). `tests/test_app.py` (+3): dono modes me sheet + downloads, sheet fail ho to page chalta rahe.
+
+### Abhi kya nahi hai
+Handbook se confirmation (tumhare/supervisor ke haath me; ek-ek row `confirmed` karo), per-operation multi-objective parameter refinement (abhi route pehle, v1 parameters baad me), tool-life se tool selection, machining trials, baaki dimensions ka extraction, confidence/flag ka dashboard me dikhna (sheet me hai, route cards me nahi), asli live results par threshold (Step 18) aur cascade ke results.

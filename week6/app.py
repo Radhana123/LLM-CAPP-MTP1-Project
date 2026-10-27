@@ -39,6 +39,8 @@ from precedence_graph import PRECEDENCE_EDGES
 from route_builder import (generate_valid_routes, is_complete,
                            LATHE_ONLY_OPS, MILLING_ONLY_OPS)
 from capp import analysis_view as AV      # physics + feasibility numbers (analysis only; no Streamlit inside)
+from capp import process_plan as PP       # route sheet (Step 19): machine, tool, parameters, time per operation
+from capp import routesheet as RS         # ... and its PDF / XLSX / HTML
 from capp import dimensions as DIM        # hole diameters read from the drawing (Step 14): parse, validate, pre-fill rule
 
 # ── Page Config ───────────────────────────────────────────────
@@ -426,6 +428,45 @@ def show_physics(pv, batch, key, covered_by_rules=True):
                "Fixed table (not a slider) so that the results below do not reset.")
 
 
+def _download(label, data, file_name, mime, key):
+    """A download button that does not rerun the app (a rerun would clear the results: they exist only while 'Generate' is pressed)."""
+    try:
+        st.download_button(label, data, file_name=file_name, mime=mime, key=key, on_click="ignore")
+    except TypeError:                                   # an older Streamlit: no on_click="ignore"
+        st.download_button(label, data, file_name=file_name, mime=mime, key=key)
+
+
+def show_route_sheet(steps, part, key, context):
+    """The route sheet of the selected route (Step 19, capp/routesheet.py): the table on screen, the document as a download.
+    The route is already chosen: the sheet describes it and never changes it."""
+    st.markdown("---")
+    st.markdown("#### 📄 Route Sheet (process plan)")
+    try:
+        plan = PP.build_plan(steps, part, context=context)
+    except Exception as exc:                            # the sheet is an extra: it must not stop the page
+        st.warning(f"⚠️ The route sheet could not be built: {type(exc).__name__}: {exc}")
+        return
+    st.warning("📝 " + RS.draft_banner(plan))
+    rows = [{"No.": r["seq"], "Operation": r["operation"], "Machine": r["machine"], "Tool": r["tool"], "Vc m/min": r["vc"], "n rpm": r["rpm"],
+             "Feed": r["feed"], "ap × passes": r["depth"], "Time min": r["time"], "Notes": r["notes"]}
+            for r in RS.display_rows(plan) if r["kind"] == "op"]
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+    t = plan["totals"]
+    st.caption(f"Estimated {t['total_min']:.1f} min per part (cutting {t['cutting_min']:.1f} + tool changes {t['tool_change_min']:.0f} + position changes "
+               f"{t['position_change_min']:.0f} + changeovers {t['changeover_min']:.0f}). * = assumed. The numbers are the v1 model's; the ranges they are compared "
+               "with are from web pages, not the handbook.")
+    stamp = RS._now()
+    name = f"route_sheet_{plan['part']['part_id'] or 'part'}"
+    with st.expander("⬇️ Download the route sheet"):
+        _download("📄 HTML (print to PDF)", RS.to_html(plan, stamp), name + ".html", "text/html", key + "_html")
+        for ext, label, mime, fn in (("pdf", "📕 PDF", "application/pdf", RS.to_pdf_bytes),
+                                     ("xlsx", "📗 Excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", RS.to_xlsx_bytes)):
+            try:
+                _download(label, fn(plan, stamp), f"{name}.{ext}", mime, f"{key}_{ext}")
+            except RS.RouteSheetError as exc:
+                st.caption(f"{label}: {exc}")
+
+
 def show_assumptions_and_sources(view):
     with st.expander("🧾 Assumptions behind these numbers"):
         for line in view["assumptions"]:
@@ -733,6 +774,10 @@ else:
             with st.expander(f"📚 The {len(AV.rules_table())} feasibility rules and their sources"):
                 st.caption(STATUS_HELP)
                 st.dataframe(AV.rules_table(), use_container_width=True, hide_index=True)
+
+            ro_source = "AI-suggested route" + (" (self-corrected)" if "corrected" in best_route_name else "") if best_route_name.startswith("Route_LLM") \
+                else "Route Builder / NSGA-II"
+            show_route_sheet(best_steps, AV.make_part(material, features, tolerance, batch_size, dims=None), "ro_sheet", {"source": ro_source})
 
             # Rough time breakdown
             st.markdown("---")
@@ -1082,6 +1127,10 @@ else:
         st.markdown("#### 🔬 Cutting Physics")
         show_physics(full_view["physics"], batch_size, "fa_phys", covered_by_rules=full_view["feasibility"] is not None)
         show_assumptions_and_sources(full_view)
+
+        fa_source = "AI-suggested route" + (" (self-corrected)" if "corrected" in best["route"] else "") if best["route"].startswith("Route_LLM") \
+            else "Route Builder / NSGA-II"
+        show_route_sheet(best["steps"], part_av, "fa_sheet", {"source": fa_source})
 
         st.balloons()
 
