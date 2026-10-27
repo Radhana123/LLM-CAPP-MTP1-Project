@@ -19,6 +19,15 @@ Planner options (report 6.2), appended with '+' to any LLM system. A different p
                 CAPP_STRUCTURED=json_object|none sets the first structured-output mode to try.
   e.g. n5_r1_s3+fs2, b0+h1, n5_r1_s3+fs4x+h1, n5_r1_s3+ts, n5_r1_s3+ts+h1
 
+Feasibility-aware repair (row A7, capp/feasrepair.py), also appended with '+', needs repair r1, r2 or r3. It does NOT change the prompt,
+so it uses the same cached LLM answers as the system without it: no new API calls (only R2/R3 re-prompts that carry a feasibility finding are new).
+  +fz1          the HARD physical-feasibility violations (an operation that needs a hole before any Drilling/Boring, a lathe operation after
+                Parting-off) are repaired too, by R1 (insert the hole-making operation, constrain the order); selection prefers routes with
+                the fewest hard findings. Machine-capability findings cannot be fixed by editing a route: reported only.
+  +fz2          +fz1, and R1 also inserts what the risk rules ask for (Center Drilling before Drilling, Reaming for a tight hole tolerance);
+                selection prefers the fewest hard findings, then the fewest risks.
+  e.g. n5_r1_s3+fz1, n5_r1_s3+fz2, n5_r1_s3+fs2+fz2   (compare with n5_r1_s3 on the same --tag: "feasibility" lines of the summary)
+
 Examples (repo root, PowerShell):
     python scripts/run_eval.py --system rb --dataset dev_v2                       # no API calls
     python scripts/run_eval.py --system b0 --dataset dev_v2 --limit 20 --tag dev  # first 20 parts, live API (cached)

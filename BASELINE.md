@@ -384,3 +384,90 @@ python -c "import json; from capp import feasibility as F; print(json.dumps(F.ru
 
 ### Abhi kya nahi hai
 Feasibility-aware repair/selection, UI ke dono modes, extraction front end (hole diameter record karna), expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9).
+
+
+## Step 12 (WP9 prep): UI ke dono modes, physics aur feasibility ke saath
+
+`streamlit run week6/app.py` ab dono modes me Step 10 (physics) aur Step 11 (15 feasibility rules) dikhata hai. Naye numbers `capp/analysis_view.py` me bante hain (Streamlit import nahi karta, isliye browser ke bina test hota hai); `week6/app.py` sirf unhe draw karta hai.
+**Ye sirf analysis hai:** route ab bhi v1 ke efficiency score se chunta hai. Naye columns/panels route ko describe karte hain aur problems flag karte hain, selection nahi badalte (pehle isse measure karna hai, phir selection me jodna; wo agla step hai).
+
+### Route Only
+- Naya "🛡️ Feasibility Check" block, best route ke neeche. Dimensions nahi hain, isliye sirf wo rules chalte hain jinhe dimension nahi chahiye (HOLE-EXISTS, HOLE-PILOT, SEQ-PARTOFF, TOL-HOLE, TOL-SPEC jab tolerance se ho sake).
+- Baaki rules "ℹ️ N rule(s) not evaluated — and why" expander me reason ke saath aate hain ("dims.diameter missing" jaise). Chup-chaap pass nahi dikhaye jaate.
+- Physics (energy, kc, wear, Ra) is mode me nahi hai; caption batata hai ki Full Analysis me milega. Is mode ke default dims (Ø25, L50...) sirf v1 ke rough time/cost me use hote hain, naye checks me nahi (unke liye `dims=None`).
+
+### Route + Full Analysis
+- Sidebar me do naye inputs: **Required Ra (µm)** (not specified / 0.4 / 0.8 / 1.6 / 3.2 / 6.3 / 12.5) aur **Hole diameter (mm)** (0 = unknown). Ye sirf physics/feasibility ko jaate hain; v1 agents unhe nahi dekhte.
+- Step 4 ki route table me 6 naye columns: Cutting energy (kWh), kc, Tool wear (₹), Ra risk, Hard issues, Risks. Pehle 7 columns aur efficiency wahi hain (test: `test_physics_columns_do_not_enter_the_efficiency_score`).
+- Naya **STEP 5** (best route ke liye): feasibility findings (hard = lal, risk = peela, har ek ke saath rule id, source status aur suggested action), "not evaluated" list, 5 metric cards (cutting energy, mean kc, tool wear ₹/part aur ₹/batch, peak spindle power aur utilisation, Ra risk), per-operation table, energy aur wear ke bar plots, Ra panel (predicted vs required, max feed), speed what-if table (x0.8 / x1.0 / x1.2), "Assumptions" expander, "15 rules aur unke sources" expander (status web/derived/model/assumption).
+- Speed what-if **fixed table hai, slider nahi:** app ka poora result `if not run_btn ... else:` ke andar hai, results ke andar koi bhi widget rerun karke result mita deta. Test `test_step_5_adds_no_input_widget` isi ko pakadta hai.
+
+### Jo honestly likhna hai
+1. **Default demo part (Aluminium, Ø25) pe CAP-POWER risk dikhta hai:** Facing 7.7 kW maangta hai, machine 7.5 kW (assumed). Model ke standard aluminium parameters (Vc, feed, depth) aggressive hain aur machine power assumed hai; isse "machine me nahi chalega" mat padho. Supervisor ko dikhane se pehle department ki machine ka asli power daalna hai (`feasibility.Machine`).
+2. **UI me features sirf image extraction se aate hain** (existing behaviour: `if True:` block me sirf uploader + multiselect jo extraction ke baad dikhta hai). Groq key ke bina ya image ke bina koi run start nahi hota. Tests `st.session_state` me extraction result daal ke chalate hain. Manual feature input extraction front end wale step me aayega.
+3. Ra risk optimistic hai (route ka sabse fine process critical surface maana gaya hai); "high" pakka warning hai, "low" guarantee nahi. Hole diameter na ho to hole operations physics me part diameter use karte hain (v1 Time agent ki tarah) aur CAP-POWER unhe skip karta hai. Dono baatein "Assumptions" expander me likhi hain.
+4. Cutting energy sirf cut ki energy hai (lower bound); ye v1 ka "Energy" score nahi hai (wo fixed per-operation constants hai). Dono table me saath dikhte hain, naam alag hain.
+5. Streamlit 1.66 me `use_container_width` deprecated warning deta hai (kaam karta hai). Poori app me wahi use hota hai; maine nahi badla kyunki `width="stretch"` purane Streamlit versions me nahi hai. Streamlit upgrade karo to ek saath badalna hoga.
+6. `.streamlit/config.toml` me BOM tha, jisse Streamlit "Error parsing config toml" deta tha aur `gatherUsageStats = false` kabhi lagta hi nahi tha. BOM hata diya (sirf encoding badli, content wahi).
+7. Tests: `tests/test_analysis_view.py` (40, view model) aur `tests/test_app.py` (17, Streamlit `AppTest` se headless: dono modes, saare 7 materials, kuch feature sets, Ra/hole diameter inputs, "koi feature nahi" wala purana error). Tests replay mode me chalte hain (`CAPP_LLM_MODE=replay`, key khali), isliye API call nahi hoti, chahe tumhare `.env` me key ho.
+   Do screenshots (headless Chromium) se layout bhi dekha: metric cards pehle truncate ho rahe the, theek kiye.
+
+### Chalane ka tareeka
+```
+streamlit run week6/app.py
+python -m pytest tests/test_analysis_view.py tests/test_app.py
+```
+
+### Abhi kya nahi hai
+Feasibility-aware repair/selection (R1 ke `Violation.action` use karke), extraction front end (hole diameter record karna, manual input), expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9).
+
+
+## Step 13 (WP3 + WP6): feasibility-aware R1 (row A7), options `+fz1` aur `+fz2`
+
+Step 11 ke feasibility rules ab repair aur selection me bhi kaam karte hain. Opt-in hai: system name ke aakhir me `+fz1` ya `+fz2` (repair r1, r2 ya r3 ke saath; r0 ke saath error). Bina `+fz` ke koi output nahi badla (test: purane 454 tests + `test_a_feasible_route_is_untouched_at_every_level`).
+**Prompt wahi rehta hai, to LLM answers cache se aate hain: `n5_r1_s3+fz1` ko `n5_r1_s3` ke same `--tag` pe chalao, API call nahi lagti** (sirf R2/R3 re-prompts naye hote hain, kyunki unme feasibility finding bhi jaati hai).
+
+### Kya karta hai (`capp/feasrepair.py`)
+| level | repair | selection |
+|---|---|---|
+| `+fz1` | strict-valid par **HARD** feasibility violation wala route bhi repair hota hai: HOLE-EXISTS (hole banane wala operation, Drilling nahi to Boring, dependent operation se pehle; route me na ho to Drilling insert), SEQ-PARTOFF (har lathe op Parting-off se pehle). | sabse kam hard findings wale candidates pehle |
+| `+fz2` | fz1 + risk rules ke insert actions: HOLE-PILOT (Center Drilling), TOL-HOLE (Reaming). | pehle sabse kam hard, phir sabse kam risks, phir wahi s0/s1/s2/s3 |
+
+- Algorithm: R1 jaisa set repair + order repair, phir rules chalao, findings ko insertions aur ordering constraints me badlo (`order_repair(..., extra_edges)`), dobara order repair; jab kuch actionable na bache tab ruko (max 6 rounds). Exact DP hai, deterministic, API nahi. Finding na ho to output R1 se byte-for-byte same (test).
+- **Machine capability** (CAP-LATHE-*, CAP-MILL-ENV) route edit se theek nahi hoti: sirf report hoti hai (`unrepairable`), repair trigger nahi karti. **Supports, feed, finishing (HOLD-*, RA-*, CAP-POWER, HOLE-DEEP, TOL-SPEC)** sirf flag hote hain (`flagged`), route me nahi aa sakte (vocabulary me tailstock/steady rest nahi).
+- Sirf LLM candidates repair hote hain. R0/Route Builder routes ko haath nahi lagta. Risk-only wale route ka repair fail ho to R0 se replace nahi hota, LLM ka route rehta hai (`fz_risk_unfixed`); risk ke liye LLM re-prompt bhi nahi hota.
+- `first_pass` (M1) abhi bhi precedence-level strict check hai. Physical infeasibility alag naap hoti hai (summary ka "feasibility" block, report ka "reported separately"): A6 aur A7 ko `final_infeasible_share` pe compare karo.
+- Naya output sirf `+fz` systems me: `info.fz_*`, `Candidate.repair.r1.fz_inserted/fz_edges/fz_rounds/unrepairable/flagged/remaining`, per_part me `fz_pool/fz_filtered`, summary me "feasibility fix" line (`feasibility_repair` block), run.json me `feasibility_repair`.
+
+### Offline numbers: `python scripts/feasrepair_check.py --dataset dev_v2` (no API; LLM nahi, synthetic damage)
+- **A. Route Builder ke 2637 routes (200 parts):** 60 (2.3%) me fixable hard finding (sab HOLE-EXISTS). `+fz1` ne **60/60 theek kiye** (48 me Drilling insert, baaki me sirf order). 501 (19%) me insertable risk (HOLE-PILOT / TOL-HOLE), `+fz2` ne 501/501 theek kiye.
+- **B. 600 damaged routes** (part ka random valid RB route, shuffle + aadhe me ek op drop; seed 5; seed 11 x10 pe bhi wahi picture):
+
+| | repaired | repair ke baad hard-infeasible | fixable risk bacha | ops inserted | discordant pairs |
+|---|---|---|---|---|---|
+| R1 | 1.000 | **0.035** | 0.185 | 0.45 | 6.69 |
+| R1+fz1 | 1.000 | **0.000** | 0.215 | 0.48 | 6.71 |
+| R1+fz2 | 1.000 | 0.000 | **0.000** | 0.70 | 6.71 |
+
+  Matlab: plain R1 ke repaired routes me 3.5% physically infeasible rehte hain; fz1 unhe 0 karta hai sirf +0.03 ops ke saath; fz2 risks bhi hata deta hai (+0.25 ops/route). Order me extra badlav (discordant pairs) +0.02 hi.
+
+### Jo honestly likhna hai
+1. **Ye offline numbers repair mechanism ke hain, LLM ke nahi.** Damage synthetic hai. Asli A7 effect (A6 vs A7, real LLM errors) live cache ke saath `n5_r1_s3` vs `+fz1` vs `+fz2` chalake naapna hai (neeche).
+2. **fz1 Drilling insert kar sakta hai aisi part me jisme Hole feature hi nahi** (jaise `Turning, Step, Groove, ...`, jahan RB variant me Internal Grooving aata hai): rule kehta hai internal groove ke liye pehle bore chahiye. Dataset ka "Groove" feature internal hai ya external (Grooving/Necking), ye saaf nahi; supervisor se confirm karna hai. Ye wahi rule-base defect hai (Drilling -> Internal Grooving edge graph me nahi); fz1 use sirf tab lagata hai jab finding aaye, graph abhi bhi nahi badla.
+3. **fz1 akela Drilling insert karta hai bina Center Drilling ke** (action wahi hai), isliye "fixable risk" 0.185 -> 0.215 badh jata hai. Isi wajah se asli comparison ke liye `+fz2` hai; `+fz1` "sirf hard" reference hai.
+4. **fz2 ka TOL-HOLE maanta hai ki part ki tolerance hole ki hai** (Step 11 ka assumption), isliye tight tolerance + hole feature pe Reaming insert hoga. Reaming time/cost badhata hai; fz2 selection (feasibility pehle) isliye costlier route chun sakta hai. Plan quality M6 (efficiency gap) aur feasibility dono saath report karna.
+5. Risk "kam count" selection saare risks ko barabar tolta hai (Center Drilling ka missing hona aur Reaming ka missing hona same). Machine-capability aur part-level (TOL-SPEC) findings sab routes ke liye same hain, isliye selection key me nahi.
+6. **Selection ka naya pool `fz_pool` me record hota hai;** front size ab filtered pool ka hai (`population` purana hi hai). Agar tum front size ko purane runs se compare karo to dhyan rakhna.
+7. Tests: `tests/test_feasrepair.py` (48): order_repair brute-force (extra edges ke saath), har fix ka case, levels, idempotent/deterministic, dev set pe saare 60 HOLE-EXISTS variants + random damage property, system names, run me (R1/R2/R3, fallback, risk-only, selection filter, rule error count), harness aur summary, script.
+
+### Chalane ka tareeka
+```
+python scripts/feasrepair_check.py --dataset dev_v2                       # offline, no API
+python scripts/run_eval.py --system n5_r1_s3     --dataset dev_v2 --limit 20 --tag dev   # LLM samples (cache)
+python scripts/run_eval.py --system n5_r1_s3+fz1 --dataset dev_v2 --limit 20 --tag dev   # same cache, no new API calls
+python scripts/run_eval.py --system n5_r1_s3+fz2 --dataset dev_v2 --limit 20 --tag dev
+python scripts/compare_runs.py results/dev_rb results/dev_n5_r1_s3 results/dev_n5_r1_s3+fz1 results/dev_n5_r1_s3+fz2
+```
+
+### Abhi kya nahi hai
+Extraction front end (hole diameter record karna, manual input), expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9). `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.

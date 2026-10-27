@@ -98,13 +98,15 @@ def set_repair(steps: list, features: list):
     return ops, unknown, dups, inserted
 
 
-def order_repair(ops: list, llm_pos: dict):
+def order_repair(ops: list, llm_pos: dict, extra_edges=()):
     """Best valid ordering of `ops` (see module docstring). `llm_pos` maps an operation to its position in the LLM route
-    (operations that were inserted have none). Returns (order, discordant_pairs, changeovers, states) or None."""
+    (operations that were inserted have none). `extra_edges` are additional (a, b) = "a before b" constraints on top of the
+    precedence graph; capp/feasrepair.py uses them for the physical-feasibility rules. Returns
+    (order, discordant_pairs, changeovers, states) or None."""
     n = len(ops)
     idx = {op: i for i, op in enumerate(ops)}
     pred = [0] * n                                   # bitmask of operations that must come before i
-    for a, b in pg.PRECEDENCE_EDGES:
+    for a, b in list(pg.PRECEDENCE_EDGES) + list(extra_edges):
         if a in idx and b in idx:
             pred[idx[b]] |= 1 << idx[a]
     first, last = idx[pg.ALWAYS_FIRST], idx[pg.ALWAYS_LAST]

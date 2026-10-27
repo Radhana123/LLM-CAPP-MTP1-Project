@@ -142,7 +142,7 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                    weights=None, pool=None, planner_factory=None, analysis: bool = True) -> dict:
     """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant
     (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system), optionally with planner options
-    (+fs2, +fs4x, +h1: retrieval few-shot, hint; see capp/plannerspec.py).
+    (+fs2, +fs4x, +h1: retrieval few-shot, hint; +fz1, +fz2: feasibility-aware repair; see capp/plannerspec.py).
     `planner` produces the LLM samples, `repair_planner` the R2 re-prompts (only R2/R3 systems call it); both default to the real
     ones and both are guarded. `planner_factory(part) -> planner` replaces `planner` for planner options; by default it is built
     from the system name. `pool` (a planners.Pool or a dataset name, default dev_v2) is where few-shot examples come from.
@@ -226,7 +226,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "planner_options": (pspec.name or "v1") if uses_llm else None,
         "few_shot_k": pspec.few_shot if uses_llm else None, "few_shot_leave_out": pspec.loo if pspec.few_shot else None,
         "hint": pspec.hint if uses_llm else None,
-        "two_step": pspec.two_step if uses_llm else None, "physics_analysis": analysis, "feasibility_analysis": analysis,
+        "two_step": pspec.two_step if uses_llm else None, "feasibility_repair": pspec.feas if uses_llm else None,
+        "physics_analysis": analysis, "feasibility_analysis": analysis,
         "structured_output_requested": config.structured_mode() if uses_llm and pspec.two_step else None,
         "pool": [pool_obj.name, len(pool_obj)] if pool_obj is not None else None,
         "n_samples": spec[0] if spec else None, "repair": spec[1] if spec else None, "selection": spec[2] if spec else None,

@@ -28,6 +28,16 @@ The plan confidence is the mean pairwise agreement (1 - route_distance) of the r
 duplicates included (a route that three of five samples produced counts three times). Below CONFIDENCE_FLAG the plan is
 flagged for human review. The confidence is recorded for every run whatever the selection.
 
+Feasibility-aware repair (row A7), the option +fz1 / +fz2 of a system name with repair r1, r2 or r3 (capp/feasrepair.py):
+  fz1  a sample whose route is strict-valid but has a HARD physical-feasibility violation (capp/feasibility.py: an operation that needs a
+       hole before any Drilling or Boring, a lathe operation after Parting-off) is repaired too: R1 inserts the missing hole-making
+       operation and adds the ordering constraints; R2 gets the violation in its report. Machine-capability findings cannot be fixed by
+       editing a route; they are reported and do not trigger a repair. Selection prefers the candidates with the fewest hard findings.
+  fz2  fz1, and R1 also performs the insertions that RISK rules ask for (Center Drilling before Drilling, Reaming for a tight hole
+       tolerance); selection prefers the candidates with the fewest hard findings, then the fewest risks, before the usual rule.
+The LLM prompts are the same with and without +fz, so it reuses the cache and makes no extra call (R2 re-prompts excepted: they carry
+the feasibility findings, so they are new prompts). Without +fz nothing here runs and every output is unchanged.
+
 Note on provenance: v1 names a replaced sample "Route_LLM_n_corrected", but the route is the Route Builder's work.
 Here it is labelled route_builder (replaced=True).
 """
@@ -35,6 +45,8 @@ import re
 from dataclasses import asdict, dataclass, field
 
 from capp import legacy  # noqa: F401
+from capp import feasibility as F
+from capp import feasrepair as FR
 from capp import metrics as M
 from capp import plannerspec as PS
 from capp import repair as R
@@ -284,22 +296,36 @@ def run_rb(part: dict, max_routes: int = 15, **_) -> RunRecord:
 REPAIR_STAGES = {"r0": (), "r1": ("r1",), "r2": ("r2",), "r3": ("r2", "r1")}      # tried in this order, R0 is always last
 
 
-def _r2_stage(repair_planner, p, steps, chk, attempt, info, features):
-    """One re-prompt. Returns (route or None, detail dict)."""
+def _fz_violations(steps, part, info):
+    """Feasibility findings of a route (capp/feasibility.py) for the +fz systems. A rule that fails is counted, not raised: a bug in
+    one rule must not stop a long run, and the count shows in info['fz_errors']."""
+    try:
+        return F.evaluate(V.clean_steps(steps), part).violations
+    except Exception:
+        info["fz_errors"] = info.get("fz_errors", 0) + 1
+        return []
+
+
+def _r2_stage(repair_planner, p, steps, chk, attempt, info, features, part=None, feas=0, fz_hard=()):
+    """One re-prompt. Returns (route or None, detail dict). With feas, the report also carries the hard feasibility findings and the
+    answer must be free of them (machine-capability findings excepted: no route can fix those)."""
     info["repair_calls"] += 1
     try:
         rr = repair_planner(p["material"], features, p["tolerance"], p["batch_size"], sample_id=attempt,
-                            previous_steps=list(steps), violations=chk.hard_violations)
+                            previous_steps=list(steps), violations=list(chk.hard_violations) + list(fz_hard))
     except FatalRunError:
         raise
     except Exception as exc:
         rr = {"success": False, "steps": [], "raw_response": f"Exception: {exc}"}
     chk2 = V.check_route(rr["steps"], features) if rr.get("success") else None
     ok = bool(chk2 and chk2.valid)
-    detail = {"ok": ok, "steps": list(rr.get("steps", [])), "raw_response": rr.get("raw_response", ""),
+    fz_left = FR.repairable_hard(_fz_violations(rr["steps"], part, info)) if (ok and feas) else []
+    detail = {"ok": ok and not fz_left, "steps": list(rr.get("steps", [])), "raw_response": rr.get("raw_response", ""),
               "meta": rr.get("meta", {}), "kinds": chk2.kinds if chk2 else [],
-              "reason": "" if ok else ("no route in the answer" if not rr.get("success") else
-                                       "answer is still invalid: " + ", ".join(chk2.kinds))}
+              "reason": "" if (ok and not fz_left) else ("no route in the answer" if not rr.get("success") else
+                                       "answer is still invalid: " + ", ".join(chk2.kinds) if not ok else
+                                       "answer still violates: " + ", ".join(sorted({v.rule_id[5:] for v in fz_left})))}
+    ok = ok and not fz_left
     if ok:
         info["repaired_r2"] += 1
         return V.normalize_markers(rr["steps"]), detail
@@ -307,17 +333,31 @@ def _r2_stage(repair_planner, p, steps, chk, attempt, info, features):
     return None, detail
 
 
+def _fz_key(cand, part, feas, info):
+    """What feasibility-aware selection minimises: (hard findings that a route edit could fix, risks at fz2). Machine-capability findings
+    and part-level risks are the same for every route of the part, so they cannot tell candidates apart and are left out."""
+    found = _fz_violations(cand.steps, part, info)
+    risks = [v for v in found if v.kind == "risk" and v.action != "outside the vocabulary"]
+    return (len(FR.repairable_hard(found)), len(risks) if feas >= 2 else 0)
+
+
 def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int = 30,
                   front_uses_dims: bool = False, system: str = None, repair: str = "r0",
-                  repair_planner=None, selection: str = "s1", weights=None) -> RunRecord:
+                  repair_planner=None, selection: str = "s1", weights=None, feas: int = 0) -> RunRecord:
     """B0 (n_samples=5) and B1 (n_samples=1). `planner(material, features, tolerance, batch_size, sample_id=)`
     defaults to week2's generate_process_plan, looked up at call time so tests can substitute it.
     repair: "r0" (v1: replace an invalid sample by the Route Builder's route), "r1" (minimal-edit repair), "r2" (LLM re-prompt
     with the violation report) or "r3" (r2, then r1); R0 is the last resort of all of them.
     `repair_planner(material, features, tolerance, batch_size, sample_id=, previous_steps=, violations=)` defaults to
-    capp.reprompt.reprompt and is only called by r2 and r3."""
+    capp.reprompt.reprompt and is only called by r2 and r3.
+    feas: 0 (default, nothing changes), 1 or 2 = feasibility-aware repair, the +fz1 / +fz2 of the system name (module docstring);
+    it needs repair r1, r2 or r3."""
     if repair not in REPAIR_STAGES:
         raise ValueError(f"unknown repair strategy {repair!r}")
+    if feas not in FR.LEVELS:
+        raise ValueError(f"unknown feasibility level {feas!r}: 0, 1 or 2")
+    if feas and repair == "r0":
+        raise ValueError("feasibility-aware repair (+fz1/+fz2) needs repair r1, r2 or r3: with r0 a sample is replaced by the Route Builder")
     if selection not in SELECTIONS:
         raise ValueError(f"unknown selection {selection!r}")
     if selection == "s2":
@@ -334,6 +374,8 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
             "replaced": 0, "replacement_failed": 0, "repaired": 0, "repaired_r1": 0, "repaired_r2": 0, "r1_failed": 0,
             "r2_failed": 0, "repair_calls": 0, "safety_net": False,
             "fallback_incomplete": False, "machine_pref_overridden": False, "population": 0, "deduped": 0}
+    if feas:                                           # these keys exist only for +fz systems, so every other output is unchanged
+        info.update({"fz_level": feas, "fz_raw_hard": 0, "fz_raw_risk": 0, "fz_repaired": 0, "fz_risk_unfixed": 0, "fz_errors": 0})
     pop = []
 
     for attempt in range(n_samples):
@@ -359,6 +401,15 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
         info["raw_v1_valid"] += int(v1_ok)
         info["raw_strict_valid"] += int(chk.valid)
         needs_repair = (not v1_ok) if repair == "r0" else (not chk.valid)    # r1..r3 repair what the strict verifier rejects
+        fz_hard, fz_risk = [], []
+        if feas:                                       # +fz: the feasibility rules join the decision (hard ones always, insertable risks at fz2)
+            found = _fz_violations(steps, part, info)
+            fz_hard = FR.repairable_hard(found)
+            fz_risk = FR.insertable_risks(found) if feas >= 2 else []
+            info["fz_raw_hard"] += int(bool(fz_hard))
+            info["fz_raw_risk"] += int(bool(fz_risk))
+        hard_needed = needs_repair or bool(fz_hard)    # a repair that fails falls back to R0 only for a HARD problem
+        needs_repair = hard_needed or bool(fz_risk)
         if not needs_repair:
             pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, **base))
         else:
@@ -366,18 +417,20 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
             if repair != "r0":
                 attempt_info = {"strategy": repair, "stage": None, "tried": []}
                 routed = None
-                for stage in REPAIR_STAGES[repair]:
+                stages = REPAIR_STAGES[repair] if hard_needed else tuple(st for st in REPAIR_STAGES[repair] if st == "r1")
+                for stage in stages:                   # (a risk alone is never worth an LLM re-prompt)
                     attempt_info["tried"].append(stage)
                     if stage == "r1":
-                        rep1 = R.r1(steps, features)
+                        rep1 = FR.r1_fz(steps, features, part, risks=feas >= 2) if feas else R.r1(steps, features)
                         attempt_info["r1"] = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
                         if rep1.ok:
                             info["repaired_r1"] += 1
+                            info["fz_repaired"] = info.get("fz_repaired", 0) + int(bool(feas and (rep1.fz_inserted or rep1.fz_edges)))
                             routed = rep1.route
                         else:
                             info["r1_failed"] += 1
                     else:
-                        routed, detail = _r2_stage(repair_planner, p, steps, chk, attempt, info, features)
+                        routed, detail = _r2_stage(repair_planner, p, steps, chk, attempt, info, features, part, feas, fz_hard)
                         attempt_info["r2"] = detail
                     if routed:
                         attempt_info["stage"] = stage
@@ -386,6 +439,11 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
                     info["repaired"] += 1
                     pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_repaired", provenance=PROV_REPAIRED,
                                          steps=routed, repaired=True, repair=attempt_info, **base))
+                    continue
+                if not hard_needed:                    # only a risk was to be fixed and R1 could not: keep the route the LLM gave
+                    info["fz_risk_unfixed"] += 1
+                    pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, repair=attempt_info,
+                                         **base))
                     continue
                 attempt_info["fallback"] = "r0"
             corrected = fsm_validator.fix_sequence_with_builder(features)
@@ -429,7 +487,13 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
     all_cands = pop
     _finish_candidates([c for c in all_cands if c.steps], p)
     sample_routes = [(c.sample_id, c.steps) for c in all_cands if c.llm_ok and c.steps and c.sample_id >= 0]
-    best, front_names, detail = _select(usable, p, p["dims"] if front_uses_dims else DEFAULT_DIMS, selection, weights,
+    pool_sel = usable
+    if feas:                                           # feasibility first: fewest hard findings (fz2: then fewest risks), then the usual rule
+        keys = {id(c): _fz_key(c, part, feas, info) for c in usable}
+        best_key = min(keys.values())
+        pool_sel = [c for c in usable if keys[id(c)] == best_key]
+        info.update({"fz_pool": len(pool_sel), "fz_filtered": len(usable) - len(pool_sel)})
+    best, front_names, detail = _select(pool_sel, p, p["dims"] if front_uses_dims else DEFAULT_DIMS, selection, weights,
                                         sample_routes)
     conf = agreement([r for _, r in sample_routes])
     info.update({"selection": selection, "confidence": conf, "flagged": conf is not None and conf < CONFIDENCE_FLAG,
@@ -466,19 +530,23 @@ def parse_system(name: str):
     b0_r1 ... b1_r3 (same with a repair strategy). Generic names: n<N>_r<0-3>_s<0-3>, e.g. n8_r1_s3 = 8 samples,
     R1 repair, selection S3 (n5_r0_s1 is b0, n1_r0_s1 is b1). Any LLM system may end with planner options, e.g.
     n5_r1_s3+fs2+h1 (see capp/plannerspec.py); they do not change the tuple, see planner_spec()."""
-    base, _ = PS.split_name(name)                      # raises ValueError for an unknown option
+    base, pspec = PS.split_name(name)                  # raises ValueError for an unknown option
     if base == "rb":
         if "+" in name:
-            raise ValueError("rb has no planner, so it takes no +fs/+h options")
+            raise ValueError("rb has no planner, so it takes no +fs/+h/+fz options")
         return None
     name = base
     if name in _LEGACY:
-        return _LEGACY[name]
-    m = _GENERIC.match(name)
-    if not m or not 1 <= int(m.group(1)) <= MAX_SAMPLES:
-        raise ValueError(f"unknown system {name!r}: use rb, b0, b1, b0_r1..b1_r3 or n<1-{MAX_SAMPLES}>_r<0-3>_s<0-3> (e.g. n5_r1_s3), "
-                         f"optionally followed by +fs2 / +fs4 / +h1")
-    return int(m.group(1)), "r" + m.group(2), "s" + m.group(3)
+        spec = _LEGACY[name]
+    else:
+        m = _GENERIC.match(name)
+        if not m or not 1 <= int(m.group(1)) <= MAX_SAMPLES:
+            raise ValueError(f"unknown system {name!r}: use rb, b0, b1, b0_r1..b1_r3 or n<1-{MAX_SAMPLES}>_r<0-3>_s<0-3> (e.g. n5_r1_s3), "
+                             f"optionally followed by +fs2 / +fs4 / +h1 / +fz1")
+        spec = int(m.group(1)), "r" + m.group(2), "s" + m.group(3)
+    if pspec.feas and spec[1] == "r0":
+        raise ValueError(f"+fz{pspec.feas} (feasibility-aware repair) needs repair r1, r2 or r3, not r0: {name!r}")
+    return spec
 
 
 def make_system(name: str):
@@ -486,9 +554,10 @@ def make_system(name: str):
     if spec is None:
         return run_rb
     n_samples, repair, selection = spec
+    feas = planner_spec(name).feas
 
     def run(part, **kw):
-        return run_llm_first(part, n_samples=n_samples, system=name, repair=repair, selection=selection, **kw)
+        return run_llm_first(part, n_samples=n_samples, system=name, repair=repair, selection=selection, feas=feas, **kw)
     run.__name__ = "run_" + name
     return run
 

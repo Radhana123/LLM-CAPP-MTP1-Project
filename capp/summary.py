@@ -97,6 +97,7 @@ def part_rows(records: list) -> list:
             "eff_gap_to_rb_best": None if gap is None else gap["efficiency_gap"],
             **_physics_columns(fin.get("physics")),
             **_feasibility_columns(fin.get("feasibility")),
+            **({"fz_pool": info.get("fz_pool"), "fz_filtered": info.get("fz_filtered")} if info.get("fz_level") else {}),
             "m4_source": src if sim else "", "m4_exact": None if not sim else sim["exact"],
             "m4_lcs_ratio": None if not sim else sim["lcs_ratio"],
             "m4_kendall_tau": None if not sim else sim["kendall_tau"],
@@ -225,6 +226,28 @@ def _feasibility_block(records):
             "raw_infeasible_share": (sum(1 for _, f in raw if f["route_infeasible"]) / len(raw)) if raw else None,
             "raw_valid_infeasible_share": (sum(1 for f in valid_raw if f["route_infeasible"]) / len(valid_raw)) if valid_raw else None,
             "raw_valid_risk_share": (sum(1 for f in valid_raw if f["route_risk"]) / len(valid_raw)) if valid_raw else None}
+
+
+def _fz_block(records):
+    """Numbers of the feasibility-aware repair (+fz1 / +fz2, capp/feasrepair.py); {"n": 0} for the systems without it."""
+    rs = [r for r in records if r["info"].get("fz_level")]
+    if not rs:
+        return {"n": 0}
+    n = len(rs)
+    parsed = sum(1 for r in rs for c in r["candidates"] if c["llm_ok"])
+    inf = [r["info"] for r in rs]
+    repaired = [c for r in rs for c in r["candidates"] if c.get("repaired") and (c.get("repair") or {}).get("r1", {}).get("fz_inserted") is not None
+                and ((c["repair"]["r1"].get("fz_inserted")) or c["repair"]["r1"].get("fz_edges"))]
+    return {"n": n, "level": inf[0]["fz_level"],
+            "raw_hard_share": sum(i["fz_raw_hard"] for i in inf) / parsed if parsed else None,
+            "raw_risk_share": sum(i["fz_raw_risk"] for i in inf) / parsed if parsed else None,
+            "repaired_with_fz_edits_total": sum(i["fz_repaired"] for i in inf),
+            "repaired_with_fz_edits_per_part": sum(i["fz_repaired"] for i in inf) / n,
+            "fz_inserted_mean": M.mean_std([len(c["repair"]["r1"]["fz_inserted"]) for c in repaired])[0],
+            "risk_unfixed_total": sum(i["fz_risk_unfixed"] for i in inf),
+            "selection_pool_reduced_share": sum(1 for i in inf if i.get("fz_filtered")) / n,
+            "excluded_candidates_per_part": sum(i.get("fz_filtered", 0) for i in inf) / n,
+            "rule_errors": sum(i.get("fz_errors", 0) for i in inf)}
 
 
 def _two_step_block(calls):
@@ -399,6 +422,7 @@ def summarize_set(records: list) -> dict:
         "two_step": _two_step_block(calls),
         "physics": _physics_block(records),
         "feasibility": _feasibility_block(records),
+        "feasibility_repair": _fz_block(records),
         "front_size_mean": M.mean_std([len(r["front"]) for r in records if r["front"]])[0],
         "confidence": _confidence_block(records),
         "selection": sorted({r["info"].get("selection") for r in records if r["info"].get("selection")}),
@@ -520,6 +544,15 @@ def format_summary(system: str, s: dict) -> str:
                      f"infeasible among all {fb['raw_n']} parsed raw routes {_fmt(fb['raw_infeasible_share'], 3)}")
         if fb["not_evaluated_share"]:
             L.append("                  rules not evaluable for lack of data: " + ", ".join(f"{k} {_fmt(v, 2)}" for k, v in fb["not_evaluated_share"].items()))
+    fz = s.get("feasibility_repair") or {"n": 0}
+    if fz["n"]:
+        L.append(f"feasibility fix : level fz{fz['level']}; raw LLM samples with a fixable hard violation {_fmt(fz['raw_hard_share'], 3)}"
+                 + (f", with a fixable risk {_fmt(fz['raw_risk_share'], 3)}" if fz["level"] >= 2 else "")
+                 + f"; routes repaired with feasibility edits {fz['repaired_with_fz_edits_total']} ({_fmt(fz['repaired_with_fz_edits_per_part'], 2)}/part, "
+                   f"{_fmt(fz['fz_inserted_mean'], 2)} operations inserted each); risk left unfixed {fz['risk_unfixed_total']}; "
+                   f"selection pool reduced in {_fmt(fz['selection_pool_reduced_share'], 2)} of parts "
+                   f"({_fmt(fz['excluded_candidates_per_part'], 2)} candidates excluded/part)"
+                 + (f"; RULE ERRORS {fz['rule_errors']}" if fz["rule_errors"] else ""))
     ts = s.get("two_step") or {"n": 0}
     if ts["n"]:
         L.append(f"two-step        : {ts['n']} samples; structured output used {ts['structured_used']}, parser {ts['parser']}; "

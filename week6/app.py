@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../w
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../week3")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../week4")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../week5")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))     # repo root: the capp package (Steps 10-12)
 
 from tokenizer import tokenize
 from feature_vocab import GEOMETRY_FEATURES, FEATURE_TO_OPERATIONS, get_machine_type
@@ -37,6 +38,7 @@ from self_corrector import self_correct
 from precedence_graph import PRECEDENCE_EDGES
 from route_builder import (generate_valid_routes, is_complete,
                            LATHE_ONLY_OPS, MILLING_ONLY_OPS)
+from capp import analysis_view as AV      # physics + feasibility numbers (analysis only; no Streamlit inside)
 
 # ── Page Config ───────────────────────────────────────────────
 st.set_page_config(
@@ -310,6 +312,129 @@ def make_pareto_charts(data_list, best_route_name, key_prefix):
     return True
 
 
+# ── Feasibility / physics panels (numbers come from capp/analysis_view.py) ──
+STATUS_HELP = ("Source status of a rule: **web** = a public machining reference (see the sources table), **derived** = follows from the v1 "
+               "operation vocabulary, **model** = comes from the cutting-force model, **assumption** = an assumed value that must be replaced "
+               "by the department's data. No rule is yet checked against a handbook page.")
+
+
+def _finding_text(v):
+    txt = f"**{v['rule_id']}** `[{v['source_status']}]` — {v['message']}"
+    if v.get("action"):
+        txt += f"  \n↳ suggested action: `{v['action']}`"
+    return txt
+
+
+def show_feasibility(fv, key):
+    """Hard findings in red, risks in amber, the rules that could not be evaluated listed with the reason."""
+    if fv is None:
+        return
+    for v in fv["infeasible"]:
+        st.error("❌ " + _finding_text(v))
+    for v in fv["risks"]:
+        st.warning("⚠️ " + _finding_text(v))
+    for v in fv["part_level"]:
+        st.warning("📐 **Part level** (not about the order of the operations) — " + _finding_text(v))
+    if not (fv["infeasible"] or fv["risks"] or fv["part_level"]):
+        st.success(f"✅ No finding from the {fv['evaluated']} of {fv['n_rules']} rules that could be evaluated for this route.")
+    ne = fv["not_evaluated"]
+    if ne:
+        with st.expander(f"ℹ️ {len(ne)} rule(s) not evaluated — and why"):
+            st.dataframe([{"Rule": r, "Why not": why} for r, why in ne], use_container_width=True, hide_index=True)
+    for note in fv["notes"]:
+        st.caption("ℹ️ " + (note if isinstance(note, str) else " — ".join(str(x) for x in note)))
+
+
+def _num(x, fmt, dash="—"):
+    return dash if x is None else format(x, fmt)
+
+
+def show_physics(pv, batch, key, covered_by_rules=True):
+    """Metric cards, per-operation table and plots, Ra panel, speed sensitivity.
+    covered_by_rules: the feasibility section above already shows the power and Ra findings, so only the other flags are repeated here."""
+    if pv is None:
+        return
+    c = pv["cards"]
+    m1, m2, m3, m4, m5 = st.columns(5)
+    with m1:
+        st.metric("⚡ Cutting energy (kWh)", f"{c['energy_kwh']:.3f}", delta="cut only, lower bound", delta_color="off",
+                  help="Kienzle cutting force x removed volume. Idle power, spindle acceleration and coolant are not included.")
+    with m2:
+        st.metric("🧱 Mean kc (N/mm²)", _num(c['kc_mean_n_mm2'], '.0f'),
+                  delta=f"{_num(c['specific_energy_j_mm3'], '.2f')} J/mm³", delta_color="off",
+                  help="Specific cutting force of the material at the chip thickness of each operation (Kienzle).")
+    with m3:
+        st.metric("🔪 Tool wear (₹ / part)", f"{c['wear_cost_inr']:.2f}", delta=f"₹{c['wear_cost_batch_inr']:,.0f} per {batch} parts", delta_color="off",
+                  help="Taylor tool life at the standard speed (assumed per material) x an assumed price per cutting edge.")
+    with m4:
+        st.metric("🔌 Peak spindle power (kW)", f"{c['peak_spindle_kw']:.2f}",
+                  delta=f"{_num(None if c['max_utilisation'] is None else c['max_utilisation'] * 100, '.0f')}% of {c['machine_power_kw']:g} kW",
+                  delta_color="off", help="Highest power any operation needs at the standard speed and feed. The machine size is assumed.")
+    with m5:
+        icon = AV.RISK_ICON[c["ra_risk"]]
+        if c["ra_required_um"]:
+            sub = f"best {c['ra_best_um']:.2g} µm vs {c['ra_required_um']:g} µm"
+        else:
+            sub = "no required Ra given"
+        st.metric("✨ Ra risk", f"{icon} {AV.RISK_SHORT[c['ra_risk']]}", delta=sub, delta_color="off",
+                  help="Optimistic: the finest process of the route is assumed to make the critical surface.")
+
+    for fl in (pv["other_flags"] if covered_by_rules else pv["flags"]):
+        st.warning("⚠️ " + fl)
+    if c["ra_risk"] in ("medium", "high") and c["ra_required_um"]:
+        txt = f"**Ra {c['ra_required_um']:g} µm required** — {AV.RISK_TEXT[c['ra_risk']]}. Best the route reaches: {c['ra_best_um']:.2g} µm ({c['ra_best_op']})."
+        if c["max_turning_feed_mm_rev"]:
+            txt += f" For turning to reach it the feed must not exceed about {c['max_turning_feed_mm_rev']:.3f} mm/rev."
+        st.info(txt)
+
+    st.markdown("##### Per-operation physics")
+    rows = pv["ops"]
+    st.dataframe(rows, use_container_width=True, hide_index=True, column_config={
+        "Cutting time (min)": st.column_config.NumberColumn(format="%.2f"),
+        "kc (N/mm²)": st.column_config.NumberColumn(format="%.0f"),
+        "MRR (cm³/min)": st.column_config.NumberColumn(format="%.1f"),
+        "Power (kW)": st.column_config.NumberColumn(format="%.2f"),
+        "Spindle load (%)": st.column_config.NumberColumn(format="%.0f"),
+        "Energy (kWh)": st.column_config.NumberColumn(format="%.4f"),
+        "Tool wear (₹)": st.column_config.NumberColumn(format="%.2f"),
+        "Ra (µm)": st.column_config.NumberColumn(format="%.2f"),
+    })
+    cols = st.columns(2)
+    for col, field, title, color, suffix in ((cols[0], "Energy (kWh)", "Cutting energy per operation (kWh)", "#3b82f6", "energy"),
+                                             (cols[1], "Tool wear (₹)", "Tool wear per operation (₹ / part)", "#f59e0b", "wear")):
+        pts = [(r["Operation"], r[field]) for r in rows if r[field]]
+        if not pts:
+            continue
+        fig = go.Figure(go.Bar(x=[p[0] for p in pts], y=[p[1] for p in pts], marker_color=color))
+        fig.update_layout(title=title, margin=dict(l=40, r=10, t=40, b=80), height=300,
+                          paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_tickangle=-40)
+        with col:
+            st.plotly_chart(fig, use_container_width=True, key=f"{key}_{suffix}")
+
+    st.markdown("##### What if the cutting speed changes?")
+    st.dataframe([{"Cutting speed": f"×{s['vc_factor']:.1f}", "Cutting time (min)": s["cutting_time_min"],
+                   "Cutting energy (kWh)": s["energy_kwh"], "Tool wear (₹ / part)": s["wear_cost_inr"],
+                   "Peak spindle power (kW)": s["peak_spindle_kw"],
+                   "Over machine power": ", ".join(s["ops_over_power"]) or "—"} for s in pv["sensitivity"]],
+                 use_container_width=True, hide_index=True, column_config={
+        "Cutting time (min)": st.column_config.NumberColumn(format="%.2f"),
+        "Cutting energy (kWh)": st.column_config.NumberColumn(format="%.4f"),
+        "Tool wear (₹ / part)": st.column_config.NumberColumn(format="%.2f"),
+        "Peak spindle power (kW)": st.column_config.NumberColumn(format="%.2f")})
+    st.caption("A faster cut is shorter and draws more power and wears the tool faster; the energy of the cut itself stays the same. "
+               "Fixed table (not a slider) so that the results below do not reset.")
+
+
+def show_assumptions_and_sources(view):
+    with st.expander("🧾 Assumptions behind these numbers"):
+        for line in view["assumptions"]:
+            st.markdown(f"- {line}")
+    rules = AV.rules_table()
+    with st.expander(f"📚 The {len(rules)} feasibility rules and their sources"):
+        st.caption(STATUS_HELP)
+        st.dataframe(rules, use_container_width=True, hide_index=True)
+
+
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Part Configuration")
@@ -406,9 +531,20 @@ with st.sidebar:
                 max_value=500.0, value=20.0, step=1.0)
         dims = {"diameter": part_diameter, "length": part_length,
                 "depth": part_depth, "width": part_width}
+        # Used only by the physics / feasibility panels (Step 12); the v1 agents never see these two.
+        ra_choice = st.selectbox("✨ Required surface finish Ra (µm)", AV.RA_CHOICES,
+                                 format_func=lambda v: "not specified" if v is None else f"{v:g}",
+                                 help="Leave 'not specified' if the drawing gives no Ra; the Ra checks are then skipped.")
+        hole_dia_in = st.number_input("🕳️ Hole diameter (mm, 0 = unknown)", min_value=0.0, max_value=200.0, value=0.0, step=1.0,
+                                      help="Optional. Without it the deep-hole check cannot run and hole operations use the part diameter "
+                                           "in the physics figures.")
+        required_ra = ra_choice
+        hole_diameter = hole_dia_in or None
         st.markdown("---")
     else:
         dims = {"diameter": 25.0, "length": 50.0, "depth": 20.0, "width": 20.0}
+        required_ra = None
+        hole_diameter = None
 
     st.markdown("**🏭 Machine Preference**")
     pref_opts = {
@@ -553,6 +689,20 @@ else:
             if is_complete(clean, features):
                 st.success(f"✅ Completeness Verified — All {len(features)} feature(s) covered")
 
+            # Feasibility check (Step 12). No dimensions in this mode, so only the rules that need none can run;
+            # the others are listed as "not evaluated" with the reason.
+            st.markdown("---")
+            st.markdown("#### 🛡️ Feasibility Check")
+            ro_view = AV.analyse_route_view(best_steps, AV.make_part(material, features, tolerance, batch_size, dims=None))
+            for err in ro_view["errors"]:
+                st.warning("⚠️ " + err)
+            show_feasibility(ro_view["feasibility"], "ro_feas")
+            st.caption("Without part dimensions only the rules that need none can run. Use **Route + Full Analysis** for the "
+                       "dimension-dependent checks and the cutting-energy / tool-wear figures.")
+            with st.expander(f"📚 The {len(AV.rules_table())} feasibility rules and their sources"):
+                st.caption(STATUS_HELP)
+                st.dataframe(AV.rules_table(), use_container_width=True, hide_index=True)
+
             # Rough time breakdown
             st.markdown("---")
             st.markdown("#### ⏱️ Time Breakdown (Reference Dimensions)")
@@ -679,6 +829,9 @@ else:
     agent_data = []
     best = None
     best_eff = -1
+    # The part as the physics / feasibility modules read it (dims + required Ra + optional hole diameter).
+    part_av = AV.make_part(material, features, tolerance, batch_size, dims=dims,
+                           required_ra_um=required_ra, hole_diameter=hole_diameter)
 
     for ind in valid_routes:
         t   = time_agent(ind.steps, material, dims)
@@ -692,7 +845,8 @@ else:
             "Machine Type": get_route_label(ind.steps),
             "Changeover": "Yes ⚙️" if has_co else "No",
             "Time (min)": t, "Cost (₹)": c,
-            "Energy (kWh)": e, "Efficiency": eff
+            "Energy (kWh)": e, "Efficiency": eff,
+            **AV.route_row(ind.steps, part_av),        # physics + feasibility columns; they do NOT enter the efficiency score
         })
 
         if eff > best_eff:
@@ -701,6 +855,8 @@ else:
                     "t": t, "c": c, "e": e, "eff": eff, "changeover": has_co}
 
     st.dataframe(agent_data, use_container_width=True, hide_index=True)
+    st.caption("The last six columns (cutting energy, kc, tool wear, Ra risk, hard issues, risks) come from the physics and feasibility "
+               "models of Step 5 below. They describe each route; the efficiency score and the selection use only the first columns.")
 
     if len(agent_data) >= 2:
         st.markdown("#### 📈 Pareto Front — Time vs Cost vs Energy")
@@ -882,6 +1038,19 @@ else:
             st.markdown("---")
             st.markdown(f"**Batch Discount:** {disc_pct}% (-₹{disc_amt:,.0f})")
             st.markdown(f"**Material Factor:** {mat_factor}×")
+
+        # ── STEP 5: physics + feasibility of the selected route (analysis only) ──
+        st.markdown('<div class="step-hdr">STEP 5 — Physics & Feasibility Check of the Selected Route</div>', unsafe_allow_html=True)
+        st.caption("Analysis only: the route above was selected by the v1 efficiency score. These numbers describe it and flag problems; "
+                   "they do not change which route is chosen.")
+        full_view = AV.analyse_route_view(best["steps"], part_av)
+        for err in full_view["errors"]:
+            st.warning("⚠️ " + err)
+        st.markdown("#### 🛡️ Feasibility")
+        show_feasibility(full_view["feasibility"], "fa_feas")
+        st.markdown("#### 🔬 Cutting Physics")
+        show_physics(full_view["physics"], batch_size, "fa_phys", covered_by_rules=full_view["feasibility"] is not None)
+        show_assumptions_and_sources(full_view)
 
         st.balloons()
 
