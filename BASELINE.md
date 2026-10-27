@@ -451,6 +451,26 @@ Step 11 ke feasibility rules ab repair aur selection me bhi kaam karte hain. Opt
 
   Matlab: plain R1 ke repaired routes me 3.5% physically infeasible rehte hain; fz1 unhe 0 karta hai sirf +0.03 ops ke saath; fz2 risks bhi hata deta hai (+0.25 ops/route). Order me extra badlav (discordant pairs) +0.02 hi.
 
+### Asli LLM run (Radhana ka, `dev_v2`, 20 parts, 1 repeat, cache se) — ye numbers screenshots se hain
+| | rb | n5_r1_s3 | +fz1 | +fz2 |
+|---|---|---|---|---|
+| M6 efficiency | 64.46 | 63.82 | 63.82 | 63.53 |
+| M6 gap to best RB (pts) | 1.06 | 3.64 | 3.64 | 3.92 |
+| finals with a hard infeasibility | 0.00 | 0.00 | 0.00 | 0.00 |
+| finals with risks | 0.54 | 0.40 | 0.40 | 0.35 |
+| strict-valid raw LLM routes infeasible | n/a | 0.000 | 0.000 | 0.000 |
+| M5 edit distance (R1 stage) / ops surviving | n/a | 2.00 / 0.863 | 2.00 / 0.863 | 1.65 / 0.911 |
+| physics: cutting energy kWh/part | 0.489 | 0.559 | 0.559 | 0.559 |
+| physics: parts over machine power | 0.23 | 0.45 | 0.45 | 0.45 |
+| physics: tool wear INR/part | 95.1 | 78.7 | 78.7 | 79.0 |
+| plan confidence mean / flagged | n/a | 0.947 / 0.00 | 0.947 / 0.00 | 0.951 / 0.00 |
+
+Paired final Efficiency vs rb (20 pairs): n5_r1_s3 -3.19 pts (better 4, equal 9, worse 7); +fz1 -3.19 (same); +fz2 -3.48 (better 4, equal 8, worse 8).
+- **Asli LLM routes pe `+fz1` ne kuch nahi badla:** 20 parts x 5 samples me koi strict-valid raw route physically infeasible nahi tha (HOLE-EXISTS Route Builder ke bhi sirf 2.3% routes me aata hai). Is chhote set pe A7 ka fz1 effect zero hai; ye natija hai, nuksan nahi. Bade ya Groove-heavy subset pe dobara dekhna hai.
+- `+fz2`: risky finals 0.40 -> 0.35, efficiency -0.29 pts (offline trade-off jaisa). 20 pairs me ye significant nahi.
+- LLM-first RB se 3.19 pts peeche hai, aur machine power se upar jaane wale parts zyada hain (0.45 vs 0.23), par risky finals kam (0.40 vs 0.54). Kaaran abhi nahi pata: 7 "worse" parts ka per-part diff baaki hai.
+- Confidence ~0.95 aur flagged 0.00: threshold is set pe kisi plan ko flag nahi karta (tuning baaki).
+
 ### Jo honestly likhna hai
 1. **Ye offline numbers repair mechanism ke hain, LLM ke nahi.** Damage synthetic hai. Asli A7 effect (A6 vs A7, real LLM errors) live cache ke saath `n5_r1_s3` vs `+fz1` vs `+fz2` chalake naapna hai (neeche).
 2. **fz1 Drilling insert kar sakta hai aisi part me jisme Hole feature hi nahi** (jaise `Turning, Step, Groove, ...`, jahan RB variant me Internal Grooving aata hai): rule kehta hai internal groove ke liye pehle bore chahiye. Dataset ka "Groove" feature internal hai ya external (Grooving/Necking), ye saaf nahi; supervisor se confirm karna hai. Ye wahi rule-base defect hai (Drilling -> Internal Grooving edge graph me nahi); fz1 use sirf tab lagata hai jab finding aaye, graph abhi bhi nahi badla.
@@ -471,3 +491,38 @@ python scripts/compare_runs.py results/dev_rb results/dev_n5_r1_s3 results/dev_n
 
 ### Abhi kya nahi hai
 Extraction front end (hole diameter record karna, manual input), expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9). `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 14 (WP9 prep): extraction front end, manual feature input aur drawing se hole diameter
+
+Pehle features sirf image extraction se set ho sakte the (image + API key chahiye), aur hole diameter sirf haath se type hota tha. Ab dono behtar hain. Batch evaluation (`run_eval`, dataset v2, baselines) pe is step ka koi asar nahi: sirf `week6/app.py`, `week1/image_feature_extractor.py` aur naya `capp/dimensions.py` badle.
+
+### Kya badla
+1. **Manual feature input** (`week6/app.py`): sidebar me radio "How do you give the features?": *Upload a drawing (AI extraction)* (default, pehle jaisa) ya *Select the features myself*. Manual me image aur API key nahi chahiye: saare `GEOMETRY_FEATURES` ka multiselect, aage pipeline wahi (tokenizer, NSGA-II, Step 5 physics, feasibility).
+   - Khaali manual selection "select at least one feature" deta hai: pichle extraction ke features pe fall back **nahi** karta (pehle ye fall-back hi sirf ek tareeka tha, ab sirf upload mode me chalta hai).
+   - Manual selection tab bhi bachti hai jab tum upload mode me jaake wapas aate ho (Streamlit hidden widget ki state hata deta hai, usse bachaya).
+2. **Drawing se hole diameter** (`extract_features_from_image(..., with_dimensions=True)`, app use karta hai): do feature passes ke baad **ek teesra call** (alag prompt `DIMENSION_SYSTEM_PROMPT`): sirf wo hole diameters jo drawing pe **likhe** hain (mm). Andaaza lagana ya compute karna mana hai; thread callout (M8), PCD, shaft/boss ka bahari diameter, radius, inches (khaali list + note) nahi.
+   - **Do feature passes ke messages aur params byte-same hain** (test), isliye unke cache keys aur recall nahi badle: tumhara purana extraction cache chalta rahega. Naya sirf dimension call hai (ek image pe ek extra call, phir cached).
+   - Default `with_dimensions=False`: purane callers aur `test_extractor_goes_through_client_one_call_per_pass` bilkul same. Dimension call fail/gandi reply de to extraction fail **nahi** hota: `hole_diameters = []`, `dimensions.error` me wajah, aur tum haath se type karte ho.
+3. **`capp/dimensions.py`** (pure, no network): model ka JSON saaf karta hai. Maanta hai: number, "8", "8 mm", "Ø8", "⌀8", "dia 8", "Ø12 H7", "Ø8 ±0.1", "2x Ø6 THRU", "8,5". Rad karta hai (aur `dropped` me batata hai): M-callout, "10x1.25", "5 in", bool, NaN, [0.5, 200] mm ke bahar (app ki input limit). Unique, bada pehle, max 8.
+4. **App me pre-fill** (Full Analysis mode): hole diameter field me **sabse bada** detected diameter aata hai; extraction block me caption sab detected sizes dikhata hai aur "check it against the drawing" kehta hai. Ek detection ek hi baar lagti hai (tumhara edit rerun pe nahi mitta), naya drawing dobara lagta hai. Route Only se Full me wapas aane pe field khaali ho jaata tha (hidden widget ki state): AppTest ne ye pakda, ab wahi detection wapas lagti hai. Jis extraction me diameter nahi mila wo field ko haath nahi lagata. Number hamesha editable field me aata hai, plan me chup-chaap nahi jaata ("AI is verified, not trusted").
+
+### Jo honestly likhna hai
+1. **Dimension pass live test nahi hua** (mere sandbox me API nahi): sirf fake transport se. Vision model Ø callouts galat bhi pad sakta hai. Pehle 3-4 asli drawings pe `streamlit run week6/app.py` me check karo ki caption sahi diameters dikhata hai.
+2. **Ek hi hole_diameter poore part ke liye.** Kai holes hon to sabse bada pre-fill hota hai: CAP-POWER (hard rule) sabse bade hole pe sabse kharab hai, HOLE-DEEP sabse chhote pe. Ek number dono ke liye conservative nahi ho sakta; isliye sab sizes dikhte hain aur field editable hai.
+3. M-callout wale (tapped) holes ka diameter nahi aata (nominal size drill size nahi hai): inke liye HOLE-DEEP "not evaluated" hi rahega.
+4. **Dataset v2 me hole_diameter abhi bhi nahi hai** (baselines frozen): `run_eval` me "HOLE-DEEP 61% parts me evaluate nahi hota" wali baat waisi hi rahegi. WP2 benchmark me hole_diameter record karna ho to uska schema alag se tay karna hai.
+5. Baaki dims (diameter, length, depth, width) abhi bhi haath se; AI se nahi padhe.
+6. Route Only <-> Full toggle me Diameter/Depth/Length/Width inputs reset ho jaate hain (pehle se aisa hi tha, Step 12 ka behaviour); sirf hole field aur manual features bachaye gaye.
+
+### Tests
+`tests/test_dimensions.py` (71): parser ke accepted/rejected forms, sorting/dedupe/cap, pre-fill rule (ek baar, naya detection, field ki state gayi), extractor ka dimension pass (ek extra call, feature passes byte-same, pinned model, cache, gandi/failed reply, inches, out-of-range). `tests/test_frontend.py` (22, AppTest): input-method radio, manual mode (pipeline, route only, khaali selection, extraction pe fall back nahi, selection bachti hai), pre-fill (bada diameter, caption, edit rerun pe bachta hai, naya detection, bina detection field untouched, Route Only se wapas, HOLE-DEEP tak pahunchta hai, results me koi widget nahi).
+
+### Chalane ka tareeka
+```
+streamlit run week6/app.py          # sidebar: "Select the features myself" ya drawing upload karke Extract
+python -m pytest tests/test_dimensions.py tests/test_frontend.py
+```
+
+### Abhi kya nahi hai
+Baaki dimensions ka extraction, expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9). `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.

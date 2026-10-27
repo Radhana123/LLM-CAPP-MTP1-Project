@@ -39,6 +39,7 @@ from precedence_graph import PRECEDENCE_EDGES
 from route_builder import (generate_valid_routes, is_complete,
                            LATHE_ONLY_OPS, MILLING_ONLY_OPS)
 from capp import analysis_view as AV      # physics + feasibility numbers (analysis only; no Streamlit inside)
+from capp import dimensions as DIM        # hole diameters read from the drawing (Step 14): parse, validate, pre-fill rule
 
 # ── Page Config ───────────────────────────────────────────────
 st.set_page_config(
@@ -459,7 +460,19 @@ with st.sidebar:
     features = []
     extraction_info = None
 
-    if True:
+    INPUT_UPLOAD = "🖼️ Upload a drawing (AI extraction)"
+    INPUT_MANUAL = "✍️ Select the features myself"
+    input_method = st.radio("How do you give the features?", [INPUT_UPLOAD, INPUT_MANUAL], key="input_method",
+                            help="Manual selection needs no image and no API key. The route, the physics and the feasibility "
+                                 "check work the same way with either.")
+    manual_input = input_method == INPUT_MANUAL
+
+    if manual_input:
+        features = st.multiselect("Features", GEOMETRY_FEATURES, key="manual_features",
+                                  help="Pick every feature of the part. The hole diameter (Full Analysis mode) is typed below.")
+    else:
+        if "manual_features" in st.session_state:        # Streamlit drops the state of a hidden widget: keep the manual selection
+            st.session_state["manual_features"] = st.session_state["manual_features"]
         uploaded_image = st.file_uploader("Upload a 2D engineering drawing / sketch",
             type=["png", "jpg", "jpeg"])
 
@@ -470,7 +483,7 @@ with st.sidebar:
                     from image_feature_extractor import extract_features_from_image
                     img_bytes = uploaded_image.getvalue()
                     img_format = uploaded_image.type.split("/")[-1]
-                    extraction_info = extract_features_from_image(img_bytes, image_format=img_format)
+                    extraction_info = extract_features_from_image(img_bytes, image_format=img_format, with_dimensions=True)
                 st.session_state["extraction_result"] = extraction_info
                 st.session_state["uploaded_image_bytes"] = img_bytes
                 st.session_state["confirmed_features"] = extraction_info["features"]
@@ -486,6 +499,17 @@ with st.sidebar:
                     st.caption(f"AI notes: {extraction_info['notes']}")
                 if extraction_info["rejected_features"]:
                     st.warning(f"⚠️ Ignored unrecognized terms: {', '.join(extraction_info['rejected_features'])}")
+                if "dimensions" in extraction_info:
+                    holes = extraction_info.get("hole_diameters") or []
+                    if holes:
+                        st.caption("🕳️ Hole diameter(s) the AI read from the drawing: " + ", ".join(f"Ø{h:g}" for h in holes)
+                                   + f". Ø{DIM.choose_hole_diameter(holes):g} (the largest) is pre-filled in Full Analysis mode: "
+                                     "check it against the drawing.")
+                    elif extraction_info["dimensions"].get("success"):
+                        st.caption("🕳️ No hole diameter is written on the drawing (or none the AI could read): type it in Full Analysis mode if you know it.")
+                    else:
+                        st.caption("🕳️ Hole diameter not read: " + str(extraction_info["dimensions"].get("error") or "unknown reason")
+                                   + ". Type it in Full Analysis mode if you know it.")
                 if not extraction_info["features"]:
                     with st.expander("🔍 Debug: What did the AI actually say? (nothing was detected)"):
                         st.code(extraction_info.get("raw_response", "(empty)"), language="text")
@@ -535,9 +559,15 @@ with st.sidebar:
         ra_choice = st.selectbox("✨ Required surface finish Ra (µm)", AV.RA_CHOICES,
                                  format_func=lambda v: "not specified" if v is None else f"{v:g}",
                                  help="Leave 'not specified' if the drawing gives no Ra; the Ra checks are then skipped.")
-        hole_dia_in = st.number_input("🕳️ Hole diameter (mm, 0 = unknown)", min_value=0.0, max_value=200.0, value=0.0, step=1.0,
+        # A diameter the AI read from the drawing is put in the field once per detection (a later edit by the user is kept).
+        prefill_value, prefill_sig = DIM.prefill(st.session_state.get("extraction_result"), st.session_state.get("hole_prefill_sig"),
+                                                 present="hole_dia_in" in st.session_state)
+        if prefill_value is not None:
+            st.session_state["hole_dia_in"] = float(prefill_value)
+            st.session_state["hole_prefill_sig"] = prefill_sig
+        hole_dia_in = st.number_input("🕳️ Hole diameter (mm, 0 = unknown)", min_value=0.0, max_value=200.0, step=1.0, key="hole_dia_in",
                                       help="Optional. Without it the deep-hole check cannot run and hole operations use the part diameter "
-                                           "in the physics figures.")
+                                           "in the physics figures. Pre-filled when the AI read one from the drawing: check it.")
         required_ra = ra_choice
         hole_diameter = hole_dia_in or None
         st.markdown("---")
@@ -591,8 +621,9 @@ if not run_btn:
     st.caption("👈 Configure part in sidebar → click **Generate Process Plan**")
 
 else:
-    # Image upload mode mein features session_state se lo
-    if not features and "confirmed_features" in st.session_state:
+    # Image upload mode mein features session_state se lo (not in manual mode: an empty manual selection must stay empty,
+    # and must not fall back to the features of an earlier extraction)
+    if not features and not manual_input and "confirmed_features" in st.session_state:
         features = st.session_state["confirmed_features"]
 
     if not features:

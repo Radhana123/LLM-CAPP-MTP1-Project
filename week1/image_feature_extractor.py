@@ -46,7 +46,7 @@ else:
     load_dotenv()   # last resort -- purana CWD-based default behaviour
 
 sys.path.insert(0, os.path.abspath(os.path.join(_THIS_DIR, "..")))   # repo root -> capp package
-from capp import config, llm_client      # MTP-1 WP0: model ID, .env loading and cache now live in capp/
+from capp import config, dimensions, llm_client      # MTP-1 WP0: model ID, .env loading and cache now live in capp/; Step 14: dimensions
 
 GROQ_API_KEY = config.get_api_key()
 
@@ -154,6 +154,56 @@ RULES:
 """
 
 
+# Step 14: optional THIRD pass (with_dimensions=True): the hole diameters that are written on the drawing. It has its own prompt, so the
+# two feature passes above are untouched (same messages, same cache keys, same recall) and one extra call is made per image.
+# The reply is cleaned by capp/dimensions.py; the numbers only pre-fill a field the user edits (AI is verified, not trusted).
+DIMENSION_SYSTEM_PROMPT = """You are a manufacturing engineer reading the DIMENSION CALLOUTS of a 2D engineering drawing.
+
+TASK: list the diameter of every HOLE that is explicitly dimensioned in millimetres. A hole is a drilled, reamed,
+counterbored or bored cylindrical cavity: a circle or two dashed lines with a diameter callout such as Ø10,
+2x Ø6 THRU or Ø12 H7.
+
+RULES:
+1. Report only diameters that are WRITTEN on the drawing. Never estimate a size from how large a circle looks and
+   never compute one.
+2. Do NOT report the outside diameter of a shaft, boss or flange, a pitch-circle diameter (PCD), a thread callout
+   (M8, M10x1.25) or a radius (R5). A hole that has only a thread callout and no diameter is left out.
+3. Millimetres only. If the drawing is in inches, return an empty list and say so in the note.
+4. If no hole diameter is written on the drawing, return an empty list.
+5. Output ONLY a JSON object in exactly this format, nothing else:
+   {"hole_diameters_mm": [10, 6.5], "note": "ONE short sentence, max 20 words"}
+"""
+
+
+def _extract_dimensions(b64_image: str, image_format: str) -> dict:
+    """The dimension pass. Never raises and never makes the extraction fail: on any problem it reports success=False and an empty
+    list, and the user types the hole diameter."""
+    empty = {"success": False, "ok": False, "hole_diameters": [], "dropped": [], "note": ""}
+    try:
+        response = llm_client.chat(
+            [{"role": "user", "content": [
+                {"type": "text", "text": DIMENSION_SYSTEM_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/{image_format};base64,{b64_image}"}},
+            ]}],
+            model=VISION_MODEL,
+            sample_id=0,
+            temperature=0,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
+            response_format={"type": "json_object"},
+            reasoning_effort=REASONING_EFFORT,
+            reasoning_format="hidden",
+        )
+        out = dimensions.read_hole_diameters(_parse_response(response.text.strip()))
+        out["success"] = out["ok"]
+        if not out["ok"]:
+            out["error"] = out["note"]
+        return out
+    except llm_client.NoApiKey:
+        return dict(empty, error="GROQ_API_KEY not configured.")
+    except Exception as e:
+        return dict(empty, error=f"Vision API error: {e}")
+
+
 def _encode_image(image_bytes: bytes) -> str:
     """Image bytes ko base64 string mein convert karo (Groq API ke liye)."""
     return base64.b64encode(image_bytes).decode("utf-8")
@@ -220,10 +270,15 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
         }
 
 
-def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -> dict:
+def extract_features_from_image(image_bytes: bytes, image_format: str = "png", with_dimensions: bool = False) -> dict:
     """
     Main entry point. 2D image (raw bytes) leke Groq vision model se
     manufacturing features extract karta hai.
+
+    with_dimensions=True (Step 14, the app uses it) adds a third call that reads the hole diameters written on the drawing:
+    the result then has "hole_diameters" (mm, largest first, may be empty) and "dimensions" (the full report of that call:
+    success, dropped values, note, error). A failure of that call never fails the extraction. Default False: exactly the
+    two feature passes, as before.
 
     Recall ke liye EXTRACTION_PASSES (geometry + annotation) alag-alag padhta hai aur
     unke valid features ka UNION final result hota hai -- ek call kisi
@@ -286,7 +341,7 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
     if len(successful) > 1 and any(agreement[f] < len(successful) for f in union_features):
         combined_notes += f" (combined from {len(successful)} passes; not every feature was seen in every pass)"
 
-    return {
+    result = {
         "success": True,
         "features": union_features,
         "rejected_features": union_rejected,
@@ -295,6 +350,11 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png") -
         "raw_response": successful[-1]["raw_response"],
         "sample_agreement": agreement,
     }
+    if with_dimensions:
+        dim = _extract_dimensions(b64_image, image_format)
+        result["hole_diameters"] = dim["hole_diameters"]
+        result["dimensions"] = dim
+    return result
 
 
 def _parse_response(raw_response: str) -> dict:
