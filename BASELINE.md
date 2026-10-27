@@ -804,3 +804,36 @@ Pooled precision / recall / F1 (95% interval drawings par bootstrap, seed 7), dr
 
 ### Abhi kya nahi hai
 Live runs aur annotated drawings (upar 1), asli users ka log, baaki dimensions ka extraction, dono passes ke alawa teesra independent pass ya alag model se cross-check, flag ko raw signals (agreement, valid share) par rakhna (Step 18 ke `confidence_tune` ke baad), dashboard route cards me confidence / flag ka dikhna.
+
+## Step 21 (WP3 analysis): risk-aware RB vs LLM comparison, `scripts/risk_compare.py`
+
+Sawaal: `compare_runs` kehta hai "n5_r1_s3, rb se 3.19 pts peeche". Par v1 **Efficiency physical risk dekhti hi nahi** (time, cost, energy, changeover). DEV_016 jaisa pair: LLM ne `+Reaming` (tolerance 0.01 mm) joda, Efficiency 6.29 pts gira, par route risks 1 se 0. To gap ka kuch hissa **scoring artefact** ho sakta hai. Ye script wahi test karta hai: dono runs ke finals ko Efficiency **aur** feasibility flags dono se ek saath dekhta hai. Offline, API nahi, sirf `records.jsonl`. v1 Efficiency nahi badli.
+
+```
+python scripts/risk_compare.py results/dev_rb results/dev_n5_r1_s3                        # pehla folder reference (rb), doosra us par judge hota hai
+python scripts/risk_compare.py results/dev_rb results/dev_n5_r1_s3 --physics --top 20 --csv results/risk_pairs.csv
+python scripts/risk_compare.py results/dev_rb results/dev_n5_r1_s3+fz2 --penalties 0,1,3,10
+```
+
+### Kya nikalta hai (`capp/riskview.py`)
+**Flags** = route ke hard infeasibilities + route risks (`capp/feasibility.py`); `--physics` se over machine power aur Ra risk "high" bhi. Ye findings ki **ginti** hai, severity nahi.
+1. Mean Efficiency difference, dono taraf ke mean flags, mean reduction (rb ke flags minus LLM ke flags).
+2. **3 x 3 table**: LLM Efficiency me better / equal / worse x LLM ke flags kam / barabar / zyada (har cell me pairs aur mean Efficiency diff).
+3. **"LLM worse par flags kam"** wale pairs: kaun se rules clear hue (`TOL-HOLE`, ...), LLM ne kaun se operations jode (`Reaming`...), har pair ek line me (Efficiency, flags a -> b, `+op/-op`). Ulta group bhi ("LLM better par flags zyada").
+4. Pairs ka split: **neither** route par flag / sirf rb par / sirf LLM par / dono par, har group ka mean Efficiency diff. **"neither" row barabar ki zameen par comparison hai**: wahan koi flag value karna hi nahi.
+5. **Penalty view**: adjusted diff = Efficiency diff + P x (rb ke flags - LLM ke flags), P = 0, 1, 2, 5, 10 Efficiency pts per flag, har ek ka 95% interval, aur **break-even P\***: ek flag kitne pts ka ho to LLM aur rb average me barabar. P\* bada ho to gap sirf tab band hota hai jab flag ko bahut value do; "none" ka matlab LLM ke average me flags kam hi nahi, to gap kisi P se band nahi hota (tab hypothesis us run ke liye galat hai, ye bhi result hai).
+6. Per-rule table: kis rule par kitne pairs me rb/LLM ko flag, kitne cleared / added, aur tab ka mean Efficiency diff.
+
+### Jo honestly likhna hai
+1. **P ek value judgement hai, estimate nahi.** Script nahi bata sakti ek flag ki asli keemat kya hai (thesis me tumhe ya Prof. Deb ko argue karna hai). Tabular output batata hai "P ke har value par tasveer kaisi dikhti hai".
+2. **Flags indicative rules ke model findings hain**: `capp/feasibility.py` ke rules ke sources abhi confirmed nahi (Step 11). Cleared flag = model ka finding cleared, shop-floor ka verified risk nahi. Aur ginti hai: do chhote risks ek bade hard infeasibility ke barabar gine jaate hain.
+3. **Intervals parts par resample hote hain** (ek part ke repeats saath rehte hain, independent nahi), seed 7, 1000 resamples. 20-30 parts par interval chauda hoga; chhote n par isse conclusion nahi, tasveer lo.
+4. Sirf unhi pairs me jahan dono finals strict-valid hain **aur** dono runs me feasibility analyse hui (baaki "left out" me gine jaate hain, `--physics` me physics data bhi chahiye).
+5. **Mere dekhe numbers (jaise "fz2 ne 10 pairs me 8.3 pts khoye, break-even ~8 pts per flag") test ke nakli planner (`tests/test_partdiff.py` ka messy planner) ke hain, tumhare asli run ke nahi.** Asli run pe apna output dekho; DEV_016 wala pattern wahan sach hai ya nahi, ye script se pata chalega.
+6. Ye comparison hai, causation nahi: cleared flag aur gira Efficiency saath dikhte hain, par ye nahi ki ek ne doosre ko "kharid" liya (extra operation dono ka reason ho sakta hai).
+
+### Tests (+34)
+`tests/test_riskview.py`: flags (hard + risk, physics, bool/missing), kaun se pairs analyse hote hain (not comparable aur no-data left out), **6 pairs haath se**: overall, 3 x 3 table, trade pairs ke rules/ops, split, penalty table (har P ka mean aur better/equal/worse), **break-even exactly gap band karta hai**, per-rule table; break-even ke special cases (not worse / never / none), **intervals parts par resample hote hain** (3 repeats wala part: sirf -10 / -7.5 / 0 aate hain, pair-level resample se -5 aur -2.5 bhi aate), reproducible seed, ek part par interval nahi par report, physics flags, khaali cases, report ke sentences, `--top`, CSV, runs swap karne par sab ulta, do asli harness runs par `part_diff` se agreement (pairs, mean, better/equal/worse, flags ke means), tables ka jod, run vs khud (kuch nahi badalta), CLI (report, CSV, `--physics`, `--penalties`, errors).
+
+### Abhi kya nahi hai
+Risk ko Efficiency ke andar daalna (v1 score ka badalna, alag design decision hai), severity-weighted flags, asli run ka output (tumhare `results/` par chalana hai), dashboard me ye view.
