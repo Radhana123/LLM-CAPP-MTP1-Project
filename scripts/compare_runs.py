@@ -3,7 +3,7 @@
     python scripts/compare_runs.py results/dev_rb results/dev_b1 results/dev_b0 results/dev_b0_r1
 
 The first folder is the reference for the paired comparison. All folders must come from the same dataset and parts.
-No API calls.
+No API calls. For the per-part view (which parts are worse and how their routes differ) use scripts/part_diff.py.
 """
 import os
 import sys

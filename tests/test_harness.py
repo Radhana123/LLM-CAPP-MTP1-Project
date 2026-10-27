@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -103,11 +104,18 @@ def test_rb_ignores_repeats(parts):
     assert len(out["records"]) == 3 and out["run_info"]["repeats"] == 1
 
 
+def count_sleeps(monkeypatch, slept):
+    """Record the sleeps of the calling thread only: time.sleep is patched for the whole process, and a background thread left by an
+    earlier test (a Streamlit AppTest) may sleep at the same moment (test_twostep's throttle test failed once in a full run for that)."""
+    caller = threading.current_thread()
+    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s) if threading.current_thread() is caller else None)
+
+
 def test_unknown_system_and_throttle(parts, monkeypatch):
     with pytest.raises(H.HarnessError):
         H.run_experiment("b7", parts, progress=None, write=False)
     slept = []
-    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s))
+    count_sleeps(monkeypatch, slept)
     H.run_experiment("b1", parts[:3], planner=fake_planner, throttle=0.5, progress=None, write=False)
     assert slept == [0.5, 0.5, 0.5]
 
@@ -365,7 +373,7 @@ def test_replay_of_a_run_without_cached_repairs_stops(monkeypatch):
 
 def test_throttle_also_waits_after_a_live_repair_call(parts, monkeypatch):
     slept = []
-    monkeypatch.setattr(H.time, "sleep", lambda s: slept.append(s))
+    count_sleeps(monkeypatch, slept)
 
     def cached_planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
         r = fake_planner(material, features, tolerance, batch_size, sample_id)

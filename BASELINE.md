@@ -526,3 +526,36 @@ python -m pytest tests/test_dimensions.py tests/test_frontend.py
 
 ### Abhi kya nahi hai
 Baaki dimensions ka extraction, expert benchmark (WP2), model cascade, confidence threshold tuning, process plan aur route sheet (WP9). `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 15 (WP3 analysis): per-part diff, `scripts/part_diff.py`
+
+`compare_runs.py` averages deta hai ("n5_r1_s3 rb se 3.19 pts peeche, 7 pairs me worse"). Ye script batata hai **kaun se parts** aur wahan **routes me kya alag hai**. Offline hai, API nahi, sirf `records.jsonl` padhta hai. Pehla folder reference (rb), doosra us par judge hota hai (compare_runs jaisa).
+
+```
+python scripts/part_diff.py results/dev_rb results/dev_n5_r1_s3                 # LLM vs RB: kaun se parts worse
+python scripts/part_diff.py results/dev_n5_r1_s3 results/dev_n5_r1_s3+fz2       # fz2 ne kaun se parts kharab kiye
+python scripts/part_diff.py results/dev_rb results/dev_n5_r1_s3 --top 20 --only all --csv results/pairs.csv
+python scripts/part_diff.py results/dev_rb results/dev_n5_r1_s3 --group archetype,material,n_features
+```
+
+### Kya dikhata hai (`capp/partdiff.py`)
+- Har (part, repeat) pair: final Efficiency (dono strict-valid ho tabhi comparable), time/cost/energy aur unka relative diff, dono routes, provenance, physics (energy, wear, peak kW, over-power, Ra risk) aur feasibility (hard, risks).
+- **Cause tag** (description, causation nahi): `identical`, `order only`, `other has extra operations`, `other lacks operations`, `different operations`. Operations route-order me, multiset ke hisaab se; markers ignore.
+- Tables: part class se (machine profile, complexity, material, tolerance; `--group` se archetype, n_features, batch_size bhi), cause tag se, doosre run ke final ki provenance se (raw_llm / repaired_llm / route_builder).
+- **Operations jo alag hain:** worse pairs me kaun sa op doosre run me extra (`other has`) ya kam (`other lacks`) hai, mean Efficiency diff ke saath, worst pehle.
+- **Efficiency kya hilata hai:** time / cost / energy ka mean relative diff (sab pairs aur worse pairs), operations aur changeovers per route.
+- Fir sabse kharab pairs, dono routes ke saath (`-op` sirf pehle run me, `+op` sirf doosre me). `--csv` har pair ki ek row deta hai.
+- Consistency test: summary ke better/equal/worse aur mean `compare_runs.paired_quality` se exactly same hain.
+
+### Jo honestly likhna hai
+1. **Description hai, causation nahi.** Cause tag batata hai routes kaise alag hain, ye nahi ki Efficiency kyun alag hai. Jo op worse pairs me dikhe wo common bhi ho sakta hai: dono taraf ki frequency table me nahi hai (sirf "jahan alag hai wahan mean diff").
+2. 20 parts pe har table me n bahut chhota hai: ye anecdotes hain, statistics nahi. Dekhna routes ko hai.
+3. Efficiency v1 ka function hai (time, cost, energy, changeover markers ke saath scored). Physics aur feasibility alag columns hain aur Efficiency me nahi jaate.
+4. Synthetic LLM (fake planner, tests me) pe ye script dikhata hai ki `+fz2` ke Reaming insertions (TOL-HOLE) worse pairs me aate hain: ye test ka artefact hai, tumhare asli run ka nahi. Asli run pe apna output dekhna.
+
+### Tests
+`tests/test_partdiff.py` (31): route delta (har cause, multiset, markers, changeovers, mirror), do asli runs (harness + deterministic messy planner) pe pair rows, compare_runs se agreement, run vs khud (sab identical/equal), runs swap karne pe har pair ulta, unmatched/mismatch, invalid final, summary tables ka jod, operations table, report ke sections, `--top` aur ordering, `--only`, CSV, script ke options aur errors.
+
+### Abhi kya nahi hai
+Model cascade, confidence threshold tuning, expert benchmark (WP2), process plan aur route sheet (WP9), baaki dimensions ka extraction. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
