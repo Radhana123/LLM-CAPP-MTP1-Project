@@ -144,7 +144,7 @@ def _feasibility(steps, part):
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
                    front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
-                   weights=None, pool=None, planner_factory=None, analysis: bool = True) -> dict:
+                   weights=None, pool=None, planner_factory=None, analysis: bool = True, freeze_path: str = None) -> dict:
     """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant
     (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system), optionally with planner options
     (+fs2, +fs4x, +h1: retrieval few-shot, hint; +fz1, +fz2: feasibility-aware repair; see capp/plannerspec.py).
@@ -257,7 +257,7 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "confidence_flag_threshold": systems.CONFIDENCE_FLAG if spec else None,
         "max_tokens": (config.CG_MAX_TOKENS if pspec.constrained else config.PLANNER_MAX_TOKENS) if uses_llm else None,
         "llm_mode": config.get_mode(), "front_uses_dims": front_uses_dims,
-        "git_commit": _git_commit(), "freeze": freeze.status(config.ROOT),
+        "git_commit": _git_commit(), "freeze": freeze.status(config.ROOT, freeze_path),
         "python": sys.version.split()[0], "platform": platform.platform(),
         "started_utc": datetime.fromtimestamp(t_start, timezone.utc).isoformat(timespec="seconds"),
         "seconds": round(time.time() - t_start, 1),

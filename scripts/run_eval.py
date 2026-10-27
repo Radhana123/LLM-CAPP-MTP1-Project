@@ -142,7 +142,7 @@ def main():
     try:
         out = harness.run_experiment(args.system, parts, repeats=args.repeats, tag=args.tag, out_dir=args.out,
                                      dataset_name=args.dataset, throttle=args.throttle, weights=weights,
-                                     pool=args.pool, analysis=not args.no_analysis)
+                                     pool=args.pool, analysis=not args.no_analysis, freeze_path=args.freeze)
     except harness.HarnessError as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
         sys.exit(2)

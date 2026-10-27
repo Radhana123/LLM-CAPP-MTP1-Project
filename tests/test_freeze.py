@@ -634,6 +634,20 @@ def test_run_eval_override_is_loud_and_recorded(tmp_path):
     assert "continuing because of --no-freeze-check" in res.stderr and "STOPPED: sealed dataset" not in res.stderr
 
 
+def test_run_json_records_the_manifest_the_gate_used_not_the_one_of_the_repository(tmp_path, real_manifest):
+    """The status in run.json is the status against --freeze FILE (default FREEZE.json): a FREEZE.json lying in the repository must not
+    change what a run says about the manifest it was checked against."""
+    man = json.load(open(real_manifest, encoding="utf-8"))
+    run_eval(tmp_path, "--system", "rb", "--dataset", "test_v2", "--limit", "1", "--freeze", real_manifest)
+    run = json.load(open(next((tmp_path / "out").glob("*/run.json")), encoding="utf-8"))
+    assert run["freeze"]["id"] == man["id"] and run["freeze"]["status"] in ("ok", "analysis-changed")
+    other = tmp_path / "other"
+    other.mkdir()
+    run_eval(other, "--system", "rb", "--dataset", "test_v2", "--limit", "1", "--freeze", str(other / "missing.json"))
+    run = json.load(open(next((other / "out").glob("*/run.json")), encoding="utf-8"))
+    assert run["freeze"]["status"] == "none" and run["freeze"]["id"] is None
+
+
 def test_the_route_builder_and_the_development_set_are_not_gated(tmp_path):
     res = run_eval(tmp_path, "--system", "rb", "--dataset", "test_v2", "--limit", "2", "--freeze", str(tmp_path / "missing.json"))
     assert res.returncode == 0 and "STOPPED" not in res.stderr
