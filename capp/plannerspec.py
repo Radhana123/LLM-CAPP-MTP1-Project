@@ -7,6 +7,12 @@
     b0+fs2+h1           both few-shot and hint; all three options combine: n5_r1_s3+fs2x+h1+ts
     n5_r1_s3+fz1        feasibility-aware repair (row A7): R1 also fixes the HARD physical-feasibility violations (capp/feasrepair.py)
     n5_r1_s3+fz2        fz1, and R1 also inserts what the RISK rules ask for (centre drill, reaming); selection prefers feasible routes
+    n5_r1_s3+ms         every call (samples and R2 re-prompts) goes to the SMALL model (config: openai/gpt-oss-20b); ml = the LARGE model
+                        (openai/gpt-oss-120b); mp = the primary model (the default, qwen/qwen3.8-27b)
+    n5_r1_s3+cas1       model cascade (row A8, capp/cascade.py): the SMALL model samples first; a sample that the verifier can neither
+                        validate nor repair (it would fall back to the Route Builder) is sampled again with the LARGE model
+    n5_r1_s3+cas2       cascade, eager: also a sample whose raw route the verifier cannot validate as it is goes to the LARGE model, and the
+                        better of the two answers is kept
 
 fs0 + h0 (no suffix at all) is exactly the v1 planner, byte for byte, so its LLM answers are the ones already in the cache.
 fz is not a planner option: it changes what happens to the samples (repair, selection), not the prompt, so +fz1/+fz2 give the same LLM
@@ -19,6 +25,8 @@ from dataclasses import dataclass
 FEW_SHOT_K = (0, 2, 4)
 _FS = re.compile(r"^fs(0|2|4)(x?)$")
 FEAS_LEVELS = (0, 1, 2)
+MODEL_OPTIONS = {"mp": "primary", "ms": "small", "ml": "large"}
+CASCADE_LEVELS = (0, 1, 2)
 
 
 @dataclass(frozen=True)
@@ -28,10 +36,12 @@ class PlannerSpec:
     hint: bool = False             # H1: the Route Builder's route is in the prompt
     two_step: bool = False         # reason first, then formalise (two LLM calls per sample)
     feas: int = 0                  # feasibility-aware repair level (0 off, 1 hard rules, 2 hard + risk insertions); not a prompt option
+    model: str = "primary"         # model role of every call: primary (default), small or large (config.model); not a prompt option
+    cascade: int = 0               # model cascade level: 0 off, 1 (large model only where repair fails), 2 (also where the raw route is invalid)
 
     @property
-    def is_default(self) -> bool:                   # "the v1 prompt": fz does not touch the prompt, so it is not part of this
-        return self.few_shot == 0 and not self.hint and not self.two_step
+    def is_default(self) -> bool:                   # "the v1 planner": fz does not touch the prompt; the model and the cascade do change the calls
+        return self.few_shot == 0 and not self.hint and not self.two_step and self.model == "primary" and not self.cascade
 
     @property
     def name(self) -> str:
@@ -42,13 +52,17 @@ class PlannerSpec:
             tokens.append("h1")
         if self.two_step:
             tokens.append("ts")
+        if self.model != "primary":
+            tokens.append({v: k for k, v in MODEL_OPTIONS.items()}[self.model])
+        if self.cascade:
+            tokens.append(f"cas{self.cascade}")
         return "+".join(tokens)
 
 
 def split_name(name: str):
     """'n5_r1_s3+fs2+h1' -> ('n5_r1_s3', PlannerSpec(few_shot=2, hint=True)). Raises ValueError for an unknown option."""
     base, *tokens = name.split("+")
-    few_shot = hint = two_step = feas = None
+    few_shot = hint = two_step = feas = model = cascade = None
     loo = "part"
     for t in tokens:
         m = _FS.match(t)
@@ -68,7 +82,19 @@ def split_name(name: str):
             if feas is not None:
                 raise ValueError(f"two feasibility options in {name!r}")
             feas = int(t[2])
+        elif t in MODEL_OPTIONS:
+            if model is not None:
+                raise ValueError(f"two model options in {name!r}")
+            model = MODEL_OPTIONS[t]
+        elif t in ("cas0", "cas1", "cas2"):
+            if cascade is not None:
+                raise ValueError(f"two cascade options in {name!r}")
+            cascade = int(t[3])
         else:
             raise ValueError(f"unknown planner option {t!r} in {name!r}: use fs0, fs2 or fs4 (add x to also leave out parts with "
-                             f"the same feature set), h0 or h1, ts (two-step planner), and fz0, fz1 or fz2 (feasibility-aware repair)")
-    return base, PlannerSpec(few_shot or 0, loo, bool(hint), bool(two_step), feas or 0)
+                             f"the same feature set), h0 or h1, ts (two-step planner), fz0, fz1 or fz2 (feasibility-aware repair), "
+                             f"mp, ms or ml (primary, small or large model) and cas0, cas1 or cas2 (model cascade)")
+    if cascade and model not in (None, "primary"):
+        raise ValueError(f"a cascade already uses the small model first and the large model next, so +cas{cascade} cannot be combined "
+                         f"with a model option (+ms, +ml): {name!r}")
+    return base, PlannerSpec(few_shot or 0, loo, bool(hint), bool(two_step), feas or 0, model or "primary", cascade or 0)

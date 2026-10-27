@@ -46,6 +46,7 @@ from dataclasses import asdict, dataclass, field
 
 from capp import legacy  # noqa: F401
 from capp import feasibility as F
+from capp import cascade as CASC
 from capp import feasrepair as FR
 from capp import metrics as M
 from capp import plannerspec as PS
@@ -88,7 +89,8 @@ class Candidate:
     v1_valid: bool = None             # v1's decision on the raw LLM route
     scores: dict = None               # v1 scoring of `steps` as they are (used for selection): time_min, cost_inr, energy_kwh, efficiency_score
     scores_eval: dict = None          # same, after verify.normalize_markers (fair: every machine switch is charged); used for M6
-    meta: dict = field(default_factory=dict)   # finish_reason, tokens, latency, cached
+    meta: dict = field(default_factory=dict)   # finish_reason, tokens, latency, cached, model
+    cascade: dict = None              # model cascade only (capp/cascade.py): level, escalated, tier that produced this candidate, the other attempt
 
 
 @dataclass
@@ -103,7 +105,11 @@ class RunRecord:
     best_scores: list                 # fair (marker-normalised) scores of all Route Builder variants, the reference for M6
 
     def to_dict(self):
-        return asdict(self)
+        d = asdict(self)
+        for c in d["candidates"]:
+            if c.get("cascade") is None:          # only cascade runs carry the key: other records stay as they were before Step 17
+                c.pop("cascade", None)
+        return d
 
 
 def part_inputs(part: dict) -> dict:
@@ -341,9 +347,21 @@ def _fz_key(cand, part, feas, info):
     return (len(FR.repairable_hard(found)), len(risks) if feas >= 2 else 0)
 
 
+def _lite(cand) -> dict:
+    """A candidate as a plain dict without its own cascade entry: the other attempt of an escalated slot, kept in the record."""
+    d = asdict(cand)
+    d.pop("cascade", None)
+    return d
+
+
+def _merge_counters(info, ctr):
+    for k, v in ctr.items():
+        info[k] = info.get(k, 0) + v          # (fz_repaired appears in the info of any system whose R1 succeeded, as it always did)
+
+
 def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int = 30,
                   front_uses_dims: bool = False, system: str = None, repair: str = "r0",
-                  repair_planner=None, selection: str = "s1", weights=None, feas: int = 0) -> RunRecord:
+                  repair_planner=None, selection: str = "s1", weights=None, feas: int = 0, cascade=None) -> RunRecord:
     """B0 (n_samples=5) and B1 (n_samples=1). `planner(material, features, tolerance, batch_size, sample_id=)`
     defaults to week2's generate_process_plan, looked up at call time so tests can substitute it.
     repair: "r0" (v1: replace an invalid sample by the Route Builder's route), "r1" (minimal-edit repair), "r2" (LLM re-prompt
@@ -351,7 +369,9 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
     `repair_planner(material, features, tolerance, batch_size, sample_id=, previous_steps=, violations=)` defaults to
     capp.reprompt.reprompt and is only called by r2 and r3.
     feas: 0 (default, nothing changes), 1 or 2 = feasibility-aware repair, the +fz1 / +fz2 of the system name (module docstring);
-    it needs repair r1, r2 or r3."""
+    it needs repair r1, r2 or r3.
+    cascade: a capp.cascade.Cascade (the +cas1 / +cas2 of the system name): `planner` is then the small model and `cascade.planner`
+    the large one; a sample slot whose result the cascade level rejects is sampled again with the large model (capp/cascade.py)."""
     if repair not in REPAIR_STAGES:
         raise ValueError(f"unknown repair strategy {repair!r}")
     if feas not in FR.LEVELS:
@@ -365,6 +385,12 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
     if "r2" in REPAIR_STAGES[repair] and repair_planner is None:
         from capp import reprompt
         repair_planner = reprompt.reprompt
+    large_repair = None
+    if cascade is not None:
+        large_repair = cascade.repair_planner
+        if "r2" in REPAIR_STAGES[repair] and large_repair is None:
+            from capp import reprompt
+            large_repair = reprompt.reprompt
     if planner is None:
         import llm_planner
         planner = llm_planner.generate_process_plan
@@ -376,89 +402,119 @@ def run_llm_first(part: dict, n_samples: int = 5, planner=None, max_routes: int 
             "fallback_incomplete": False, "machine_pref_overridden": False, "population": 0, "deduped": 0}
     if feas:                                           # these keys exist only for +fz systems, so every other output is unchanged
         info.update({"fz_level": feas, "fz_raw_hard": 0, "fz_raw_risk": 0, "fz_repaired": 0, "fz_risk_unfixed": 0, "fz_errors": 0})
+    if cascade is not None:                            # likewise for +cas systems
+        info.update({"cascade_level": cascade.level, "escalations": 0})
+    counter_keys = [k for k in info if k not in ("llm_calls", "attempts", "safety_net", "fallback_incomplete", "machine_pref_overridden",
+                                                  "population", "deduped", "fz_level", "cascade_level", "escalations")]
     pop = []
 
-    for attempt in range(n_samples):
-        info["attempts"] += 1
-        info["llm_calls"] += 1
+    def sample_slot(attempt, plan_fn, repair_fn, ctr):
+        """One sample of one slot through the whole chain: planner, strict check, repair, R0. Returns (candidate, raw_ok); raw_ok = the
+        verifier accepted the raw route as it was (no hard violation, and for +fz no hard feasibility finding). `ctr` collects the
+        counters of this attempt (a cascade keeps those of the attempt it serves)."""
         try:
-            res = planner(p["material"], features, p["tolerance"], p["batch_size"], sample_id=attempt)
+            res = plan_fn(p["material"], features, p["tolerance"], p["batch_size"], sample_id=attempt)
         except FatalRunError:
             raise
         except Exception as exc:                                   # v1 swallows these as "failed"
             res = {"success": False, "steps": [], "raw_response": f"Exception: {exc}"}
         if not res["success"]:
-            info["llm_failed"] += 1
-            pop.append(Candidate(attempt, f"Route_LLM_{attempt + 1}_failed", PROV_RB, [], llm_ok=False,
-                                 llm_raw=res.get("raw_response", ""), meta=res.get("meta", {})))
-            continue
+            ctr["llm_failed"] += 1
+            return Candidate(attempt, f"Route_LLM_{attempt + 1}_failed", PROV_RB, [], llm_ok=False,
+                             llm_raw=res.get("raw_response", ""), meta=res.get("meta", {})), False
 
         steps = res["steps"]
         chk = V.check_route(steps, features)
         v1_ok = fsm_validator.validate_sequence(steps)["valid"] and rb.is_complete(steps, features)
         base = dict(sample_id=attempt, llm_ok=True, llm_steps=list(steps), llm_raw=res.get("raw_response", ""),
                     first_pass=check_to_dict(chk), v1_valid=v1_ok, meta=res.get("meta", {}))
-        info["raw_v1_valid"] += int(v1_ok)
-        info["raw_strict_valid"] += int(chk.valid)
+        ctr["raw_v1_valid"] += int(v1_ok)
+        ctr["raw_strict_valid"] += int(chk.valid)
         needs_repair = (not v1_ok) if repair == "r0" else (not chk.valid)    # r1..r3 repair what the strict verifier rejects
         fz_hard, fz_risk = [], []
         if feas:                                       # +fz: the feasibility rules join the decision (hard ones always, insertable risks at fz2)
-            found = _fz_violations(steps, part, info)
+            found = _fz_violations(steps, part, ctr)
             fz_hard = FR.repairable_hard(found)
             fz_risk = FR.insertable_risks(found) if feas >= 2 else []
-            info["fz_raw_hard"] += int(bool(fz_hard))
-            info["fz_raw_risk"] += int(bool(fz_risk))
+            ctr["fz_raw_hard"] += int(bool(fz_hard))
+            ctr["fz_raw_risk"] += int(bool(fz_risk))
         hard_needed = needs_repair or bool(fz_hard)    # a repair that fails falls back to R0 only for a HARD problem
         needs_repair = hard_needed or bool(fz_risk)
+        raw_ok = not hard_needed
         if not needs_repair:
-            pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, **base))
-        else:
-            attempt_info = None
-            if repair != "r0":
-                attempt_info = {"strategy": repair, "stage": None, "tried": []}
-                routed = None
-                stages = REPAIR_STAGES[repair] if hard_needed else tuple(st for st in REPAIR_STAGES[repair] if st == "r1")
-                for stage in stages:                   # (a risk alone is never worth an LLM re-prompt)
-                    attempt_info["tried"].append(stage)
-                    if stage == "r1":
-                        rep1 = FR.r1_fz(steps, features, part, risks=feas >= 2) if feas else R.r1(steps, features)
-                        attempt_info["r1"] = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
-                        if rep1.ok:
-                            info["repaired_r1"] += 1
-                            info["fz_repaired"] = info.get("fz_repaired", 0) + int(bool(feas and (rep1.fz_inserted or rep1.fz_edges)))
-                            routed = rep1.route
-                        else:
-                            info["r1_failed"] += 1
+            return Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, **base), raw_ok
+        attempt_info = None
+        if repair != "r0":
+            attempt_info = {"strategy": repair, "stage": None, "tried": []}
+            routed = None
+            stages = REPAIR_STAGES[repair] if hard_needed else tuple(st for st in REPAIR_STAGES[repair] if st == "r1")
+            for stage in stages:                       # (a risk alone is never worth an LLM re-prompt)
+                attempt_info["tried"].append(stage)
+                if stage == "r1":
+                    rep1 = FR.r1_fz(steps, features, part, risks=feas >= 2) if feas else R.r1(steps, features)
+                    attempt_info["r1"] = {k: v for k, v in rep1.to_dict().items() if k not in ("steps", "route")}
+                    if rep1.ok:
+                        ctr["repaired_r1"] += 1
+                        ctr["fz_repaired"] = ctr.get("fz_repaired", 0) + int(bool(feas and (rep1.fz_inserted or rep1.fz_edges)))
+                        routed = rep1.route
                     else:
-                        routed, detail = _r2_stage(repair_planner, p, steps, chk, attempt, info, features, part, feas, fz_hard)
-                        attempt_info["r2"] = detail
-                    if routed:
-                        attempt_info["stage"] = stage
-                        break
+                        ctr["r1_failed"] += 1
+                else:
+                    routed, detail = _r2_stage(repair_fn, p, steps, chk, attempt, ctr, features, part, feas, fz_hard)
+                    attempt_info["r2"] = detail
                 if routed:
-                    info["repaired"] += 1
-                    pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_repaired", provenance=PROV_REPAIRED,
-                                         steps=routed, repaired=True, repair=attempt_info, **base))
-                    continue
-                if not hard_needed:                    # only a risk was to be fixed and R1 could not: keep the route the LLM gave
-                    info["fz_risk_unfixed"] += 1
-                    pop.append(Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, repair=attempt_info,
-                                         **base))
-                    continue
-                attempt_info["fallback"] = "r0"
-            corrected = fsm_validator.fix_sequence_with_builder(features)
-            if (corrected and fsm_validator.validate_sequence(corrected)["valid"]
-                    and rb.is_complete(corrected, features)):
-                info["replaced"] += 1
-                pop.append(Candidate(name=f"Route_LLM_{attempt + 1}_corrected", provenance=PROV_RB,
-                                     steps=corrected, replaced=True, repair=attempt_info, **base))
-            else:                                      # v1 replacement uses max_routes=1 and can find nothing (e.g. Valve Body)
-                info["llm_failed"] += 1
-                info["replacement_failed"] += 1
-                pop.append(Candidate(attempt, f"Route_LLM_{attempt + 1}_failed", PROV_RB, [], llm_ok=True,
-                                     llm_steps=list(steps), llm_raw=res.get("raw_response", ""),
-                                     first_pass=base["first_pass"], v1_valid=False, meta=res.get("meta", {}),
-                                     repair=attempt_info))
+                    attempt_info["stage"] = stage
+                    break
+            if routed:
+                ctr["repaired"] += 1
+                return Candidate(name=f"Route_LLM_{attempt + 1}_repaired", provenance=PROV_REPAIRED,
+                                 steps=routed, repaired=True, repair=attempt_info, **base), raw_ok
+            if not hard_needed:                        # only a risk was to be fixed and R1 could not: keep the route the LLM gave
+                ctr["fz_risk_unfixed"] += 1
+                return Candidate(name=f"Route_LLM_{attempt + 1}", provenance=PROV_RAW_LLM, steps=steps, repair=attempt_info,
+                                 **base), raw_ok
+            attempt_info["fallback"] = "r0"
+        corrected = fsm_validator.fix_sequence_with_builder(features)
+        if (corrected and fsm_validator.validate_sequence(corrected)["valid"]
+                and rb.is_complete(corrected, features)):
+            ctr["replaced"] += 1
+            return Candidate(name=f"Route_LLM_{attempt + 1}_corrected", provenance=PROV_RB,
+                             steps=corrected, replaced=True, repair=attempt_info, **base), raw_ok
+        # v1 replacement uses max_routes=1 and can find nothing (e.g. Valve Body)
+        ctr["llm_failed"] += 1
+        ctr["replacement_failed"] += 1
+        return Candidate(attempt, f"Route_LLM_{attempt + 1}_failed", PROV_RB, [], llm_ok=True,
+                         llm_steps=list(steps), llm_raw=res.get("raw_response", ""),
+                         first_pass=base["first_pass"], v1_valid=False, meta=res.get("meta", {}),
+                         repair=attempt_info), raw_ok
+
+    for attempt in range(n_samples):
+        info["attempts"] += 1
+        info["llm_calls"] += 1
+        ctr = dict.fromkeys(counter_keys, 0)
+        cand, raw_ok = sample_slot(attempt, planner, repair_planner, ctr)
+        if cascade is None:
+            _merge_counters(info, ctr)
+            pop.append(cand)
+            continue
+        if not CASC.escalate(cascade.level, cand.provenance, raw_ok):
+            cand.cascade = {"level": cascade.level, "escalated": False, "tier": "small", "kept": "small", "small_raw_ok": raw_ok}
+            _merge_counters(info, ctr)
+            pop.append(cand)
+            continue
+        ctr2 = dict.fromkeys(counter_keys, 0)
+        cand2, raw_ok2 = sample_slot(attempt, cascade.planner, large_repair, ctr2)
+        info["escalations"] += 1
+        large_wins = CASC.keep_large(cand.provenance, cand2.provenance)
+        served, served_ctr, other, dropped_ctr = (cand2, ctr2, cand, ctr) if large_wins else (cand, ctr, cand2, ctr2)
+        _merge_counters(info, served_ctr)
+        info["repair_calls"] += dropped_ctr["repair_calls"]          # the re-prompts of the attempt that was set aside were paid too
+        served.cascade = {"level": cascade.level, "escalated": True, "trigger": CASC.TRIGGER[cascade.level],
+                          "tier": "large" if large_wins else "small", "kept": "large" if large_wins else "small",
+                          "small_raw_ok": raw_ok, "large_raw_ok": raw_ok2,
+                          ("small" if large_wins else "large"): _lite(other),
+                          "set_aside_counters": {k: v for k, v in dropped_ctr.items() if v}}
+        pop.append(served)
 
     seen, usable = set(), []
     for c in pop:                                      # v1 removes duplicate routes, keeping the first

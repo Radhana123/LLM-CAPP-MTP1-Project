@@ -13,12 +13,14 @@ Metrics reported (Table 3 of the report)
   M6  plan quality of the final routes and the gap to the best Route Builder variant (negative gap = better than all of them).
       Scored fairly: every route gets one changeover marker per machine switch first (v1 charges only markers that are in
       the route, and LLM routes never contain any)
-  M7  inference cost: calls, tokens, latency
+  M7  inference cost: calls, tokens, latency; and, from the same records, the cost in list-price dollars by model (capp/cost.py)
+      and the numbers of the model cascade (escalation rate, what the large model rescued; capp/cascade.py)
   M8  stability over repeated runs (mean and std over repeats of M1, M4 and M6)
   conf  plan confidence (mean pairwise agreement of the samples' routes), share of plans flagged for human review, and
         whether confidence tells anything: gap to the best Route Builder variant of flagged vs unflagged plans, and the
         Spearman correlation between confidence and that gap (negative = low confidence goes with worse plans)
 """
+from capp import cost as COST
 from capp import metrics as M
 
 COMPLEXITY_BUCKETS = (("simple", 1, 3), ("medium", 4, 5), ("complex", 6, 99))
@@ -98,11 +100,20 @@ def part_rows(records: list) -> list:
             **_physics_columns(fin.get("physics")),
             **_feasibility_columns(fin.get("feasibility")),
             **({"fz_pool": info.get("fz_pool"), "fz_filtered": info.get("fz_filtered")} if info.get("fz_level") else {}),
+            **({"escalations": info.get("escalations", 0), "final_tier": _final_tier(rec)} if info.get("cascade_level") else {}),
             "m4_source": src if sim else "", "m4_exact": None if not sim else sim["exact"],
             "m4_lcs_ratio": None if not sim else sim["lcs_ratio"],
             "m4_kendall_tau": None if not sim else sim["kendall_tau"],
         })
     return rows
+
+
+def _final_tier(rec):
+    """Which model's answer the final route of a cascade run came from: small, large, or route_builder (the safety net)."""
+    for c in rec["candidates"]:
+        if c["name"] == rec["final"]["name"]:
+            return (c.get("cascade") or {}).get("tier", "route_builder")
+    return "route_builder"
 
 
 def _repair_label(c):
@@ -145,7 +156,9 @@ def candidate_rows(records: list) -> list:
                 "survived_share": M.survived_share(llm, fin) if ((c["replaced"] or c.get("repaired")) and llm) else None,
                 "finish_reason": c["meta"].get("finish_reason", ""), "prompt_tokens": c["meta"].get("prompt_tokens"),
                 "completion_tokens": c["meta"].get("completion_tokens"), "latency_s": c["meta"].get("latency_s"),
-                "cached": c["meta"].get("cached"),
+                "cached": c["meta"].get("cached"), "model": c["meta"].get("model", ""),
+                **({"cascade_tier": (c.get("cascade") or {}).get("tier", ""), "escalated": (c.get("cascade") or {}).get("escalated", ""),
+                    "small_raw_ok": (c.get("cascade") or {}).get("small_raw_ok", "")} if rec["info"].get("cascade_level") else {}),
                 "examples": ";".join((c["meta"].get("prompt_context") or {}).get("examples", [])),
                 "hint": (c["meta"].get("prompt_context") or {}).get("hint", ""),
                 "api_calls": c["meta"].get("n_calls", 1 if c["meta"] else 0),
@@ -291,6 +304,41 @@ def _confidence_block(records):
             "selected_mean_distance_mean": M.mean_std([r["info"].get("selected_mean_distance") for r in records])[0]}
 
 
+def _cascade_block(records):
+    """Numbers of the model cascade (capp/cascade.py); {"n": 0} for the systems without one. A slot is one sample of one part."""
+    rs = [r for r in records if r["info"].get("cascade_level")]
+    if not rs:
+        return {"n": 0}
+    slots = [c for r in rs for c in r["candidates"] if c.get("cascade")]
+    esc = [c for c in slots if c["cascade"]["escalated"]]
+    n, ns = len(rs), len(slots)
+    served_large = [c for c in slots if c["cascade"]["tier"] == "large"]
+    rescued = [c for c in esc if c["provenance"] != "route_builder"]
+    tier_of = {(id(r), c["name"]): c["cascade"]["tier"] for r in rs for c in r["candidates"] if c.get("cascade")}
+    final_large = sum(1 for r in rs if tier_of.get((id(r), r["final"]["name"])) == "large")
+    return {"n": n, "level": rs[0]["info"]["cascade_level"], "slots": ns, "escalated": len(esc),
+            "escalation_rate": len(esc) / ns if ns else None,
+            "small_accepted_as_is_rate": M.rate([c["cascade"]["small_raw_ok"] for c in slots]) if slots else None,
+            "served_by_large": len(served_large), "kept_small_after_escalation": sum(1 for c in esc if c["cascade"]["kept"] == "small"),
+            "rescued": len(rescued), "rescue_rate": len(rescued) / len(esc) if esc else None,
+            "large_raw_accepted_rate": M.rate([c["cascade"]["large_raw_ok"] for c in esc]) if esc else None,
+            "escalations_per_part": sum(r["info"].get("escalations", 0) for r in rs) / n,
+            "parts_with_final_from_large": final_large / n,
+            "parts_with_an_escalation": sum(1 for r in rs if r["info"].get("escalations", 0)) / n}
+
+
+def _other_attempt_calls(records):
+    """API calls of the attempt that a cascade set aside (they are in no candidate's own meta)."""
+    total = 0
+    for rec in records:
+        for c in rec["candidates"]:
+            casc = c.get("cascade") or {}
+            for tier in ("small", "large"):
+                if casc.get(tier) and casc[tier].get("meta"):
+                    total += casc[tier]["meta"].get("n_calls", 1)
+    return total
+
+
 def _parsed(records):
     return [(rec, c) for rec in records for c in rec["candidates"] if c["llm_ok"] and c["first_pass"] is not None]
 
@@ -406,18 +454,22 @@ def summarize_set(records: list) -> dict:
             "energy_gap_to_rb_best_mean": M.mean_std([g["energy_kwh_gap"] for g in gaps])[0]},
         "M7": {
             "calls_per_part": attempts / n,
-            "api_calls_per_part": (sum(c["meta"].get("n_calls", 1) for _, c in calls) + sum(r["info"].get("repair_calls", 0) for r in records)) / n,
+            "api_calls_per_part": (sum(c["meta"].get("n_calls", 1) for _, c in calls) + sum(r["info"].get("repair_calls", 0) for r in records)
+                                   + _other_attempt_calls(records)) / n,
             "prompt_tokens_per_part": sum(c["meta"].get("prompt_tokens") or 0 for _, c in calls) / n,
             "completion_tokens_per_part": sum(c["meta"].get("completion_tokens") or 0 for _, c in calls) / n,
             "latency_mean_s": M.mean_std(lat)[0], "latency_p50_s": M.percentile(lat, 0.5), "latency_p95_s": M.percentile(lat, 0.95),
             "truncated_calls": sum(1 for _, c in calls if c["meta"].get("finish_reason") == "length"),
             "cache_hit_rate": M.rate([bool(c["meta"].get("cached")) for _, c in calls]),
             "repair_calls_per_part": sum(r["info"].get("repair_calls", 0) for r in records) / n,
-            "total_calls_per_part": (attempts + sum(r["info"].get("repair_calls", 0) for r in records)) / n,
+            "total_calls_per_part": (attempts + sum(r["info"].get("repair_calls", 0) for r in records)
+                                     + sum(r["info"].get("escalations", 0) for r in records)) / n,
             "repair_prompt_tokens_per_part": sum(m["meta"].get("prompt_tokens") or 0 for m in reprompts) / n,
             "repair_completion_tokens_per_part": sum(m["meta"].get("completion_tokens") or 0 for m in reprompts) / n,
             "repair_latency_mean_s": M.mean_std([m["meta"].get("latency_s") for m in reprompts])[0],
             "repair_cache_hit_rate": M.rate([bool(m["meta"].get("cached")) for m in reprompts])},
+        "cascade": _cascade_block(records),
+        "cost": COST.block(records),
         "planner_prompt": _prompt_block(calls),
         "two_step": _two_step_block(calls),
         "physics": _physics_block(records),
@@ -521,6 +573,22 @@ def format_summary(system: str, s: dict) -> str:
              f"{_fmt(m7['completion_tokens_per_part'], 0)} tokens/part (samples), latency mean {_fmt(m7['latency_mean_s'], 2)}s "
              f"p50 {_fmt(m7['latency_p50_s'], 2)}s p95 {_fmt(m7['latency_p95_s'], 2)}s, truncated {m7['truncated_calls']}, "
              f"cache hit rate {_fmt(m7['cache_hit_rate'], 2)}")
+    cs = s.get("cascade") or {"n": 0}
+    if cs["n"]:
+        L.append(f"cascade         : cas{cs['level']} (small -> large model); {cs['escalated']} of {cs['slots']} sample slots escalated "
+                 f"({_fmt(cs['escalation_rate'], 2)}; {_fmt(cs['escalations_per_part'], 2)}/part, {_fmt(cs['parts_with_an_escalation'], 2)} of parts); "
+                 f"small model's raw route accepted as is {_fmt(cs['small_accepted_as_is_rate'], 2)}; of the escalated: large model gave an "
+                 f"LLM route {cs['rescued']}/{cs['escalated']} ({_fmt(cs['rescue_rate'], 2)}), raw route accepted as is "
+                 f"{_fmt(cs['large_raw_accepted_rate'], 2)}, small result kept {cs['kept_small_after_escalation']}; "
+                 f"final route from the large model in {_fmt(cs['parts_with_final_from_large'], 2)} of parts")
+    cb = s.get("cost") or {"n": 0}
+    if cb["n"]:
+        usd = "n/a (no list price for " + ", ".join(cb["unpriced_models"]) + ")" if cb["usd_per_part"] is None else f"{cb['usd_per_part']:.6f}"
+        L.append(f"cost (list)     : {usd} USD/part, {_fmt(cb['tokens_per_part'], 0)} tokens/part, {_fmt(cb['calls_per_part'], 2)} API calls/part, "
+                 f"sum of call latencies {_fmt(cb['latency_s_per_part'], 2)}s/part; by model: " + "; ".join(
+                     f"{k} {v['calls']} calls {v['prompt_tokens']}+{v['completion_tokens']} tokens"
+                     + ("" if v["usd"] is None else f" {v['usd']:.5f} USD") for k, v in cb["by_model"].items())
+                 + (f" (model id missing in {cb['assumed_model_calls']} calls: assumed the primary model)" if cb["assumed_model_calls"] else ""))
     pp = s.get("planner_prompt") or {}
     if pp.get("options") == "fs/h":
         L.append(f"planner prompt  : {_fmt(pp['examples_per_call'], 2)} retrieved examples per call, hint in "

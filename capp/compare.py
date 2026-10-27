@@ -35,6 +35,18 @@ def _m4_val(s, kind, key):
     return "n/a" if src is None else _fmt(s["M4"][src][kind][key])
 
 
+def _models(s):
+    by = (s.get("cost") or {}).get("by_model")
+    return "n/a" if not by else "+".join(k.split("/")[-1] for k in by)
+
+
+def _usd(s):
+    c = s.get("cost") or {}
+    if not c.get("n"):
+        return "n/a"
+    return "n/a" if c["usd_per_part"] is None else f"{c['usd_per_part']:.6f}"
+
+
 def table(runs: list) -> str:
     """runs: list of (label, summary). Returns an aligned text table."""
     def prov(s, name):
@@ -70,6 +82,12 @@ def table(runs: list) -> str:
         ("M6 time / cost / energy gap", lambda s: "/".join(_fmt(s["M6"][k], 3) for k in (
             "time_gap_to_rb_best_mean", "cost_gap_to_rb_best_mean", "energy_gap_to_rb_best_mean"))),
         ("prompt tokens / part (samples)", lambda s: _fmt(s["M7"]["prompt_tokens_per_part"], 0)),
+        ("models called", lambda s: _models(s)),
+        ("cost: list-price USD / part", lambda s: _usd(s)),
+        ("cost: tokens / part (all calls)", lambda s: _fmt((s.get("cost") or {}).get("tokens_per_part"), 0)),
+        ("cost: sum of call latencies s / part", lambda s: _fmt((s.get("cost") or {}).get("latency_s_per_part"), 2)),
+        ("cascade: escalated sample slots", lambda s: _fmt((s.get("cascade") or {}).get("escalation_rate"), 2) if (s.get("cascade") or {}).get("n") else "-"),
+        ("cascade: final route from large model", lambda s: _fmt((s.get("cascade") or {}).get("parts_with_final_from_large"), 2) if (s.get("cascade") or {}).get("n") else "-"),
         ("retrieved examples / call", lambda s: _fmt((s.get("planner_prompt") or {}).get("examples_per_call"), 2)),
         ("physics: cutting energy kWh/part", lambda s: _fmt((s.get("physics") or {}).get("energy_kwh_mean"), 3)),
         ("physics: tool wear INR/part", lambda s: _fmt((s.get("physics") or {}).get("wear_cost_inr_mean"), 1)),

@@ -14,6 +14,7 @@ Repeats use the cache run tag "<tag>-r<k>", so repeat k is a different, reproduc
 you want them paired: B1's single call is then B0's first sample (same cache entry, no extra API call).
 """
 import csv
+import functools
 import json
 import os
 import platform
@@ -23,6 +24,7 @@ import time
 from datetime import datetime, timezone
 
 from capp import verify as V
+from capp import cascade as CASC
 from capp import config, feasibility, llm_client, physics, summary as S, systems
 
 NO_KEY_MSG = "GROQ_API_KEY not configured"
@@ -93,14 +95,17 @@ def load_records(out_dir):
 
 
 def _live_call_made(rec) -> bool:
-    """True if the run made at least one LLM call that was not answered from the cache (sample calls and R2 re-prompts)."""
-    for c in rec["candidates"]:
+    """True if the run made at least one LLM call that was not answered from the cache (sample calls, R2 re-prompts, and the other
+    attempt of a sample slot that a model cascade escalated)."""
+    def live(c):
         if c["meta"] and not c["meta"].get("cached"):
             return True
         r2 = (c.get("repair") or {}).get("r2")
         if r2 and r2.get("meta") and not r2["meta"].get("cached"):
             return True
-    return False
+        casc = c.get("cascade") or {}
+        return any(live(casc[t]) for t in ("small", "large") if casc.get(t))
+    return any(live(c) for c in rec["candidates"])
 
 
 def _resolve_pool(pool, pspec):
@@ -162,6 +167,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     if uses_llm and planner_factory is None and not pspec.is_default:
         from capp import planners
         planner_factory = planners.make_factory(pspec, pool_obj)
+    casc_level = pspec.cascade if uses_llm else 0
+    tier1_role = "small" if casc_level else (pspec.model if uses_llm else "primary")     # the model role of the samples (cascade: its first tier)
     if weights is not None:
         try:
             weights = systems.normalize_weights(weights)
@@ -174,12 +181,17 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         planner = llm_planner.generate_process_plan
     holder = {"planner": planner}                     # the planner of the current part (differs per part with options)
     wrapped = _guarded(lambda *a, **k: holder["planner"](*a, **k), max_consecutive_errors) if uses_llm else None
-    wrapped_repair = None
+    wrapped_repair = wrapped_large = wrapped_large_repair = None
     if systems.reprompts(system):
         if repair_planner is None:
             from capp import reprompt
-            repair_planner = reprompt.reprompt
+            repair_planner = reprompt.reprompt if tier1_role == "primary" else functools.partial(reprompt.reprompt, model=config.model(tier1_role))
         wrapped_repair = _guarded(repair_planner, max_consecutive_errors)
+        if casc_level:                                  # the re-prompts of a sample go to the model that produced it
+            from capp import reprompt
+            wrapped_large_repair = _guarded(functools.partial(reprompt.reprompt, model=config.model("large")), max_consecutive_errors)
+    if casc_level:
+        wrapped_large = _guarded(lambda *a, **k: holder["large"](*a, **k), max_consecutive_errors)
     run_fn = systems.resolve(system)
 
     records = []
@@ -190,8 +202,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
             os.environ["CAPP_RUN_TAG"] = f"{tag}-r{r}"
             for i, part in enumerate(parts, 1):
                 if uses_llm and planner_factory is not None:
-                    holder["planner"] = planner_factory(part)
+                    holder["planner"] = planner_factory(part, role="small") if casc_level else planner_factory(part)
+                    if casc_level:
+                        holder["large"] = planner_factory(part, role="large")
                 kw = {"planner": wrapped, "front_uses_dims": front_uses_dims} if uses_llm else {}
+                if casc_level:
+                    kw["cascade"] = CASC.Cascade(casc_level, wrapped_large, wrapped_large_repair)
                 if wrapped_repair:
                     kw["repair_planner"] = wrapped_repair
                 if uses_llm and weights is not None:
@@ -220,7 +236,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     summary = S.summarize(records)
     run_info = {
         "system": system, "tag": tag, "dataset": dataset_name, "n_parts": len(parts), "repeats": repeats,
-        "model": config.model("primary") if uses_llm else None,
+        "model": config.model(tier1_role) if uses_llm else None,
+        "model_role": tier1_role if uses_llm else None,
+        "cascade_level": casc_level if uses_llm else None,
+        "cascade_models": {"small": config.model("small"), "large": config.model("large")} if casc_level else None,
+        "price_usd_per_mtok": {m: config.price(m) for m in sorted({config.model(r) for r in
+                               (("small", "large") if casc_level else (tier1_role,))})} if uses_llm else None,
         "temperature": config.PLANNER_TEMPERATURE if uses_llm else None,
         "repair_temperature": config.REPAIR_TEMPERATURE if systems.reprompts(system) else None,
         "planner_options": (pspec.name or "v1") if uses_llm else None,

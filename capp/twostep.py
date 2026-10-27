@@ -174,13 +174,14 @@ def _formalise_call(messages, model, sample_id):
     raise last
 
 
-def make_planner(examples=(), hint=None, context=None):
-    """planner(material, features, tolerance, batch_size, sample_id) -> the v1 result dict, with the two-step meta."""
+def make_planner(examples=(), hint=None, context=None, model=None):
+    """planner(material, features, tolerance, batch_size, sample_id) -> the v1 result dict, with the two-step meta.
+    `model` is a model id for both calls (default: the primary model, llm_planner.MODEL)."""
     context = dict(context) if context is not None else {"examples": [e.part_id for e in examples], "hint": hint is not None}
     context["two_step"] = True
 
-    def planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
-        model = llm_planner.MODEL
+    def planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0, _model=model):
+        model = _model or llm_planner.MODEL
         # ---- call 1: reasoning
         try:
             r1 = llm_client.chat(reason_messages(material, features, tolerance, batch_size, examples, hint), model=model,
@@ -194,7 +195,8 @@ def make_planner(examples=(), hint=None, context=None):
                   "completion_tokens": r1.completion_tokens, "latency_s": r1.latency_s}]
         meta = {"cached": r1.cached, "finish_reason": r1.finish_reason, "prompt_tokens": r1.prompt_tokens,
                 "completion_tokens": r1.completion_tokens, "latency_s": r1.latency_s, "n_calls": 1, "calls": calls,
-                "reasoning": reasoning, "reasoning_truncated": r1.finish_reason == "length", "prompt_context": context}
+                "reasoning": reasoning, "reasoning_truncated": r1.finish_reason == "length", "prompt_context": context,
+                "model": model}
         if not reasoning:
             return {"success": False, "steps": [], "raw_response": "empty reasoning", "model": model, "meta": meta}
         # ---- call 2: formalisation

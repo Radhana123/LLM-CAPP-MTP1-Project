@@ -8,7 +8,7 @@ Environment variables
   CAPP_STRUCTURED     json_schema (default) | json_object | none: first structured-output mode of the two-step planner's 2nd call
   CAPP_RUN_TAG        label mixed into every cache key (e.g. rep1..rep5 for repeated runs); default "default"
   CAPP_CACHE_DIR      cache folder (default <repo>/cache/llm)
-  CAPP_MODEL_PRIMARY / _SMALL / _LARGE   override model IDs
+  CAPP_MODEL_PRIMARY / _SMALL / _LARGE   override model IDs (primary: default; small and large: the two tiers of the cascade)
 """
 import os
 from pathlib import Path
@@ -40,6 +40,20 @@ _DEFAULT_MODELS = {
     "large": "openai/gpt-oss-120b",
 }
 
+# Model roles: "primary" is the model of every system without a model option; "small" and "large" are the two tiers of the model
+# cascade (capp/cascade.py, system options +ms, +ml, +cas1, +cas2). Override with CAPP_MODEL_PRIMARY / _SMALL / _LARGE.
+MODEL_ROLES = tuple(_DEFAULT_MODELS)
+
+# List prices in USD per million tokens (input, output) on GroqCloud pay-as-you-go, used only to turn the token counts of a run into an
+# "expected cost" for the Pareto comparison of the cascade. [TO CONFIRM] Source: a third-party price list dated 2026-10-13
+# (morphllm.com/groq-pricing, citing console.groq.com/docs/models); Qwen3.8-27B was listed as a preview model. Prices change: check the
+# Groq console before quoting a cost, and edit this table. A model that is not listed has no price (the cost is then "n/a", never 0).
+PRICE_USD_PER_MTOK = {
+    "openai/gpt-oss-20b": (0.075, 0.30),
+    "openai/gpt-oss-120b": (0.15, 0.60),
+    "qwen/qwen3.8-27b": (0.80, 4.00),
+}
+
 # v1 planner settings, kept identical so that baseline B0 is unchanged
 PLANNER_TEMPERATURE = 0.3
 PLANNER_MAX_TOKENS = 200
@@ -62,6 +76,19 @@ def model(role: str = "primary") -> str:
     if role not in _DEFAULT_MODELS:
         raise KeyError("unknown model role %r (use one of %s)" % (role, sorted(_DEFAULT_MODELS)))
     return os.getenv("CAPP_MODEL_" + role.upper(), _DEFAULT_MODELS[role])
+
+
+def price(model_id: str):
+    """(input, output) USD per million tokens of a model id, or None if it is not in PRICE_USD_PER_MTOK."""
+    return PRICE_USD_PER_MTOK.get(model_id)
+
+
+def call_cost_usd(model_id: str, prompt_tokens, completion_tokens):
+    """USD for one call (or a sum of calls) at list price; None if the model has no price. Missing token counts count as 0."""
+    pr = price(model_id)
+    if pr is None:
+        return None
+    return ((prompt_tokens or 0) * pr[0] + (completion_tokens or 0) * pr[1]) / 1e6
 
 
 def structured_mode() -> str:

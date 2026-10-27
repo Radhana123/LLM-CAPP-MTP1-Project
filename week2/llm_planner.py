@@ -72,7 +72,7 @@ def generate_process_plan(material: str, features: list,
         steps = _parse_steps(raw)
         meta = {"cached": resp.cached, "finish_reason": resp.finish_reason,
                 "prompt_tokens": resp.prompt_tokens, "completion_tokens": resp.completion_tokens,
-                "latency_s": resp.latency_s}
+                "latency_s": resp.latency_s, "model": MODEL}
         return {"success": len(steps) > 0, "steps": steps, "raw_response": raw, "model": MODEL, "meta": meta}
 
     except llm_client.NoApiKey:

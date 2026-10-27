@@ -57,9 +57,10 @@ def build_messages(material, features, tolerance, batch_size, previous_steps, vi
 
 
 def reprompt(material: str, features: list, tolerance: str = "0.05mm", batch_size: int = 100, sample_id: int = 0,
-             previous_steps: list = (), violations: list = ()) -> dict:
-    """Returns {"success", "steps", "raw_response", "model", "meta"} like the planner."""
-    model = config.model("primary")
+             previous_steps: list = (), violations: list = (), model: str = None) -> dict:
+    """Returns {"success", "steps", "raw_response", "model", "meta"} like the planner. `model` is a model id (default: the primary
+    model); the systems with +ms / +ml / +cas1 / +cas2 re-prompt the model that produced the sample (see capp/harness.py)."""
+    model = model or config.model("primary")
     try:
         resp = llm_client.chat(
             build_messages(material, features, tolerance, batch_size, previous_steps, violations),
@@ -69,7 +70,7 @@ def reprompt(material: str, features: list, tolerance: str = "0.05mm", batch_siz
         raw = resp.text.strip()
         steps = llm_planner._parse_steps(raw)
         meta = {"cached": resp.cached, "finish_reason": resp.finish_reason, "prompt_tokens": resp.prompt_tokens,
-                "completion_tokens": resp.completion_tokens, "latency_s": resp.latency_s}
+                "completion_tokens": resp.completion_tokens, "latency_s": resp.latency_s, "model": model}
         return {"success": len(steps) > 0, "steps": steps, "raw_response": raw, "model": model, "meta": meta}
     except llm_client.NoApiKey:
         return {"success": False, "steps": [], "raw_response": "GROQ_API_KEY not configured", "model": model}

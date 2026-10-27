@@ -40,6 +40,9 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --system n5_r1_s3+fs2 --limit 20 --tag dev          # few-shot, 2 retrieved examples (new API calls)
     python scripts/run_eval.py --system b0+h1 --limit 20 --tag dev                 # with the Route Builder hint
     python scripts/run_eval.py --system n5_r1_s3+ts --limit 10 --tag dev           # two-step planner (2 calls per sample, new API calls)
+    python scripts/run_eval.py --system n5_r1_s3+ms --limit 20 --tag dev          # small model only (gpt-oss-20b); +ml = large only (gpt-oss-120b)
+    python scripts/run_eval.py --system n5_r1_s3+cas1 --limit 20 --tag dev        # cascade: small first, large where repair fails (A8); +cas2 = eager
+    python scripts/cascade_pareto.py results/dev_n5_r1_s3+ms results/dev_n5_r1_s3+ml results/dev_n5_r1_s3+cas1   # validity against cost
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
 
@@ -57,7 +60,7 @@ from capp import dataset, harness, summary, systems   # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1 (see above)")
+    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1/+ts/+fz1/+ms/+ml/+cas1/+cas2 (see above)")
     ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
     ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis (kc, tool wear, Ra) and the physical-feasibility check of the final and raw routes")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")

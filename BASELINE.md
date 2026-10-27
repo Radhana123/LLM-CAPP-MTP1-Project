@@ -607,3 +607,57 @@ Do chhote bugs tests ne pakde: `save_dataset` bench part par (jisme `hole_diamet
 
 ### Abhi kya nahi hai
 Asli parts aur plans (tumhara/supervisor ka kaam; tooling taiyaar hai), model cascade, confidence threshold tuning, process plan aur route sheet (WP9), baaki dimensions ka extraction. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.
+
+
+## Step 17 (WP3, row A8): model cascade, options `+ms`, `+ml`, `+cas1`, `+cas2`, aur `scripts/cascade_pareto.py`
+
+Report §6.4 row A8: pehle chhota model, jahan wo nahi chale wahan bada model. Ye step cascade, cost accounting aur validity-against-cost Pareto ka tooling hai. **Ye abhi asli API ke saath chala nahi hai** (tests me fake transport hai): chhote/bade model ka asli fark tumhare live runs se aayega.
+
+### Models aur options
+| option | matlab |
+|---|---|
+| (kuch nahi) / `+mp` | primary model (`qwen/qwen3.8-27b`): purane saare results isi ke hain |
+| `+ms` | sirf small model (`openai/gpt-oss-20b`), samples aur R2 re-prompts dono |
+| `+ml` | sirf large model (`openai/gpt-oss-120b`) |
+| `+cas1` | small se sample; agar slot ka final route Route Builder ka bana (repair fail), to usi slot ko large model se dobara sample karo |
+| `+cas2` | small se sample; agar raw route **jaisa tha waisa accept nahi hua** (invalid, ya repair ki zaroorat), to large se dobara; dono me jo behtar provenance wala ho wo rakho, barabari par large |
+
+Env se badal sakte ho: `CAPP_MODEL_PRIMARY`, `CAPP_MODEL_SMALL`, `CAPP_MODEL_LARGE`. Options baaki sab ke saath chalte hain (`+fs2`, `+h1`, `+ts`, `+fz1`...), sirf `+cas` ke saath `+ms/+ml/+mp` nahi (cascade ke dono models fixed hain). Cascade me R2 re-prompt usi model ko jaata hai jisne sample diya.
+
+### Workflow (same `--tag`, same parts)
+```
+python scripts/run_eval.py --system n5_r1_s3+ms   --limit 20 --tag dev      # sasta end: small model ke naye calls
+python scripts/run_eval.py --system n5_r1_s3+ml   --limit 20 --tag dev      # mehnga end: large model ke naye calls
+python scripts/run_eval.py --system n5_r1_s3+cas1 --limit 20 --tag dev      # in dono ke cache se bana: naya sample call nahi
+python scripts/run_eval.py --system n5_r1_s3+cas2 --limit 20 --tag dev
+python scripts/cascade_pareto.py results/dev_n5_r1_s3+ms results/dev_n5_r1_s3+ml results/dev_n5_r1_s3+cas1 results/dev_n5_r1_s3+cas2 `
+    --plot results/pareto.png --csv results/pareto.csv
+```
+Cache trick: cascade ke prompts `+ms` / `+ml` ke prompts ke same hain (sirf model alag), to `+ms` aur `+ml` pehle chalane par cascade bina naye sample call ke bante hain (test me replay mode me saabit: zero naye calls). R2 systems (`_r2_`) me re-prompts alag hote hain, unke thode naye calls aate hain.
+
+### Cost
+- **Cost = list-price USD** = tokens x `capp/config.py::PRICE_USD_PER_MTOK`. Cache hits poore gine jaate hain (cache se bhi wo call "karni padti"), to number cached aur live run me same aata hai. Free tier me asli bill nahi hai: ye notional hai.
+- **Prices third-party sources se hain (2026-10-13), `[TO CONFIRM]` Groq console se.** Jab tak confirm nahi, absolute USD ko tez nahi, sirf systems ke aapas ke order/ratio ko dekho. Kisi model ka price table me nahi hai to uska USD `n/a` aata hai (zero nahi) aur summary likhti hai kaunsa.
+- Summary me naye blocks: `cost` (model-wise calls, tokens, USD, USD/part, tokens/part, latencies ka jod) aur `cascade` (slots, escalation rate, rescue rate, small ne as-is accept hone ki rate, large se aaye finals, large ke baad bhi small rakha). `compare_runs.py` me "models called", "cost: ..." aur "cascade: ..." rows. Per-candidate CSV me `model` hamesha, `cascade_tier`/`escalated`... sirf cascade runs me.
+- **Purane records** (model/cascade keys ke bina) bhi summarise hote hain: unke calls primary maane jaate hain aur summary ye likhti hai ("assumed the primary model").
+
+### Pareto (`scripts/cascade_pareto.py`)
+Har run ek point: USD/part, tokens/part, latency, **LLM routes** (= final route Route Builder ka nahi, LLM ka hai: raw ya repaired; 1 - route_builder share), raw strict-valid, efficiency gap, M4 LCS, escalation rate. Do frontiers: **V** = (cost, LLM routes) aur **Q** = (cost, efficiency gap). "Price of validity" table V frontier ke har agle step ka extra USD/part per extra point of LLM routes batati hai. Alag parts par chale runs "not comparable" flag hote hain. `--plot` ke liye matplotlib chahiye.
+
+### Jo honestly likhna hai
+1. **R1 ke saath `+cas1` shayad hi trigger hoga.** R1 (exact search) lagbhag har baar repair kar leta hai, to final route Route Builder ka bahut kam banta hai aur cas1 ka trigger ("repair fail") rare hai. cas1 `r0`/`r2` systems me ya khaali/unparsable answers par kaam ka hai. R1 systems ke liye meaningful cascade `+cas2` hai (raw route accept na hone par bada model). Tumhare live run me escalation rate dekhni hai: 0 aaye to ye bug nahi, trigger hi nahi laga.
+2. **"LLM routes" validity ka sirf ek axis hai.** R1 se repaired route bhi LLM route gina jaata hai; raw quality alag column (raw valid, M4 LCS, efficiency gap) me dekho.
+3. **Same route do tiers ne diya to credit small ko jaata hai** (dedupe pehle wale route ko rakhta hai), to "final from large" kam dikh sakta hai jab dono same jawab dein.
+4. **Cascade ka cost = dono attempts.** Escalated slot me small ka call bhi gina jaata hai. Cascade tabhi jeetega jab escalation rate kam ho.
+5. **Small/large ka exact choice dev set par tay hota hai.** `gpt-oss-20b/120b` abhi anuman hai; qwen primary ke comparison me bhi `+mp` run rakho.
+6. Edit distance par k-threshold (sirf bade repair par escalate) ek sambhav agla knob hai, abhi nahi hai.
+7. Dev set par hi tune karo; test/bench par nahi.
+
+### Refactor safety
+`run_llm_first` ka sample loop `sample_slot` me refactor hua. 6 systems x 25 parts ke records purane code se **byte-identical** nikle (hash check), aur cascade ke bina record me koi naya key nahi aata (`cascade_level`, `escalations`, candidate ka `cascade` sirf cascade runs me). Ek hi naya field har record me asli planner se aata hai: `meta.model` (kaunsa model, cost ke liye zaroori); `run.json` me `model`, `model_role`, `price_usd_per_mtok`. Purane records bina inke bhi padhe jaate hain.
+
+### Tests
+`tests/test_cascade.py` (43): option grammar aur errors, prices/cost math, escalate/keep rules, `run_llm_first` fake planners ke saath (cas1 sirf failed slot, cas2 raw-not-ok par, large ke worse hone par small rakhna, tie par large, dono fail par Route Builder, fatal error, R2 re-prompt sahi tier ko, set-aside attempt ke repair calls), asli planner path pe model ids (samples aur R2 dono), default system ke cache keys na badalna, **cascade = ms + ml ka cache (replay me zero naye calls)**, cost = tokens x price (dono attempts), `+ts`/`+fs` ke saath cascade, unpriced model, purane records, CSV/run.json, printed summary aur compare table, throttle, replay identical, Pareto frontier logic/price steps/not-comparable, CLI (`--csv`, `--json`, errors) aur `--plot`.
+
+### Abhi kya nahi hai
+Asli API pe cascade ka koi run, confirmed prices, confidence threshold tuning, process plan aur route sheet (WP9), baaki dimensions ka extraction, asli benchmark parts/plans. `Drilling -> Internal Grooving` edge ka decision tumhara/supervisor ka.

@@ -126,23 +126,31 @@ def build_messages(material, features, tolerance, batch_size, examples=(), hint=
     return msgs
 
 
+def model_id(role: str) -> str:
+    """The model id of a role (primary, small, large). The primary model is llm_planner.MODEL, as in v1, so that its cache keys are v1's."""
+    return llm_planner.MODEL if role == "primary" else config.model(role)
+
+
 def make_factory(spec: PlannerSpec, pool: Pool = None):
-    """factory(part) -> planner. The planner has the call signature of llm_planner.generate_process_plan and returns the
-    same dict; its meta also carries prompt_context (ids of the examples and whether a hint was given). With spec.two_step the
-    planner is capp.twostep's (two calls per sample); examples and hint then go into its reasoning prompt."""
+    """factory(part, role=None) -> planner. The planner has the call signature of llm_planner.generate_process_plan and returns the
+    same dict; its meta also carries prompt_context (ids of the examples and whether a hint was given) and the model id. With
+    spec.two_step the planner is capp.twostep's (two calls per sample); examples and hint then go into its reasoning prompt.
+    `role` (primary, small or large) picks the model; None means the model of the spec (+ms, +ml, default primary). The model
+    cascade asks for the small and the large planner of the same part: same prompts, other model, other cache keys."""
     if spec.few_shot and pool is None:
         raise ValueError("a few-shot planner needs a pool (planners.Pool.from_dataset(...))")
 
-    def factory(part: dict):
+    def factory(part: dict, role: str = None):
+        mid = model_id(role or spec.model)
         examples = pool.retrieve(part, spec.few_shot, spec.loo) if spec.few_shot else []
         hint = rb_plan(part["features"], part.get("machine_preference", "auto")) if spec.hint else None
         context = {"examples": [e.part_id for e in examples], "hint": hint is not None and spec.hint}
         if spec.two_step:                               # reason, then formalise: its own prompts (capp/twostep.py)
             from capp import twostep
-            return twostep.make_planner(examples, hint, context)
+            return twostep.make_planner(examples, hint, context, model=mid)
 
         def planner(material, features, tolerance="0.05mm", batch_size=100, sample_id=0):
-            model = llm_planner.MODEL                          # as in v1, so that fs0/h0 shares its cache keys
+            model = mid                                        # the primary model is v1's, so that fs0/h0 shares its cache keys
             try:
                 resp = llm_client.chat(build_messages(material, features, tolerance, batch_size, examples, hint),
                                        model=model, sample_id=sample_id, temperature=config.PLANNER_TEMPERATURE,
@@ -150,7 +158,7 @@ def make_factory(spec: PlannerSpec, pool: Pool = None):
                 raw = resp.text.strip()
                 steps = llm_planner._parse_steps(raw)
                 meta = {"cached": resp.cached, "finish_reason": resp.finish_reason, "prompt_tokens": resp.prompt_tokens,
-                        "completion_tokens": resp.completion_tokens, "latency_s": resp.latency_s, "prompt_context": context}
+                        "completion_tokens": resp.completion_tokens, "latency_s": resp.latency_s, "prompt_context": context, "model": model}
                 return {"success": len(steps) > 0, "steps": steps, "raw_response": raw, "model": model, "meta": meta}
             except llm_client.NoApiKey:
                 return {"success": False, "steps": [], "raw_response": "GROQ_API_KEY not configured", "model": model}
