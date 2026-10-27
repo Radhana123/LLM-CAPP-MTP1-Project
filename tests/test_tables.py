@@ -136,7 +136,7 @@ def test_the_template_loads_and_every_system_of_it_parses():
     cfg = T.load_config(os.path.join(ROOT, "configs", "ablation_template.json"))
     assert [r["id"] for r in cfg["rows"]] == [f"A{i}" for i in range(10)]
     built = [r for r in cfg["rows"] if r["built"]]
-    assert [r["id"] for r in cfg["rows"] if not r["built"]] == ["A9"]
+    assert [r["id"] for r in cfg["rows"] if not r["built"]] == []                # A9 (constrained planner) is built since Step 24
     for r in built:
         assert systems.parse_system(r["system"]) is not None and systems.is_llm(r["system"])
     assert len(cfg["models"]) == 3
@@ -157,6 +157,7 @@ def test_the_template_rows_follow_the_report():
     assert systems.planner_spec(sysm["A6"]).few_shot == 2
     assert systems.planner_spec(sysm["A7"]).feas == 2
     assert systems.planner_spec(sysm["A8"]).cascade == 1
+    assert systems.planner_spec(sysm["A9"]).constrained == 1 and spec["A9"] == (5, "r0", "s1")     # RQ5: A2's samples and selection, built under the graph
 
 
 def test_a_valid_config_is_normalised(cfg):
@@ -813,12 +814,13 @@ def test_commands_for_the_template_on_an_empty_results_folder(tmp_path):
     cfg = T.load_config(os.path.join(ROOT, "configs", "ablation_template.json"))
     lines = T.run_commands(cfg, T.load_all(cfg, str(tmp_path)))
     cmds = [x for x in lines if x.startswith("python scripts/run_eval.py")]
-    assert len(cmds) == 3 * 8 + 1                                                          # 8 rows x 3 LLMs, and the cascade once
+    assert len(cmds) == 3 * 9 + 1                                                          # 9 rows x 3 LLMs, and the cascade once
     assert sum(1 for x in lines if x.startswith("$env:CAPP_MODEL_PRIMARY")) == 3
     assert '$env:CAPP_MODEL_PRIMARY = "qwen/qwen3.8-27b"' in lines and 'Remove-Item Env:CAPP_MODEL_PRIMARY -ErrorAction SilentlyContinue' in lines
     assert sum("--tag abl_shared" in x for x in cmds) == 1 and all("--limit 20" in x and "--repeats 3" in x and "--dataset dev_v2" in x for x in cmds)
-    assert "# Not built, nothing to run: A9" in lines
-    assert lines[0].startswith("# 25 run(s)")
+    assert not [x for x in lines if x.startswith("# Not built")]                           # A9 is built since Step 24
+    assert lines[0].startswith("# 28 run(s)")
+    assert sum("--system n5_r0_s1+cg1" in x for x in cmds) == 3
     for x in cmds:                                                                          # every command is something run_eval accepts
         system = x.split("--system ")[1].split()[0]
         assert systems.parse_system(system) is not None
@@ -924,6 +926,6 @@ def test_the_template_builds_on_an_empty_results_folder_with_nothing_but_dashes(
     rc = make_tables.main(["build", os.path.join(ROOT, "configs", "ablation_template.json"), "--results", str(tmp_path / "empty"), "--out", out])
     assert rc == 0
     md = open(os.path.join(out, "table4.md"), encoding="utf-8").read()
-    assert md.count("| A0 ") == 3 and "not built" in md
+    assert md.count("| A0 ") == 3 and md.count("| A9 ") == 3
     assert "no usable run" in open(os.path.join(out, "issues.txt"), encoding="utf-8").read()
     assert not [f for f in os.listdir(out) if f.endswith(".png")]

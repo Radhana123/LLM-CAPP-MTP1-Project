@@ -265,7 +265,7 @@ def _fz_block(records):
 
 def _two_step_block(calls):
     """Numbers of the two-step planner (capp/twostep.py); {"n": 0} for one-step runs."""
-    ms = [c["meta"] for _, c in calls if c["meta"].get("n_calls") == 2]
+    ms = [c["meta"] for _, c in calls if c["meta"].get("n_calls") == 2 and not c["meta"].get("cg")]     # a constrained sample can have 2 calls too
     if not ms:
         return {"n": 0}
     stated = [m for m in ms if m.get("faithful") is not None]
@@ -282,6 +282,25 @@ def _two_step_block(calls):
             "faithful_share": M.rate([m["faithful"] for m in stated]) if stated else None,
             "reasoning_tokens_mean": M.mean_std(reason_tokens)[0],
             "reasoning_chars_mean": M.mean_std([len(m.get("reasoning") or "") for m in ms])[0]}
+
+
+def _constrained_block(calls):
+    """Numbers of the constrained (graph-guided) planner (capp/constrained.py); {"n": 0} for runs without it."""
+    cg = [c["meta"]["cg"] for _, c in calls if c["meta"].get("cg")]
+    if not cg:
+        return {"n": 0}
+    choice = sum(x["choice_steps"] for x in cg)
+    steps = sum(x["n_ops"] for x in cg)
+    return {"n": len(cg),
+            "ops_per_route_mean": M.mean_std([x["n_ops"] for x in cg])[0],
+            "choice_calls_per_sample_mean": choice / len(cg),
+            "forced_steps_per_sample_mean": sum(x["forced_steps"] for x in cg) / len(cg),
+            "forced_share_of_steps": sum(x["forced_steps"] for x in cg) / steps if steps else None,
+            "fallback_steps": sum(x["fallback_steps"] for x in cg),
+            "fallback_share_of_choices": sum(x["fallback_steps"] for x in cg) / choice if choice else None,
+            "samples_with_fallback": sum(1 for x in cg if x["fallback_steps"]),
+            "samples_with_unsatisfiable_rule": sum(1 for x in cg if x["unsatisfiable"]),
+            "samples_with_graph_set": sum(1 for x in cg if x.get("set_source") == "graph")}
 
 
 def reflag(records: list, threshold: float) -> list:
@@ -487,6 +506,7 @@ def summarize_set(records: list) -> dict:
         "cost": COST.block(records),
         "planner_prompt": _prompt_block(calls),
         "two_step": _two_step_block(calls),
+        "constrained": _constrained_block(calls),
         "physics": _physics_block(records),
         "feasibility": _feasibility_block(records),
         "feasibility_repair": _fz_block(records),
@@ -641,6 +661,16 @@ def format_summary(system: str, s: dict) -> str:
         L.append(f"two-step        : {ts['n']} samples; structured output used {ts['structured_used']}, parser {ts['parser']}; "
                  f"reasoning {_fmt(ts['reasoning_tokens_mean'], 0)} tokens (truncated {ts['reasoning_truncated']}); FINAL ORDER line in "
                  f"{_fmt(ts['with_final_order_line'], 2)}, formalised order equals the stated one in {_fmt(ts['faithful_share'], 2)}")
+    cg = s.get("constrained") or {"n": 0}
+    if cg["n"]:
+        L.append(f"constrained     : {cg['n']} routes of {_fmt(cg['ops_per_route_mean'], 1)} operations; "
+                 f"{_fmt(cg['choice_calls_per_sample_mean'], 1)} choice calls and {_fmt(cg['forced_steps_per_sample_mean'], 1)} forced steps per route; "
+                 f"unreadable answers (took the Route Builder's order) {cg['fallback_steps']} = {_fmt(cg['fallback_share_of_choices'], 3)} of choices, in "
+                 f"{cg['samples_with_fallback']} routes"
+                 + (f"; a physical order rule needed an operation the set lacks in {cg['samples_with_unsatisfiable_rule']} routes"
+                    if cg["samples_with_unsatisfiable_rule"] else "")
+                 + (f"; operation set from the graph (the Route Builder had no route) in {cg['samples_with_graph_set']} routes"
+                    if cg["samples_with_graph_set"] else ""))
     L.append(f"front size mean : {_fmt(s['front_size_mean'], 2)}")
     cf = s.get("confidence") or {"n": 0}
     if cf["n"]:

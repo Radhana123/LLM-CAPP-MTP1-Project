@@ -28,7 +28,7 @@
      "note": "decide: fz2 = hard findings and risk insertions; fz1 = hard findings only. fz does not change the prompt, so it costs no new sample calls."},
     {"id": "A8", "label": "A7 + model cascade (optional)", "system": "n5_r1_s3+ts+h1+fs2+fz2+cas1", "parent": "A7",
      "note": "optional. The cascade chooses its own models (small gpt-oss-20b, then large gpt-oss-120b), so it is the same run in every column and A8 vs A7 mixes the effect of the cascade with a change of model: read it with scripts/cascade_pareto.py (validity against cost)."},
-    {"id": "A9", "label": "Constrained planner (optional)", "system": null, "parent": "A7",
-     "note": "optional, WP10, not built"}
+    {"id": "A9", "label": "Constrained planner (optional)", "system": "n5_r0_s1+cg1", "parent": "A2",
+     "note": "optional, WP10 (RQ5). Same five samples and the same selection as A2 (b0_r1), but each sample is built step by step under the precedence graph (+cg1), so nothing needs repair: paired with A2 it answers 'repair after generation or constraint during generation'. It cannot add an operation the Route Builder's set lacks, so read it with the flags and M4, not validity alone. Calls: about 2 per sample on the development set, not one per step, because most steps have a single option. For a comparison with the full pipeline add a row n5_r0_s3+cg1 next to A5."}
   ]
 }

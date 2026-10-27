@@ -19,6 +19,13 @@ Planner options (report 6.2), appended with '+' to any LLM system. A different p
                 CAPP_STRUCTURED=json_object|none sets the first structured-output mode to try.
   e.g. n5_r1_s3+fs2, b0+h1, n5_r1_s3+fs4x+h1, n5_r1_s3+ts, n5_r1_s3+ts+h1
 
+Constrained (graph-guided) planner (row A9, RQ5, capp/constrained.py):
+  +cg1          the route is built one operation at a time: the operation SET is the Route Builder's, and at each step the LLM sees only the
+                operations whose prerequisites are placed and answers with the number of the next one. Valid by construction (nothing to
+                repair), but it cannot add an operation the set lacks. One short call per step that has a real choice (about 2 per route
+                on the development set; forced steps cost nothing). Own prompts, so it cannot be combined with +fs, +h1 or +ts.
+  e.g. n1_r0_s1+cg1 (one route), n5_r0_s1+cg1 (five routes, compare with b0_r1 = A2), n5_r0_s3+cg1 (with selection)
+
 Feasibility-aware repair (row A7, capp/feasrepair.py), also appended with '+', needs repair r1, r2 or r3. It does NOT change the prompt,
 so it uses the same cached LLM answers as the system without it: no new API calls (only R2/R3 re-prompts that carry a feasibility finding are new).
   +fz1          the HARD physical-feasibility violations (an operation that needs a hole before any Drilling/Boring, a lathe operation after
@@ -43,6 +50,7 @@ Examples (repo root, PowerShell):
     python scripts/run_eval.py --system n5_r1_s3+ms --limit 20 --tag dev          # small model only (gpt-oss-20b); +ml = large only (gpt-oss-120b)
     python scripts/run_eval.py --system n5_r1_s3+cas1 --limit 20 --tag dev        # cascade: small first, large where repair fails (A8); +cas2 = eager
     python scripts/cascade_pareto.py results/dev_n5_r1_s3+ms results/dev_n5_r1_s3+ml results/dev_n5_r1_s3+cas1   # validity against cost
+    python scripts/run_eval.py --system n5_r0_s1+cg1 --limit 20 --tag dev         # constrained planner (A9): about 2 short calls per sample
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
     python scripts/run_eval.py --summarize-only results/dev_n5_r1_s3 --confidence-flag 0.93   # same run, plans flagged below confidence 0.93 (scripts/confidence_tune.py picks T)
@@ -61,7 +69,7 @@ from capp import dataset, harness, summary, systems   # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1/+ts/+fz1/+ms/+ml/+cas1/+cas2 (see above)")
+    ap.add_argument("--system", help="rb, b0, b1, b0_r1 ... b1_r3, or generic n<N>_r<0-3>_s<0-3>, plus options +fs2/+fs4/+h1/+ts/+fz1/+ms/+ml/+cas1/+cas2/+cg1 (see above)")
     ap.add_argument("--pool", default="dev_v2", help="where +fs2/+fs4 take their examples from (default dev_v2; never test_v2)")
     ap.add_argument("--no-analysis", action="store_true", help="skip the physics analysis (kc, tool wear, Ra) and the physical-feasibility check of the final and raw routes")
     ap.add_argument("--weights", help="selection S2 priorities as time,cost,energy (default equal), e.g. 0.5,0.3,0.2")

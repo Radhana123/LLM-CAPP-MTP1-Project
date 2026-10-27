@@ -135,6 +135,7 @@ def make_factory(spec: PlannerSpec, pool: Pool = None):
     """factory(part, role=None) -> planner. The planner has the call signature of llm_planner.generate_process_plan and returns the
     same dict; its meta also carries prompt_context (ids of the examples and whether a hint was given) and the model id. With
     spec.two_step the planner is capp.twostep's (two calls per sample); examples and hint then go into its reasoning prompt.
+    With spec.constrained it is capp.constrained's (one call per step that has a choice; no examples, no hint).
     `role` (primary, small or large) picks the model; None means the model of the spec (+ms, +ml, default primary). The model
     cascade asks for the small and the large planner of the same part: same prompts, other model, other cache keys."""
     if spec.few_shot and pool is None:
@@ -142,6 +143,9 @@ def make_factory(spec: PlannerSpec, pool: Pool = None):
 
     def factory(part: dict, role: str = None):
         mid = model_id(role or spec.model)
+        if spec.constrained:                            # graph-guided: one short call per choice (capp/constrained.py)
+            from capp import constrained
+            return constrained.make_planner(part, model=mid)
         examples = pool.retrieve(part, spec.few_shot, spec.loo) if spec.few_shot else []
         hint = rb_plan(part["features"], part.get("machine_preference", "auto")) if spec.hint else None
         context = {"examples": [e.part_id for e in examples], "hint": hint is not None and spec.hint}

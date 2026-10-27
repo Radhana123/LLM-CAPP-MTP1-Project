@@ -97,6 +97,8 @@ def table(runs: list) -> str:
         ("feasibility: finals with risks", lambda s: _fmt((s.get("feasibility") or {}).get("final_risk_share"), 2)),
         ("feasibility: strict-valid raw LLM routes infeasible", lambda s: _fmt((s.get("feasibility") or {}).get("raw_valid_infeasible_share"), 3)),
         ("2-step: stated order kept by step 2", lambda s: _fmt((s.get("two_step") or {}).get("faithful_share"), 2)),
+        ("constrained: choice calls / route", lambda s: _fmt((s.get("constrained") or {}).get("choice_calls_per_sample_mean"), 1) if (s.get("constrained") or {}).get("n") else "-"),
+        ("constrained: unreadable answers (share of choices)", lambda s: _fmt((s.get("constrained") or {}).get("fallback_share_of_choices"), 3) if (s.get("constrained") or {}).get("n") else "-"),
         ("front size mean", lambda s: _fmt(s["front_size_mean"], 2)),
         ("selection", lambda s: "/".join(s.get("selection") or []) or "n/a"),
         ("plan confidence mean", lambda s: _fmt((s.get("confidence") or {}).get("mean"))),

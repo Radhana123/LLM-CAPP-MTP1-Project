@@ -851,7 +851,7 @@ python scripts/make_tables.py build my_grid.json --out tables_final --strict --n
 
 ### Config (`configs/ablation_template.json`)
 Dataset, `limit`, `repeats`, 3 LLMs (`id`, `label`, `model`, `tag`) aur har row ki ek line (`id`, `label`, `system`, `parent`). `parent` = jis row me ye ek component jodti hai; paired comparison usi se hota hai. Template dev set par hai (20 parts, 3 repeats). **Final grid ke liye copy banao**: `"dataset": "test_v2"` (ya `bench_v1`), `"limit": null`, `"repeats": 5`, aur sirf final run (WP11) me chalao.
-Rows A0-A8 report ke hisaab se: `b1`, `b0`, `b0_r1`, `b0_r1+ts+h1`, `b0_r1+ts`, `n5_r1_s3+ts+h1`, `...+fs2`, `...+fz2`, `...+cas1`; A9 (constrained planner) `"system": null` = **not built**.
+Rows A0-A8 report ke hisaab se: `b1`, `b0`, `b0_r1`, `b0_r1+ts+h1`, `b0_r1+ts`, `n5_r1_s3+ts+h1`, `...+fs2`, `...+fz2`, `...+cas1`; A9 (constrained planner) = `n5_r0_s1+cg1` (Step 24).
 **Faisle jo tumhe lene hain** (config me `note` me likhe hain): A5 me A3 ya A4 (hint ke saath ya bina), A6 me k = 2 ya 4, A7 me fz1 ya fz2. Ye dev set par A3/A4 ke results dekh kar tay karo, **sealed set dekhne se pehle**. Sealed set ke results dekhne ke baad koi row, prompt ya setting nahi badal sakti (`commands` sealed dataset par WARNING chhapta hai).
 
 ### Ek run kisi cell me tabhi ginta hai jab...
@@ -874,10 +874,10 @@ Metrics wahi jo `run_eval` ke summary me (`summary.summarize_set`): **M1** first
 9. **API budget:** template ke size par har LLM ke liye lagbhag 2,100 naye calls (20 parts x 3 repeats x ~35 calls: `b0` 5, `ts` rows 10 + 10, `fs2` row 10; `b1`, `b0_r1`, `n5_r1_s3`, `fz2` same cache se, koi naya call nahi). Ye mera andaza hai, Groq console se check karo; `--limit` aur `repeats` config me kam kar sakti ho.
 
 ### Tests (+125)
-`tests/test_tables.py`: config (template A0-A9 report ke hisaab se, har system parse hota hai, 25 galat configs ke reasons), **haath se nikle statistics** (McNemar ke exact values, paired counts, bootstrap ke special cases, verdict ki direction), cells `summarize_set` ke barabar (mean aur SD over repeats, M5 do tarah ki fix ka pooled), API calls summary ke barabar, purane records ka cost column ke model par, run-integrity (galat system/dataset/model, kam repeats/parts, duplicate, features dataset se alag, corrupt, analyse na ho sake), shared run, paired aur consistency labels, missing/partial/not-built rendering, Markdown/CSV/LaTeX (escaping), manifest hashes, **byte-identical regeneration**, figures (PNG, palette, 4th LLM), `commands` (template par 25 lines, cache ka order, partial/unusable runs, sealed warning), CLI (`status`, `commands`, `build`, `--strict`, bad config).
+`tests/test_tables.py`: config (template A0-A9 report ke hisaab se, har system parse hota hai, 25 galat configs ke reasons), **haath se nikle statistics** (McNemar ke exact values, paired counts, bootstrap ke special cases, verdict ki direction), cells `summarize_set` ke barabar (mean aur SD over repeats, M5 do tarah ki fix ka pooled), API calls summary ke barabar, purane records ka cost column ke model par, run-integrity (galat system/dataset/model, kam repeats/parts, duplicate, features dataset se alag, corrupt, analyse na ho sake), shared run, paired aur consistency labels, missing/partial/not-built rendering, Markdown/CSV/LaTeX (escaping), manifest hashes, **byte-identical regeneration**, figures (PNG, palette, 4th LLM), `commands` (template par 28 lines, cache ka order, partial/unusable runs, sealed warning), CLI (`status`, `commands`, `build`, `--strict`, bad config).
 
 ### Abhi kya nahi hai
-Asli runs ka Table 4 (tumhare live runs), M9 ka table (annotated drawings chahiye), failure case studies (WP8, 7.5), row A9, mixed-effects ya multiplicity correction.
+Asli runs ka Table 4 (tumhare live runs), M9 ka table (annotated drawings chahiye), mixed-effects ya multiplicity correction.
 
 ## Step 23 (WP8): failure case studies, `scripts/case_studies.py`
 
@@ -915,4 +915,44 @@ Jis case ki commentary nahi likhi, usme `_TO WRITE: ..._` ka nishaan rehta hai. 
 `tests/test_casestudy.py`: natural order, `--instructive` parsing (aur 7 galat forms), route diff, repair outcome ke shabd, R1/R2 facts, run loading ke errors, **selection rule har type par records se alag likh kar match** (pehla failing route, id order, ek part ek case, records ka order shuffle karne par same), `per-type` aur types ki validation, ek route do types me, soft `machine_grouping`, diff/survival metrics se match, violations verifier ke shabdon me, final route block, expert vs proxy references, **R2 accept hone aur refuse hone (R0 par girna) wale asli harness runs**, aggregate table `summarize_set` aur `per_candidate.csv` se match, bina analysis ke run, Route Builder run, `differs` (expert/proxy, invalid final kabhi nahi), instructive cases ki labelling aur errors, commentary (rehti hai, nayi entries, orphan, bad file, whitespace), deterministic Markdown, sealed note, teen output files (LF newlines), CLI (files, commentary bachna, default out, `--strict`, errors par kuch adha nahi likha jaata). Maine 6 jaan-boojh kar bugs daal kar bhi check kiya ki tests unhe pakadte hain.
 
 ### Abhi kya nahi hai
-Asli runs ke cases aur commentary, cascade runs ke liye alag case view (small ne kya kiya, large ne kya), cases ka docx/LaTeX output (Markdown se pandoc se ban jaata hai), row A9.
+Asli runs ke cases aur commentary, cascade runs ke liye alag case view (small ne kya kiya, large ne kya), cases ka docx/LaTeX output (Markdown se pandoc se ban jaata hai).
+
+## Step 24 (WP10, row A9, RQ5): constrained / graph-guided planner, `+cg1`
+
+Report 6.8 aur RQ5: "repair generation ke **baad**, ya constraint generation ke **dauraan**?" Ab dono ka paired comparison ho sakta hai: A2 (`b0_r1`, LLM route + repair) vs A9 (`n5_r0_s1+cg1`, route precedence graph ke andar hi banta hai). Ye ek **planner option** hai, to har cheez (harness, repair, selection, summary, tables, case studies, cost) pehle jaisi chalti hai.
+
+```
+python scripts/run_eval.py --system n5_r0_s1+cg1 --limit 20 --tag dev
+python scripts/run_eval.py --system n3_r0_s3+cg1+fz2 --limit 20 --tag dev      # cg ke baad bhi repair/selection chal sakte hain
+python scripts/make_tables.py commands configs/ablation_template.json            # ab 28 lines, A9 inme hai
+```
+
+### Design (`capp/constrained.py`)
+- **Operation set fixed hai**: Route Builder ke pehle route ke operations (Facing ... Inspection, markers hata kar). LLM koi operation jod ya hata nahi sakta.
+- **Har step par frontier** = bache hue ops jinke prerequisite (precedence graph `pg.PRECEDENCE_EDGES`, sirf is set ke andar) sab placed ho chuke. Facing sabse pehle, Inspection tabhi jab sirf wahi bacha ho. Options alphabetical.
+- **LLM sirf tab poocha jaata hai jab frontier me 1 se zyada option ho** (63-64% steps forced hote hain, call nahi lagti). Jawab sirf ek number. Prompt me: ab tak ka route, last operation ki machine, aur wo ops jo abhi baaki hain; machine grouping ka hint bhi.
+- **Jawab parse nahi hua** (khaali, number range se bahar, nonsense, ya do names): us step par Route Builder ke route ka sabse pehle wala option liya jaata hai, `fallback_steps` me ginta hai, **retry nahi**. API error par sample `success False` (jo calls hui unka meta saath).
+- **Valid by construction**: 200 dev parts par 1200 random-choice routes me **0 hard violations** (sirf `machine_grouping` aur physical `risk` baaki reh sakte hain, ye soft hain).
+- **`cg2` hataya**: physical order rules (HOLE-EXISTS, SEQ-PARTOFF) 3 tak ke saare 7806 feature sets ke liye graph se pehle hi implied hain, to alag level ki zarurat nahi.
+- Meta me `cg` = `n_ops`, `set_source`, `choice_steps`, `forced_steps`, `fallback_steps`, `unsatisfiable`, aur har choice (`pos`, `options`, `choice`, `how` = forced/llm/fallback, `answer`). `n_calls` ke through cost/summary/tables khud sahi calls ginte hain.
+- **Option combinations**: `+cg1` ko `+fs`, `+h1`, `+ts` ke saath jodna ValueError hai (prompts apne hain). `+fz1/2`, `+ms/+ml` aur `+cas` ke saath ban sakta hai.
+
+### Jo findings rule base ke baare me mili (report me likhne layak)
+1. **Route Builder ke paas kuch feature sets ka route hi nahi**: [Turning, Slot, Hole, Chamfer] jaise. Wajah: lathe-first construction me shared op Chamfering lathe phase me aa jaata hai, par graph ke hisaab se Slot Milling uske pehle aana chahiye. 3 tak ke saare 7806 feature sets ke route hain; random 4-feature me ~0.4% (6/1500), 5-feature me ~0.3% (5/1500) ke nahi. Dev set ka koi part affected nahi. Aise sets par constrained planner **graph se set banata hai** (Facing + har feature ki pehli alternative chain + Inspection, `meta.cg.set_source == "graph"`, summary me gini jaati hai); un par "same ops as RB" wali baat lagu nahi hoti.
+2. **RB ka apna route kabhi HOLE-EXISTS tod deta hai**: Chamfer+Groove+Pocket aur Chamfer+Groove+Slot ke route me Internal Grooving hai par Drilling/Boring nahi. Constrained planner ke `unsatisfiable` record me ye aata hai (`HOLE-EXISTS:<op>`), summary me count. Ye wahi precedence edge `Drilling -> Internal Grooving` ka sawaal hai jo pehle se pending hai.
+
+### Cost (estimate, apni Groq console se match karo)
+Dev set par ek route me ~6.2 ops, ~**2.1 real choice calls** (0 se 6; 12/200 parts me koi choice hi nahi). Report ka "ek call per step" assumption asal me ~2 per route hai. A9 N=5 samples ke saath ~10 calls per part, to template size (20 parts x 3 repeats) par ek LLM ke liye ~630 extra calls. Har call chhoti (jawab sirf ek number).
+
+### Jo honestly likhna hai
+1. **Saare numbers nakli transport se hain.** Asli API par kya hoga ye test nahi hua. Khaas risk: **reasoning models** (qwen3 jaise) apne 200 `max_tokens` thinking me kharch kar sakte hain aur jawab khaali aayega, jo `fallback_steps` ke roop me dikhega (plan RB jaisa ban jaayega, LLM ka koi yogdaan nahi). Pehle run ke baad `summary.json` ka `constrained.fallback_share_of_choices` dekho. Zyada ho to `capp/config.py` me `CG_MAX_TOKENS` badhao.
+2. **LLM ka yogdaan chhota hai**: dev set par ~2 real choices per route, baaki forced. Isliye A9 ka validity ~100% aana expected hai, ye ek design property hai, LLM ki quality nahi. Asli sawal ye hai ki **choices ki quality** (Efficiency, machine grouping, M4) A2 se behtar/kharab hai ya nahi.
+3. **Ye op add nahi kar sakta.** Physical risks jo extra operation maangte hain (TOL-HOLE ke liye Reaming) rehte hain; `+fz2` baad me Reaming jod sakta hai (test me dikhaya).
+4. **Valid by construction sirf precedence graph ke liye hai.** Graph ke bahar ki cheezein (physical feasibility, risk) alag checks hain.
+5. A9 template row **optional** hai (note me likha). Full pipeline se compare karna ho to `n5_r0_s3+cg1` ki row A5 ke baraabar jodo.
+
+### Tests (+67)
+`tests/test_constrained.py`: grammar aur rejections, `required_ops` = `planners.rb_plan` (saare dev parts), edges/frontier/cycle/machine classes, physical rules graph se implied (singles aur pairs), Internal Grooving gap, `parse_choice` (word boundary, nested names, out of range), question ka content, **validity har dev part par first/last/random policy se**, always-first = alphabetical topological order, calls = sirf real choices, meta sums, zero-choice parts, model id passthrough, unreadable jawab -> RB route, think blocks, API errors, replay mode, factory/roles, machine preference, **graph se set (RB route ke bina)**, vocabulary ke bahar ka feature, cycle error, aur asli harness runs (`n1_r0_s1+cg1`, `n3_r0_s3+cg1`, `n3_r1_s3+cg1+fz2`, `b1`): summary block records se match, M7, two-step se confuse nahi, text summary/compare rows, selection, repair ke baad Reaming, tables option jaanta hai, case study cg run par chalta hai. 9 jaan-boojh kar bugs daal kar bhi check kiya ki tests unhe pakadte hain. `test_tables.py` me A9 ab built hai (28 commands).
+
+### Abhi kya nahi hai
+Asli API par koi run (reasoning model ka behaviour dekhna baaki), choice quality ka M4 se analysis, `cg` ke saath `+fs`/`+ts` (nahi banaya, prompts alag hain), graph ke baahar ke constraints (feasibility) generation ke dauraan.

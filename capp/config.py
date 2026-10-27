@@ -62,6 +62,9 @@ PLANNER_MAX_TOKENS = 200
 REPAIR_TEMPERATURE = 0.0
 REPAIR_MAX_TOKENS = 200
 
+# Constrained planner (capp/constrained.py, option +cg1 / +cg2): one short call per step that has a choice, the answer is a number
+CG_MAX_TOKENS = PLANNER_MAX_TOKENS
+
 # Two-step planner (capp/twostep.py): a sampled reasoning call, then a greedy formalisation call under structured output
 REASON_TEMPERATURE = PLANNER_TEMPERATURE
 REASON_MAX_TOKENS = 700

@@ -931,7 +931,7 @@ def _cache_key(system):
     with the most samples first and the others cost nothing (n=1 is the first sample of n=5)."""
     spec = systems.parse_system(system)
     p = systems.planner_spec(system)
-    return (p.few_shot, p.loo, p.hint, p.two_step, p.model, p.cascade), -spec[0]
+    return (p.few_shot, p.loo, p.hint, p.two_step, p.model, p.cascade, p.constrained), -spec[0]
 
 
 def run_commands(cfg: dict, loaded: dict) -> list:
