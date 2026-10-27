@@ -1,0 +1,12 @@
+{
+  "_comment": "Recipe of a release (scripts/release.py). Copy to configs/release_final.json and fill in. Paths are relative to the repository. Everything but name and grid is optional.",
+  "name": "mtp1_rehearsal",
+  "grid": "configs/ablation_template.json",
+  "results": null,
+  "freeze": null,
+  "benchmark": null,
+  "text": "paper/paper_text.json",
+  "case_studies": null,
+  "extraction": [],
+  "notes": "Rehearsal on the development grid. For the final release: grid = your copy of the ablation config on test_v2 / bench_v1, benchmark = data/bench_v1.json, case_studies.runs = the baseline-row run folder of each LLM, extraction = the M9 run folder(s)."
+}

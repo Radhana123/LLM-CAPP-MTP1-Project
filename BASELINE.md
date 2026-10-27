@@ -1079,3 +1079,70 @@ Har row ko apne parent se compare karke dekhte hain ki kya badla (`components`):
 
 ### Abhi kya nahi hai
 Asli prose (title se conclusion), asli numbers (sealed runs), benchmark annotation, figures ka paper-quality version (Table 4 ke figures `make_tables.py build` se aate hain, draft unhe link karta hai), LaTeX template, bibliography.
+
+## Step 27 (WP12): release ek command me, `scripts/release.py`
+
+Report 8.4 ke deliverables (iii) benchmark datasheet ke saath aur (iv) "results tables aur figures **ek command se** regenerate, aur failure case studies". Ab ek **recipe** (JSON) se poora release ek folder me banta hai, aur `verify` batata hai ki folder badla nahi aur dobara banane par wahi files aati hain. **Koi API call nahi, koi run shuru nahi**: sirf finished runs padhta hai.
+
+```
+python scripts\release.py check  configs\release_final.json                  # build ko kya milega (kuch likhta nahi)
+python scripts\release.py build  configs\release_final.json                  # -> release\<name>\
+python scripts\release.py build  configs\release_final.json --out release\v1 --strict
+python scripts\release.py verify release\v1                                  # files badli? aur dobara banao: wahi hai?
+python scripts\release.py verify release\v1 --no-regenerate                  # sirf file hashes
+```
+`--strict`: paper readiness ka koi blocking item khula ho to exit 1 (folder phir bhi likha jaata hai). Exit 2: recipe ya input me problem. `verify`: 0 verified, 1 not verified, 2 release folder nahi hai.
+
+### Recipe (`configs/release_template.json`, copy karke `configs/release_final.json`)
+Paths repo ke relative. `name` aur `grid` ke siva sab optional; galat ya anjaana key ek saath saari galtiyon ke saath refuse hota hai.
+| key | matlab |
+|---|---|
+| `name` | folder ka naam aur release tag (`release-<name>`) |
+| `grid` | final runs ka ablation config (Step 22) |
+| `results` | run folders ka folder (default: config ka `results_dir`) |
+| `freeze` | freeze manifest (default `FREEZE.json`) |
+| `benchmark` | `data/bench_v1.json` (agar hai) |
+| `text` | tumhari prose ki file (default `paper/paper_text.json`) |
+| `case_studies` | `{runs: [run folders], commentary: file, per_type, types, instructive}`: runs me har LLM ki **baseline row** ka run folder rakho |
+| `extraction` | M9 ke run folders |
+| `notes` | RELEASE.md me chhapne ke liye ek paragraph |
+
+### Build kya karta hai (is order me)
+freeze check -> Table 4 + paired tests + figures (`tables.build`) -> case studies (`casestudy`) -> benchmark + datasheet -> paper draft (`paperdraft`) -> `RELEASE.md`, `SHA256SUMS.txt`, `release_manifest.json`.
+```
+release\v1\
+  RELEASE.md  FREEZE.json  freeze_verify.txt  SHA256SUMS.txt  release_manifest.json
+  inputs\         recipe, grid config, tumhari prose aur commentary ki **copies**
+  tables\         table4 (md, csv, tex), paired, consistency, per_part, issues, figures, manifest.json
+  case_studies\   case_studies.md, cases.json, selection.csv
+  benchmark\      bench file + DATASHEET.md
+  paper\          paper_draft.md, readiness.txt
+```
+- **Benchmark datasheet:** `data/<bench>_datasheet.md` (jo `benchmark.py import` ne likhi) pehle use hoti hai (usme conflicts section hai); na ho to benchmark file se dobara banti hai (bina import report ke, aur bina tareekh ke taaki rebuild byte-identical rahe).
+- **`RELEASE.md`** batata hai ki folder kis se bana (grid, dataset sealed/dev, kitne runs usable, freeze id aur status, benchmark, cases), readiness (blocking aur advisory), tag commands (`baseline-v0`, `freeze-v1`, `release-<name>`) aur "what this does not show".
+- **Readiness** wahi hai jo `paper_draft.py` ki hai (Step 26); release use dobara nahi banata. Dev grid par RELEASE.md par "DEVELOPMENT RESULTS, NOT PAPER RESULTS" banner aata hai.
+
+### `verify` kya jaanchta hai
+1. **Files badli?** Har file ka hash `release_manifest.json` se (text files CRLF-normalised: Windows checkout ka hash same). Badli (`modified`), hata di gayi (`missing`) ya jodi gayi (`not in the manifest`).
+2. **Dobara banao.** `inputs/recipe.json` se temp folder me build, phir har file compare. Same runs + same inputs = same bytes (alag folder par bhi, CRLF ke saath bhi). Jo source file release ke baad badli (aur prose, commentary, grid, koi run) wo `inputs/` ke neeche difference ke roop me dikhti hai: yehi iska kaam hai. **Figures** (PNG) ka sirf bytes me fark **warning** hai (image encoder repo ka hissa nahi); folder ke andar PNG ka badalna phir bhi failure hai.
+3. Freeze: agar build ke baad koi behaviour file badli to `freeze_verify.txt` aur `RELEASE.md` ka rebuild alag aata hai, to verify fail hota hai.
+
+### Safety
+- Build pehle `.release-xxxx` temp folder me hota hai aur end me andar move hota hai: beech me fail hua to **purana release jaisa tha waisa rehta hai**.
+- Khali na ho aur release na ho (`release_manifest.json` nahi) to folder refuse (tumhari file ghalti se na mite). Purane release par build sirf apni jagah (`inputs`, `tables`, `case_studies`, `benchmark`, `paper` aur chaar files) badalta hai; baaki files bachi rehti hain.
+- **Tumhari hath se likhi files kabhi nahi badalti** (prose, commentary): release copies par kaam karta hai. Is liye `paper_text.json` me missing sections ki khali entries tabhi judti hain jab tum `paper_draft.py` chalao; release me wo copy me judti hain.
+- Koi bhi machine ka path (repo folder, temp folder) problem messages se nikaal diya jaata hai, warna doosri machine par verify fail hota.
+- `git commit`/`git tag` ye script nahi chalati: sirf batati hai kya karna hai (dirty tree aur kaun se tag abhi nahi hain).
+
+### Jo honestly likhna hai
+1. **`verify` saabit karta hai ki folder wahi hai jo recipe aur inputs se banta hai. Ye nahi ki inputs sahi hain**: runs, prose, benchmark annotation, commentary tumhari hain. Aur freeze sirf saabit karta hai ki files wahi hain, ye nahi ki test results freeze se pehle nahi dekhe.
+2. **Run folders release me nahi aate** (bade hote hain): `tables/manifest.json` me har run ki records file ka hash hai. Agar `results/` badal gaya ya hat gaya to verify (rebuild) fail hoga, jo sahi hai: `results/` ko commit ya archive karo (Zenodo/zip) release ke saath.
+3. Doosri machine par numbers ki bytes tab alag aa sakti hain jab numpy/Python ka random ya float formatting alag ho (bootstrap seeded hai, par library versions manifest me compare nahi hote). Aisa ho to `verify` difference batayega; chhipata nahi.
+4. Dev grid par release ek rehearsal hai.
+
+### Tests (+76, `tests/test_release.py`)
+Recipe (defaults, idempotent, 27 galat recipes ke reasons, sab problems ek saath, shipped template valid), check, build (listed files hi likhe, sums sha256sum-compatible, Table 4 draft ke barabar, RELEASE.md ki baatein, prose kabhi nahi chhuti, copy LF), **same sources = same bytes alag folder par**, **koi machine path nahi**, CRLF, **verify** (fresh release, file badli/hata/jodi, source badla, run jodi gayi, release nahi hai), output folder (purane release ko badalna, foreign file, refuse, missing input, **fail hone par purana release bachta hai**, temp folder nahi bachta), case studies (commentary ke saath), benchmark (datasheet regenerate / import wali, placeholder blocking), extraction, figures (hard aur soft), sealed path (matching freeze = ready, drift, unreadable, named manifest missing), CLI (exit codes, `--strict`, subprocess). Jaan-boojh kar daale gaye bugs ka hisaab neeche.
+**25 jaan-boojh kar bugs** daal kar check kiya (CRLF hash na karna, purane owned folder na hatana, `extra`/`modified` na dekhna, PNG ko hard/soft ulta karna, machine path na hatana, prose source par likhna, folder-refuse hata dena, temp folder na hatana, `ready` hamesha True, freeze copy hata dena, datasheet par tareekh ...). **Do bach gaye the** (verify me "sirf rebuild me hai" aur "sirf release me hai" wali files ka test nahi tha): test joda, ab sab pakde gaye.
+
+### Abhi kya nahi hai
+Asli runs aur asli final release, presentation (report 8.4 vi), release ko ek zip ya Zenodo upload me pack karna, `baseline-v0` aur `freeze-v1` tags (tumhare haath se).

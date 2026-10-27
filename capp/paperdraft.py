@@ -529,6 +529,8 @@ def reproducibility(ctx) -> list:
 
 
 def commands(ctx) -> str:
+    if ctx.get("reproduce"):                                  # a release (capp/release.py) names its own commands
+        return "\n".join(["```"] + list(ctx["reproduce"]) + ["```"])
     cfg = ctx["cfg"]
     tdir = ctx["tables_dir"] or f"results/tables/{cfg['name']}"
     L = ["```", "python scripts/freeze.py verify", f"python scripts/make_tables.py build {ctx['config_path']} --out {tdir}"]
