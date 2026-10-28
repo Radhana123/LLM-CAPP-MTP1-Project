@@ -1254,3 +1254,39 @@ RUNBOOK ke har code block ki har command line ko asli scripts ke saamne check ka
 
 ### Honestly
 Test sirf itna kehta hai ki commands **maujood aur sahi likhe** hain. Ye nahi ki kisi gate ke liye wahi sahi order hai: wo report ke Table 6 ke hisaab se maine likha hai, aur **calendar dates tumhari deadline par tike hain, jo mujhe abhi pata nahi**.
+
+## Step 31: `scripts/diagnostics.py`, ek file me sab kuch (aur do Windows test-bugs ka fix)
+
+**Wajah:** Step 30 ke baad kod WP0 se WP12 tak poora hai; bottleneck ab tumhare asli outputs hain, aur wo 10 alag jagah se aate the (paste, screenshot, alag files). Ab ek command, ek file:
+```
+python scripts\diagnostics.py
+```
+`results\diagnostics.txt` attach karo. (`--tag dev --dataset dev_v2 --grid configs\ablation_template.json --out ... --no-checks --timeout 900 --max-lines 400`.)
+
+### File me kya hota hai
+- **PROBLEMS** upar (kuch ruka ya kharab hai: failed ya timeout check, `GROQ_API_KEY` nahi mili, `dev_v2` gayab ya invalid, `FREEZE.json` drift/unreadable, run folder me `summary.json` nahi / records ki ginti summary se alag / answers jo token limit par kat gaye) aur **NOTES** (sirf jaanne layak: git me uncommitted files).
+- `environment`: python, git (commit, tag, uncommitted files ki list, pehli 10), API key **set hai ya nahi (value kabhi nahi)**, LLM cache me kitne answers.
+- `freeze`: none / ok / analysis-changed / drift. `datasets`: `dev_v2`, `test_v2`, `bench_v1` (hain ya nahi, kitne parts, validation).
+- `runs`: `results\` ke har run folder ki ek line (system, dataset, parts, repeats, model, mode, strict-valid, parse rate, calls, **trunc**, tokens, freeze).
+- `G1 baselines`: rb, b1, b0 me se kaun se baaki hain, **RUNBOOK wali exact command ke saath**.
+- `checks`: physics_check, feasibility_check, objective_check, feasrepair_check, grid status, compare_runs, part_diff, confidence_tune, risk_compare (rb vs b0, rb vs b0_r1), cascade_pareto, freeze verify. Har ek exit code, time aur output ke saath; jiska input abhi bana nahi wo **wajah ke saath skip** (jaise "results\dev_rb is not there yet"). Har check ke output ke pehle 300 aur aakhri 100 lines.
+
+### Jo wada hai, wo kaise pakka kiya
+1. **Koi API call nahi, koi run shuru nahi.** Checks ek tay list (`CHECK_SCRIPTS`) ke offline scripts hain; list ke bahar ki script chalane se pehle hi `DiagnosticsError` (test: `run_eval` ko list me daalke dekha). `freeze create`, `make_tables build`, `benchmark import` jaisi likhne wali commands list me hain hi nahi.
+2. **Sirf ek file likhi jaati hai.** `objective_check` default me `results\` me CSV/JSON likhta hai, to use temp folder me chalate hain (kaam khatam hote hi hat jata hai). Ek test poori command asli repo par chalata hai aur har file ka size aur time pehle/baad compare karta hai.
+3. **Secret file me nahi jaata.** Poori file par `capp/pack.py` ke patterns (gsk_, sk-, ghp_, AKIA, AIza, hf_, xox, private key, key/secret/password assignment) aur tumhare `.env` / environment ki values dono se scan hota hai; jis line me kuch mile wo poori line hat jaati hai ("[line removed: it looked like a secret (...)]") aur upar NOTE aata hai. Match ka text kabhi nahi chhapta.
+4. Stdin band (koi check keystroke ke intezaar me atak nahi sakta), har check ka time limit (default 900 s), output UTF-8, LF line ends, file atomic likhi jaati hai (temp file phir `os.replace`).
+5. **Same input par same file** (timestamp aur har check ke seconds ke alawa), aur G1 ki commands RUNBOOK ki lines ke barabar hain (test RUNBOOK.md padhta hai).
+
+### Test: `tests/test_diagnostics.py` (79)
+Chhoti nakli repo aur nakli command runner par har hissa (clip, decode, table, git, key, cache, freeze, datasets, runs, baselines, check list, status, skip, redaction, write), asli python process se `run_command` (exit code, stderr, timeout, band stdin, command na chalna), aur ek test poori command line asli repo par. **77 jaan-boojh kar bugs** (mutants): pehli baar 8 bach gaye the (stdin khula chhod dena, UTF-8 env hata dena, sealed label, run rows ka sorted order, allow-list ka check, CLI ka problems/removed print karna, `--timeout` aage na dena); unke liye tests jode, ab saare pakde gaye. Asli harness se bane runs par bhi chala ke dekha (rb, b1, b0, b0_r1), 11 checks chale, `freeze verify` `FREEZE.json` na hone se skip.
+
+### Windows test-bugs (Step 29 zip ke): code theek tha, tests galat the
+1. `test_pack.py::test_the_run_folders_go_in_byte_for_byte...`: test maanta tha ki `records.jsonl` me CRLF nahi hoga; Windows par harness text-mode me CRLF likhta hai (`assert 12 == 0`). Wo precondition hata di: byte-barabari hi asli baat hai, CRLF ka alag test pehle se hai.
+2. `test_release.py::test_the_datasheet_written_at_import...`: `write_text("...\r\n")` Windows par `\r\r\n` ban jaata tha. Ab `write_bytes`.
+Dono tests theek kiye (Linux par pass; Windows par apply karke tum dekhogi). Baaki sab tests me `write_text(...\r\n...)` aur `count(b"\r\n")` ki grep me koi aur kamzor jagah nahi mili.
+
+### Honestly
+- Diagnostics sirf **dikhata** hai; kisi problem ko thik nahi karta, aur "problem" ka matlab hai "yahan dekho", har ek ka rok-tok hona zaroori nahi (jaise `GROQ_API_KEY` na hona sirf live run ko rokta hai).
+- Jo offline script jis input ke bina skip hui, wo input banne par hi chalegi: `compare_runs` ko dev ke kam se kam do runs chahiye (rb, b1, b0, b0_r1 me se).
+- Mere paas **tumhare asli outputs ab bhi nahi hain** (`all_out.txt`, `risk_out.txt`, `cascade` lines, `b1+ts`, `objective_check`, deadline, Groq prices, `n5_r0_s1+cg1` summary). Ek `diagnostics.txt` me inme se zyadatar aa jaayenge.

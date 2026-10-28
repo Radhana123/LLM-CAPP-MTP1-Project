@@ -4,6 +4,12 @@ Ye file **order** batati hai: kaunsa command kab, kis gate par, aur mujhe kya pa
 
 `tests\test_runbook.py` har command ke flags aur `--system` ke naam asli scripts se match karta hai, isliye ye file code se alag nahi ho sakti.
 
+**Kisi bhi gate par mujhe ek hi cheez bhejo:**
+```
+python scripts\diagnostics.py
+```
+phir `results\diagnostics.txt` attach karo (paste ya screenshot nahi). Upar **PROBLEMS** (kya ruka hai ya kharab hai), phir git / API key (set hai ya nahi, value kabhi nahi) / `FREEZE.json` / datasets ki halat, `results\` ke har run folder ki ek line, G1 ke kaun se baseline runs baaki hain (exact command ke saath), aur saare offline checks ka output (physics, feasibility, objective, feasrepair, compare_runs, part_diff, confidence_tune, risk_compare, cascade_pareto, grid status, freeze verify). Jis check ka input abhi bana nahi, wo wajah ke saath skip hota hai. Koi API call nahi, sirf wahi ek file likhi jaati hai, aur secret jaisi koi line file se hata di jaati hai. Neeche ke "Mujhe paste karo" me jo offline outputs hain wo isme already aa jaate hain; sirf wo cheezein alag se bhejo jo diagnostics me nahi hain (jaise `table4.md`, `case_studies.md`, tumhare 'decide' choices).
+
 ## 0. Ek baar (setup)
 
 ```
@@ -137,6 +143,7 @@ python scripts\pack.py verify release\v1.zip
 ## Jab bhi dekhna ho
 
 ```
+python scripts\diagnostics.py
 streamlit run week6\app.py
 python scripts\route_sheet.py from-run results\dev_b0_r1 --part DEV_004 --out results\DEV_004.pdf
 python scripts\show_plan.py results\dev_b0 DEV_007
