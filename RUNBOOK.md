@@ -27,7 +27,14 @@ python scripts\smoke_llm.py
 
 ## G1 (Week 1): baselines aur benchmark v0
 
-Development set `dev_v2` par teen baselines. Pehle 20 parts (kam API), phir chaaho to poora.
+**Ek command me:** `g1.py` neeche ki teeno baselines (rb, b1, b0) ek ke baad ek chalata hai, aur aakhir me `results\diagnostics.txt` bana deta hai (wahi file mujhe attach karni hai).
+```
+python scripts\g1.py --dry-run
+python scripts\g1.py
+```
+`--dry-run` kuch chalata nahi: sirf dikhata hai kya chalega aur har API run ka plan (maximum calls). Asli command har API run se pehle plan dikha ke poochta hai (`--yes` se nahi poochta), `GROQ_API_KEY` na ho to API run shuru hi nahi karta, jo run poori ho chuki hai use dobara nahi chalata, aur API errors wali run ko wahi command dobara chalata hai (cache se sirf baaki calls). Koi run ruke (error, `n`, Ctrl-C) to aage nahi badhta, par diagnostics file phir bhi banti hai (Ctrl-C ke siva), aur wahi command dobara chalane par cache se aage badhta hai. `--max-calls N` har API run ko N live calls par rok deta hai.
+
+Wahi teen commands ek-ek karke (g1.py inhi ko chalata hai). Development set `dev_v2` par teen baselines. Pehle 20 parts (kam API), phir chaaho to poora.
 ```
 python scripts\run_eval.py --system rb --dataset dev_v2 --tag dev
 python scripts\run_eval.py --system b1 --dataset dev_v2 --tag dev --limit 20

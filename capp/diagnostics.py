@@ -285,7 +285,8 @@ def check_list(root: str, tag: str, dataset: str, grid: str, tmp_dir: str) -> li
         {"title": "feasrepair_check", "argv": cs("feasrepair_check", "--dataset", dataset), "needs": dsneed},
         {"title": "grid status", "argv": cs("make_tables", "status", grid), "needs": [(grid, f"{grid.replace('/', chr(92))} is not there")]},
         {"title": "compare_runs", "argv": cs("compare_runs", *present), "needs": [] if len(present) >= 2 else
-         [(rb + "/records.jsonl", f"fewer than two of results\\{tag}_rb, _b1, _b0, _b0_r1 are there yet")]},
+         [(next(f for f in (rb, b1, b0, b0r1) if f not in present) + "/records.jsonl",          # a folder that is not there, so the check is skipped
+           f"fewer than two of results\\{tag}_rb, _b1, _b0, _b0_r1 are there yet")]},
         {"title": "part_diff rb vs b0", "argv": cs("part_diff", rb, b0), "needs": runs(rb, b0)},
         {"title": "confidence_tune b0_r1", "argv": cs("confidence_tune", b0r1), "needs": runs(b0r1)},
         {"title": "risk_compare rb vs b0", "argv": cs("risk_compare", rb, b0, "--physics"), "needs": runs(rb, b0)},

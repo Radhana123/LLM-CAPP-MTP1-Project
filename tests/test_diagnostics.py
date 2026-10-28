@@ -10,6 +10,7 @@ import datetime
 import importlib.util
 import json
 import os
+import shutil
 import re
 import subprocess
 import sys
@@ -461,6 +462,26 @@ def test_a_check_whose_input_is_missing_is_skipped_with_the_reason_and_not_start
     assert why["grid status"] == "configs\\ablation_template.json is not there"
     assert why["part_diff rb vs b0"] == "results\\dev_rb is not there yet" and why["freeze verify"].startswith("there is no FREEZE.json")
     assert why["compare_runs"].startswith("fewer than two of results\\dev_rb")
+
+
+def test_compare_runs_waits_for_a_second_run_even_when_the_first_is_there(tmp_path):
+    # the first diagnostics file of a real session is made with only results\\dev_rb: that is not a failed check
+    root = tmp_path / "justrb"
+    (root / "results" / "dev_rb").mkdir(parents=True)
+    (root / "results" / "dev_rb" / "records.jsonl").write_text("{}\n", encoding="utf-8")
+    fake = Fake()
+    done = {c["title"]: c for c in G.run_checks(str(root), "dev", "dev_v2", G.DEFAULT_GRID, 60, 50, fake)}
+    assert done["compare_runs"]["status"] == "skipped" and done["compare_runs"]["why"].startswith("fewer than two of results\\dev_rb")
+    assert not any("compare_runs" in " ".join(c[0]) for c in fake.calls)
+    for only in ("b1", "b0", "b0_r1"):                                               # whichever single run is there
+        shutil.rmtree(root / "results" / "dev_rb")
+        (root / "results" / f"dev_{only}").mkdir(parents=True)
+        (root / "results" / f"dev_{only}" / "records.jsonl").write_text("{}\n", encoding="utf-8")
+        done = {c["title"]: c for c in G.run_checks(str(root), "dev", "dev_v2", G.DEFAULT_GRID, 60, 50, Fake())}
+        assert done["compare_runs"]["status"] == "skipped", only
+        shutil.rmtree(root / "results" / f"dev_{only}")
+        (root / "results" / "dev_rb").mkdir(parents=True)
+        (root / "results" / "dev_rb" / "records.jsonl").write_text("{}\n", encoding="utf-8")
 
 
 def test_part_diff_waits_for_both_folders_and_names_the_first_one_missing(tmp_path):

@@ -1344,3 +1344,34 @@ Two-step planner ka formalise call 3 structured-output modes (`json_schema`, `js
 - Retries (rate limit par dobara bhejna) alag HTTP requests hain; ek "call" ke 6 requests tak ho sakte hain. Groq ka requests-per-minute limit isse bhi chhuta hai. `--throttle` ab bhi tumhara control hai.
 - `--max-calls` abhi diagnostics ya `make_tables` se nahi jura; sirf `run_eval` ka flag hai.
 - Dataset file na ho (jaise `bench_v1` import se pehle) to ab traceback ki jagah saaf usage error aata hai.
+
+---
+
+## Step 34: G1 ek command me (`scripts\g1.py`) aur diagnostics ka ek jhootha "failed" theek
+
+**Kyun:** G1 me teen alag commands, har ek ke apne flags, aur chalane ke baad diagnostics: galti ya order ghalat hone ki jagah. Ab ek command, jo wahi teen commands ek ke baad ek chalata hai (list `capp/diagnostics.py` ke `BASELINES` se aati hai, to RUNBOOK aur launcher alag ho hi nahi sakte).
+
+```
+python scripts\g1.py --dry-run       # kya chalega + har API run ka plan; kuch chalta nahi
+python scripts\g1.py                  # chalao; har API run se pehle plan dikha ke poochta hai
+python scripts\g1.py --yes            # poochhe bina
+python scripts\g1.py --max-calls 150  # har API run N live calls par ruk jaaye
+```
+
+### Kya karta hai (`capp/g1.py`)
+1. Har run ki halat: **done** (records hain, parts ki ginti wahi jo chahiye, koi API error nahi), **make** (folder nahi), **redo** (ginti alag, API errors, ya records padhe nahi gaye). Done run dobara nahi chalti; redo run **wahi command** dobara chalti hai (cache se sirf baaki calls).
+2. API run se pehle plan (`runplan`) dikhata hai aur poochta hai (`y`/`yes` hi haan hai; Enter, `n`, ya koi input na ho to na). `--yes` se nahi poochta.
+3. `GROQ_API_KEY` (environment ya `.env`) na ho to rb chalata hai aur API run shuru hone se pehle ruk jaata hai, `.env` ka batake.
+4. Koi run ruke (exit code != 0, "n", key nahi) to aage nahi badhta; **diagnostics phir bhi banti hai** (sirf Ctrl-C par nahi). Aakhir me "All three baselines are there." ya "Still to do: ...".
+5. Sirf `run_eval.py` aur `diagnostics.py` chalata hai. Sealed dataset par mana karta hai. `FREEZE.json` ko haath nahi lagata.
+
+### Bug jo is step me mila (Step 31 ka)
+`diagnostics.py` me jab sirf `results\dev_rb` ho (tumhari pehli diagnostics file ka asli haal), `compare_runs` ek hi folder ke saath chalta tha aur "failed (exit 1)" ban jaata tha, aur PROBLEMS me "check 'compare_runs' ended with exit code 1" aata. Wajah: skip ka shart "rb ka records.jsonl hai ya nahi" dekhta tha, wo to tha hi. Ab skip hota hai ("fewer than two of ... are there yet"). Test: sirf rb, sirf b1, sirf b0, sirf b0_r1 har ek par.
+
+### Test
+`tests/test_g1.py` (51): halat ke saare raaste, commands RUNBOOK ke barabar, poochna/`--yes`/"no"/key nahi/run fail/Ctrl-C/dry-run/diagnostics fail/`--max-calls`, asli `default_runner` (cwd aur exit code), `default_ask`, aur `scripts\g1.py` ke args. 52 jaan-boojh ke bugs: 4 bach gaye the (zyada records par redo, dataset ka command me jaana, throttle ka default, ek galat likha mutant), unke tests jode, ab saare pakde gaye. Asli subprocess se bhi chalaya (fresh copy me, bina key ke: rb sach me chali, b1 par key ka message, diagnostics bani; aur `CAPP_LLM_MODE=replay` ke saath b1 ka error-raasta: "b1 stopped (exit code 2)").
+
+### Honestly
+- **Asli API se g1.py maine nahi chalaya** (mere paas key/network nahi); live part tumhari pehli run se hi dikhega. Jo chala hua dekha: rb (offline), key-nahi raasta, replay-mode ka error raasta.
+- Poochne ka sawal `input()` se hai: PowerShell me normal chalta hai; kisi script ya pipe me chalao to `--yes` lagao.
+- `done` ka matlab "records poore aur API error nahi" hai, ye nahi ki results achhe hain.
