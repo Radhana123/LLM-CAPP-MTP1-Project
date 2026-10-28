@@ -258,6 +258,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
         "cascade_models": {"small": config.model("small"), "large": config.model("large")} if casc_level else None,
         "price_usd_per_mtok": {m: config.price(m) for m in sorted({config.model(r) for r in
                                (("small", "large") if casc_level else (tier1_role,))})} if uses_llm else None,
+        "model_params": {m: config.model_params(m) for m in sorted({config.model(r) for r in
+                         (("small", "large") if casc_level else (tier1_role,))})} if uses_llm else None,
         "temperature": config.PLANNER_TEMPERATURE if uses_llm else None,
         "repair_temperature": config.REPAIR_TEMPERATURE if systems.reprompts(system) else None,
         "planner_options": (pspec.name or "v1") if uses_llm else None,

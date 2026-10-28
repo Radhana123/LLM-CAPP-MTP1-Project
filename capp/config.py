@@ -72,6 +72,15 @@ FORMAL_TEMPERATURE = 0.0
 FORMAL_MAX_TOKENS = 300
 STRUCTURED_MODES = ("json_schema", "json_object", "none")      # tried in this order, each one only if the one before is refused
 
+# Reasoning models (the gpt-oss family, the small and large tiers of the cascade) think before they answer, and on Groq that hidden reasoning is
+# counted in max_tokens. With the planner's 200 a run of +ms had 96 of its 100 answers cut off (finish_reason "length"), so its numbers measured the
+# token limit, not the model. For these models, and only these, every request asks for low reasoning effort and a token limit of at least
+# REASONING_MIN_MAX_TOKENS (a limit costs nothing that is not generated). The primary model's requests, and so its cache, are unchanged.
+# [TO CONFIRM] against the first +ms run: its "trunc" column (diagnostics) should be 0; if not, raise REASONING_MIN_MAX_TOKENS.
+REASONING_MODEL_PREFIXES = ("openai/gpt-oss",)
+REASONING_EFFORT = "low"                    # Groq: low, medium or high for gpt-oss
+REASONING_MIN_MAX_TOKENS = 2048
+
 VALID_MODES = ("live", "replay", "nocache")
 
 
@@ -79,6 +88,28 @@ def model(role: str = "primary") -> str:
     if role not in _DEFAULT_MODELS:
         raise KeyError("unknown model role %r (use one of %s)" % (role, sorted(_DEFAULT_MODELS)))
     return os.getenv("CAPP_MODEL_" + role.upper(), _DEFAULT_MODELS[role])
+
+
+def model_params(model_id: str) -> dict:
+    """The request settings a model needs beyond what the caller asks for ({} for most models; see REASONING_MODEL_PREFIXES). The keys:
+    reasoning_effort (sent to the API unless the caller set one) and max_tokens_at_least (a floor for max_tokens, not an API parameter)."""
+    if any(model_id.startswith(p) for p in REASONING_MODEL_PREFIXES):
+        return {"reasoning_effort": REASONING_EFFORT, "max_tokens_at_least": REASONING_MIN_MAX_TOKENS}
+    return {}
+
+
+def apply_model_params(model_id: str, params: dict) -> dict:
+    """The parameters of a request to `model_id`: `params` itself for a model without model_params, else a copy with reasoning_effort added
+    (a value the caller set stays) and max_tokens raised to the floor (only if the caller sent one). Called by llm_client.chat before the
+    cache key is made, so the key follows what is really sent."""
+    extra = model_params(model_id)
+    if not extra:
+        return params
+    out = dict(params)
+    out.setdefault("reasoning_effort", extra["reasoning_effort"])
+    if "max_tokens" in out:
+        out["max_tokens"] = max(out["max_tokens"], extra["max_tokens_at_least"])
+    return out
 
 
 def price(model_id: str):

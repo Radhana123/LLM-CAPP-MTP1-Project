@@ -1375,3 +1375,26 @@ python scripts\g1.py --max-calls 150  # har API run N live calls par ruk jaaye
 - **Asli API se g1.py maine nahi chalaya** (mere paas key/network nahi); live part tumhari pehli run se hi dikhega. Jo chala hua dekha: rb (offline), key-nahi raasta, replay-mode ka error raasta.
 - Poochne ka sawal `input()` se hai: PowerShell me normal chalta hai; kisi script ya pipe me chalao to `--yes` lagao.
 - `done` ka matlab "records poore aur API error nahi" hai, ye nahi ki results achhe hain.
+
+---
+
+## Step 35: gpt-oss models ke jawab kat rahe the (reasoning ka token limit)
+
+**Kya mila:** tumhari diagnostics screenshot me `results\dev_n5_r1_s3+ms: 96 answer(s) hit the token limit (finish_reason length)`: 100 me se 96 jawab kat gaye. Wajah code me thi: har model ko `max_tokens=200` jaata tha (`PLANNER_MAX_TOKENS`, `REPAIR_MAX_TOKENS`, `CG_MAX_TOKENS`; two-step me 700 aur 300), par `openai/gpt-oss-20b` aur `-120b` reasoning models hain aur unka chhupa reasoning isi limit me ginta hai. To `+ms`, `+ml`, `+cas1`, `+cas2` ke numbers model ko nahi, token limit ko naap rahe the.
+
+### Fix (`capp/config.py`, `capp/llm_client.py`)
+- `model_params(model_id)` / `apply_model_params(model_id, params)`: **sirf** `openai/gpt-oss*` models ke liye har request me `reasoning_effort="low"` (Groq docs: gpt-oss ke liye `low/medium/high`) aur `max_tokens` kam se kam `REASONING_MIN_MAX_TOKENS = 2048` (limit ka kharch nahi, sirf jo generate ho wahi lagta hai). Jo caller ne khud `reasoning_effort` diya ho wo rehta hai; jahan caller ne `max_tokens` diya hi nahi wahan banaya nahi jaata.
+- Ye `llm_client.chat` me cache key banne se **pehle** lagta hai, to ek hi jagah se har tarah ki call (sample, R2 re-prompt, two-step ke dono calls, constrained, cascade ke dono tier) cover hoti hai, aur cache key wahi hai jo sach me bheja gaya.
+- **Qwen (primary) ka request aur cache bilkul wahi:** test me purane tareeke se key banake dekha ki cache file wahi hai aur dobara chalane par `cached=True` aata hai.
+- `run.json` me ab `model_params` (kaun se model ko kya extra gaya) likha jata hai.
+
+### Tumhe kya karna hai
+`+ms`/`+ml`/`+cas*` ki purani runs ko bekaar maano (unka cache ab use nahi hoga, key alag hai). Jab in systems ki baari aaye (G2), wahi command wahi `--tag` se chalao: calls naye honge, diagnostics ka `trunc` 0 aana chahiye.
+
+### Test
+`tests/test_model_params.py` (22): kaun se models (aur kaun nahi: `qwen/...`, `openai/gpt-4o`, `gpt-oss-20b` bina `openai/` ke), kya badla, caller ka dict nahi chhua jaata, floor ke upar/neeche/barabar, key ka asli request se milna, har tarah ki call (asli planners + harness + nakli transport), `run.json`. 18 jaan-boojh ke bugs: ek bacha tha (prefix `openai/gpt` jo `gpt-4o` bhi pakad leta), test jod diya, ab saare pakde gaye.
+
+### Honestly
+- **2048 aur `low` mere chune hue hain.** Groq docs ke hisaab se default 1024 "complex reasoning ke liye kam ho sakta hai" aur effort `low/medium/high`; is task ke liye `low` kaafi hona chahiye, par ye maine asli API par nahi dekha. Pehli `+ms` run ka `trunc` 0 aana chahiye; nahi aaya to `REASONING_MIN_MAX_TOKENS` badhao ya mujhe batao.
+- Qwen ke liye maine **kuch nahi badla**, kyunki `b0`/`b1` ka `trunc` abhi dekha nahi (diagnostics file chahiye). Agar qwen ke jawab bhi kat rahe hain to sab baseline numbers galat honge; wo alag, dhyan se tay hoga (cache badalta hai).
+- `reasoning_effort` ek experimental setting hai jo small/large tier ko primary se alag banati hai (primary par wo nahi lagta); report me ye likhna hoga.

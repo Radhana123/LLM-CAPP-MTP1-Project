@@ -75,6 +75,8 @@ python scripts\make_tables.py build    configs\ablation_template.json
 ```
 `commands` jo lines de unhe order me chalao, phir `status`, phir `build`. Template ki **'decide' rows** (A5 hint ya bina hint, A6 fs2 ya fs4, A7 fz1 ya fz2) dev ke numbers dekhke tay karo, **sealed set dekhne se pehle**.
 
+**Step 35 se pehle ki gpt-oss runs (`+ms`, `+ml`, `+cas1`, `+cas2`) bekaar hain:** unme `gpt-oss` ka chhupa reasoning `max_tokens=200` khaa jaata tha aur jawab kat jaate the (`dev_n5_r1_s3+ms` me 100 me se 96). Ab in models ko `reasoning_effort=low` aur kam se kam 2048 tokens jaate hain (`capp/config.py`: `REASONING_EFFORT`, `REASONING_MIN_MAX_TOKENS`); request badli to cache key bhi nayi hai, to wahi command wahi `--tag` se dobara chalao, calls naye hongi (qwen ka cache wahi rehta hai). Run ke baad diagnostics ka `trunc` column 0 hona chahiye; 0 na ho to mujhe batao.
+
 Madad ke offline checks (koi API call nahi):
 ```
 python scripts\confidence_tune.py results\dev_b0_r1

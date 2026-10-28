@@ -145,6 +145,7 @@ def _write_cache(path, record):
 def chat(messages, *, model=None, sample_id=0, **params):
     """Send a chat request. Extra keyword args (temperature, max_tokens, response_format, ...) go to the API and into the key."""
     model = model or config.model("primary")
+    params = config.apply_model_params(model, params)           # reasoning models: low effort and room for the answer (capp/config.py)
     mode = config.get_mode()
     key = make_key(model, messages, params, sample_id)
     path = _cache_path(key)
