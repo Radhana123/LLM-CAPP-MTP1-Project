@@ -442,6 +442,22 @@ def test_without_run_json_the_run_is_used_with_a_warning(cfg, grid, tmp_path):
     assert run["status"] == "partial" and any("run.json" in w for w in run["warnings"]) and run["records"]
 
 
+def test_api_errors_in_the_records_are_a_warning_that_says_what_to_do(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
+
+    def poison(recs):
+        recs[0]["candidates"][0]["llm_raw"] = "API Error: HTTP 503: unavailable [after 6 attempts]"
+        recs[1]["candidates"][1]["llm_raw"] = "API Error: ConnectionError: Connection error. [after 6 attempts]"
+        return recs
+    rewrite_records(os.path.join(rd, "g_a_b0_r1"), poison)
+    run = one_run(cfg, rd)
+    assert run["status"] == "partial" and len(run["warnings"]) == 1
+    assert run["warnings"][0].startswith("2 API error(s) in the records (rate limit, outage): 2 call(s) failed because of the service")
+    assert "same --tag" in run["warnings"][0]
+    clean = one_run(cfg, copy_grid(grid, tmp_path / "clean", only=["g_a_b0_r1"]))
+    assert clean["warnings"] == [] and clean["status"] == "ok"
+
+
 def test_fewer_repeats_than_the_config_asks_is_partial(cfg, grid, tmp_path):
     rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
     rewrite_records(os.path.join(rd, "g_a_b0_r1"), lambda recs: [r for r in recs if r["repeat"] == 1])

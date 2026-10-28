@@ -34,7 +34,7 @@ def clean_env(monkeypatch):
 
 # ---------------------------------------------------------------- a small fake repository
 def make_run(root, folder, system="b0", n=3, dataset="dev_v2", records=None, summary=True, strict=0.95, parse=1.0, llm=None, freeze="none", model="m1", mode="live",
-             n_records=None):
+             n_records=None, api=None):
     d = Path(root) / "results" / folder
     d.mkdir(parents=True, exist_ok=True)
     run = {"system": system, "dataset": dataset, "n_parts": n, "repeats": 1, "model": model, "llm_mode": mode, "freeze": {"status": freeze}}
@@ -44,7 +44,8 @@ def make_run(root, folder, system="b0", n=3, dataset="dev_v2", records=None, sum
     nrec = n if records is None else records
     (d / "records.jsonl").write_text("".join(json.dumps({"part_id": f"P{i}"}) + "\n" for i in range(nrec)))
     if summary:
-        (d / "summary.json").write_text(json.dumps({"n_records": nrec if n_records is None else n_records, "M1": {"parse_rate": parse}, "M2": {"final_strict_valid": strict}}))
+        m1 = {"parse_rate": parse} if api is None else {"parse_rate": parse, "api_errors": api}
+        (d / "summary.json").write_text(json.dumps({"n_records": nrec if n_records is None else n_records, "M1": m1, "M2": {"final_strict_valid": strict}}))
     return d
 
 
@@ -307,8 +308,8 @@ def test_a_run_row_has_the_figures_of_the_run_and_the_rows_are_sorted(tmp_path):
     res = G.runs_state(str(tmp_path))
     assert res["n"] == 2 and res["lines"][0] == "2 run folder(s) in results\\ with a run.json" and res["problems"] == []
     rows = [l.split() for l in res["lines"][3:]]
-    assert rows[0] == ["dev_b0", "b0", "dev_v2", "20", "1", "qwen/qwen3.8-27b", "live", "95.0%", "98.0%", "100", "0", "52k", "ok"]
-    assert rows[1] == ["dev_rb", "rb", "dev_v2", "200", "1", "-", "nocache", "100.0%", "-", "-", "-", "-", "none"]
+    assert rows[0] == ["dev_b0", "b0", "dev_v2", "20", "1", "qwen/qwen3.8-27b", "live", "95.0%", "98.0%", "100", "0", "-", "-", "52k", "ok"]
+    assert rows[1] == ["dev_rb", "rb", "dev_v2", "200", "1", "-", "nocache", "100.0%", "-", "-", "-", "-", "-", "-", "none"]
 
 
 def test_the_run_rows_are_in_alphabetical_order_whatever_order_the_folders_were_made_in(tmp_path):
@@ -328,6 +329,16 @@ def test_a_truncated_answer_a_missing_summary_and_a_record_count_that_disagrees_
     assert len(res) == 3
 
 
+def test_api_errors_and_retries_get_columns_and_the_api_errors_are_a_problem_with_the_way_out(tmp_path):
+    make_run(tmp_path, "dev_b0", api=3, llm={"calls": 100, "prompt_tokens": 1000, "completion_tokens": 500, "truncated": 0, "retries": 7})
+    make_run(tmp_path, "dev_b1", api=0, llm={"calls": 10, "prompt_tokens": 100, "completion_tokens": 50, "truncated": 0, "retries": 0})
+    res = G.runs_state(str(tmp_path))
+    rows = {l.split()[0]: l.split() for l in res["lines"][3:]}
+    assert rows["dev_b0"][10:13] == ["0", "3", "7"] and rows["dev_b1"][10:13] == ["0", "0", "0"]
+    assert res["problems"] == ["results\\dev_b0: 3 API error(s) (rate limit or outage, not the model's fault): run the same command again with the "
+                               "same --tag; the answers already received come from the cache and only these calls are made again"]
+
+
 def test_a_run_folder_without_records_or_with_a_broken_json_is_a_problem_and_still_a_row(tmp_path):
     d = make_run(tmp_path, "norec")
     (d / "records.jsonl").unlink()
@@ -337,7 +348,7 @@ def test_a_run_folder_without_records_or_with_a_broken_json_is_a_problem_and_sti
     assert any("results\\norec: there is no records.jsonl" in p for p in res["problems"])
     assert any("results\\broken: run.json or summary.json cannot be read" in p for p in res["problems"])
     rows = {l.split()[0]: l.split() for l in res["lines"][3:]}
-    assert rows["broken"][1] == "unreadable" and len(rows["broken"]) == 13 and "norec" in rows
+    assert rows["broken"][1] == "unreadable" and len(rows["broken"]) == 15 and "norec" in rows
 
 
 def test_blank_lines_in_records_are_not_records(tmp_path):

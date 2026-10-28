@@ -25,9 +25,10 @@ from datetime import datetime, timezone
 
 from capp import verify as V
 from capp import cascade as CASC
-from capp import config, feasibility, freeze, llm_client, physics, summary as S, systems
+from capp import apierrors, config, feasibility, freeze, llm_client, physics, summary as S, systems
 
 NO_KEY_MSG = "GROQ_API_KEY not configured"
+MAX_CONSECUTIVE_API_ERRORS = 5          # each failed call has already tried for about a minute (llm_client.RETRY_DELAYS): five in a row is an outage
 
 
 class HarnessError(systems.FatalRunError):
@@ -49,6 +50,9 @@ def _guarded(planner, max_consecutive_errors):
             if raw.startswith("API Error: not in cache"):
                 raise HarnessError("replay mode: " + raw)
             if raw.startswith("API Error"):
+                fatal = apierrors.run_fatal(raw)
+                if fatal:
+                    raise HarnessError(f"{fatal} The answers made so far are in the cache. Last: {raw[:200]}")
                 state["errors"] += 1
                 if state["errors"] >= max_consecutive_errors:
                     raise HarnessError(f"{state['errors']} API errors in a row, stopping. Last: {raw[:200]}")
@@ -142,7 +146,7 @@ def _feasibility(steps, part):
 
 
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
-                   dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = 20,
+                   dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = MAX_CONSECUTIVE_API_ERRORS,
                    front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
                    weights=None, pool=None, planner_factory=None, analysis: bool = True, freeze_path: str = None) -> dict:
     """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant

@@ -149,6 +149,8 @@ def main():
     print()
     print(summary.format_summary(args.system, out["summary"]))
     print(f"\nFiles: {out['out_dir']}")
+    if out["summary"].get("M1", {}).get("api_errors"):
+        print("\nThis run has API errors (see above): run the same command again, same --tag, to fill them.", file=sys.stderr)
 
 
 if __name__ == "__main__":

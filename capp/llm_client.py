@@ -4,7 +4,8 @@ What it adds over calling Groq directly
   * response cache: the same request is never paid for twice, and a finished experiment can be replayed offline
   * sample_id + run tag in the cache key: the 5 samples of one part (T=0.3) stay 5 different samples, and repeat
     run r of an experiment is a different draw from run r+1, yet each is reproducible
-  * retries with backoff, and a call log (tokens, latency, finish_reason) for the cost metric M7
+  * patient retries (rate limit, outage, timeout), no retry where it cannot help (wrong request, key, model), and a call log (tokens,
+    latency, finish_reason) for the cost metric M7
   * a pluggable transport, so tests never touch the network
 """
 import hashlib
@@ -26,6 +27,16 @@ class NoApiKey(RuntimeError):
     """A live call is needed but GROQ_API_KEY is not set."""
 
 
+class ApiFailure(RuntimeError):
+    """A live call that failed for good: every attempt failed, or the service said that trying again cannot help. str() starts with the
+    HTTP status when there is one, so that the planners' 'API Error: ...' text carries it (capp/apierrors.py reads it back):
+    'HTTP 404: The model ... does not exist', 'HTTP 429 (retry after 3000 s): ...', 'APIConnectionError: Connection error.'"""
+
+    def __init__(self, message, status=None, retry_after=None, attempts=1):
+        super().__init__(message)
+        self.status, self.retry_after, self.attempts = status, retry_after, attempts
+
+
 @dataclass
 class LLMResponse:
     text: str
@@ -43,7 +54,11 @@ _groq_client = None
 _calls = []
 _lock = threading.Lock()
 _sleep = time.sleep
-MAX_ATTEMPTS = 3
+RETRY_DELAYS = (2, 5, 10, 20, 40)              # seconds waited before attempt 2, 3, ...: about a minute in all, the length of a rate-limit window
+MAX_ATTEMPTS = len(RETRY_DELAYS) + 1
+NO_RETRY_STATUS = frozenset({400, 401, 403, 404, 422})       # the request, the key or the model is wrong: the same call fails again
+MAX_RETRY_AFTER = 120.0                        # a Retry-After beyond this is a quota (per day), not a window: do not wait for it inside a run
+_stats = {"retries": 0, "retry_wait_s": 0.0, "failures": 0}
 
 
 def set_transport(fn):
@@ -74,6 +89,34 @@ def _groq_transport(model, messages, params):
         "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
         "finish_reason": getattr(choice, "finish_reason", "") or "",
     }
+
+
+def _status(exc):
+    """The HTTP status of an exception of the Groq SDK (or anything that carries one), else None."""
+    for obj in (exc, getattr(exc, "response", None)):
+        status = getattr(obj, "status_code", None)
+        if isinstance(status, int):
+            return status
+    return None
+
+
+def _retry_after(exc):
+    """Seconds the service asks us to wait (Retry-After header), else None."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    try:
+        value = float(headers.get("retry-after"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _failure(exc, status, retry_after, attempts):
+    if status:
+        head = f"HTTP {status}" + (f" (retry after {retry_after:.0f} s)" if retry_after else "")
+        msg = f"{head}: {exc}"
+    else:
+        msg = f"{type(exc).__name__}: {exc}"
+    return ApiFailure(msg + (f" [after {attempts} attempts]" if attempts > 1 else ""), status, retry_after, attempts)
 
 
 def make_key(model, messages, params, sample_id=0, run_tag=None):
@@ -118,7 +161,6 @@ def chat(messages, *, model=None, sample_id=0, **params):
                         % (key[:12], model, sample_id, config.get_run_tag()))
 
     transport = _transport or _groq_transport
-    last_exc = None
     for attempt in range(MAX_ATTEMPTS):
         t0 = time.perf_counter()
         try:
@@ -128,11 +170,16 @@ def chat(messages, *, model=None, sample_id=0, **params):
         except NoApiKey:
             raise
         except Exception as exc:        # network error, rate limit, 5xx ...
-            last_exc = exc
-            if attempt < MAX_ATTEMPTS - 1:
-                _sleep(2 ** attempt)
-    else:
-        raise last_exc
+            status, wait_hint = _status(exc), _retry_after(exc)
+            if status in NO_RETRY_STATUS or attempt == MAX_ATTEMPTS - 1 or (wait_hint or 0.0) > MAX_RETRY_AFTER:
+                with _lock:
+                    _stats["failures"] += 1
+                raise _failure(exc, status, wait_hint, attempt + 1) from exc
+            wait = max(RETRY_DELAYS[attempt], wait_hint or 0.0)
+            with _lock:
+                _stats["retries"] += 1
+                _stats["retry_wait_s"] += wait
+            _sleep(wait)
 
     resp = LLMResponse(out["text"], model, out.get("prompt_tokens", 0), out.get("completion_tokens", 0),
                        out.get("finish_reason", ""), latency, False, key)
@@ -162,6 +209,7 @@ def get_call_log():
 def reset_call_log():
     with _lock:
         _calls.clear()
+        _stats.update(retries=0, retry_wait_s=0.0, failures=0)
 
 
 def _pct(sorted_vals, q):
@@ -171,7 +219,8 @@ def _pct(sorted_vals, q):
 
 
 def summary():
-    """Totals for the cost metric M7. 'truncated' counts finish_reason == 'length' (the answer hit the token limit)."""
+    """Totals for the cost metric M7. 'truncated' counts finish_reason == 'length' (the answer hit the token limit). 'retries' and
+    'retry_wait_s' say how often the service made us wait (rate limit, outage); 'failures' counts the calls that failed for good."""
     calls = get_call_log()
     lat = sorted(c["latency_s"] for c in calls)
     return {
@@ -183,4 +232,7 @@ def summary():
         "latency_mean_s": statistics.fmean(lat) if lat else 0.0,
         "latency_p50_s": _pct(lat, 0.50),
         "latency_p95_s": _pct(lat, 0.95),
+        "retries": _stats["retries"],
+        "retry_wait_s": round(_stats["retry_wait_s"], 1),
+        "failures": _stats["failures"],
     }

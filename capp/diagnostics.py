@@ -219,7 +219,7 @@ def runs_state(root: str) -> dict:
             run = _read_json(os.path.join(base, "run.json"))
             summ = _read_json(os.path.join(base, "summary.json")) if os.path.isfile(os.path.join(base, "summary.json")) else None
         except Exception as exc:
-            rows.append([d, "unreadable"] + ["-"] * 11)
+            rows.append([d, "unreadable"] + ["-"] * 13)
             problems.append(f"results\\{d}: run.json or summary.json cannot be read ({str(exc)[:80]})")
             continue
         if summ is None:
@@ -237,14 +237,18 @@ def runs_state(root: str) -> dict:
         cl = run.get("llm_client_summary") or {}
         toks = (cl.get("prompt_tokens") or 0) + (cl.get("completion_tokens") or 0)
         trunc = cl.get("truncated")
+        api = m1.get("api_errors")
+        if api:
+            problems.append(f"results\\{d}: {api} API error(s) (rate limit or outage, not the model's fault): run the same command again with the "
+                            "same --tag; the answers already received come from the cache and only these calls are made again")
         if trunc:
             problems.append(f"results\\{d}: {trunc} answer(s) hit the token limit (finish_reason length): they are cut off; tell Claude")
         fz = _freeze_label(run)
         rows.append([d, run.get("system"), run.get("dataset"), run.get("n_parts"), run.get("repeats"), run.get("model"), run.get("llm_mode"),
                      _pct(m2.get("final_strict_valid")), _pct(m1.get("parse_rate")), cl.get("calls") if cl else None, trunc if cl else None,
-                     f"{toks / 1000:.0f}k" if cl else None, fz])
+                     api, cl.get("retries") if cl else None, f"{toks / 1000:.0f}k" if cl else None, fz])
     shown = [[_cell(c) for c in r] for r in rows[:MAX_RUN_ROWS]]
-    header = ["folder", "system", "dataset", "parts", "rep", "model", "mode", "strict-valid", "parse", "calls", "trunc", "tokens", "freeze"]
+    header = ["folder", "system", "dataset", "parts", "rep", "model", "mode", "strict-valid", "parse", "calls", "trunc", "api-err", "retries", "tokens", "freeze"]
     lines = [f"{len(folders)} run folder(s) in results\\ with a run.json"] if folders else ["no run folder yet in results\\"]
     if folders:
         lines += _table(shown, header)

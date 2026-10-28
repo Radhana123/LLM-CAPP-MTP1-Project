@@ -39,7 +39,7 @@ import os
 import random
 import re
 
-from capp import cost as COST, dataset, metrics as M, plannerspec, summary as S, systems
+from capp import apierrors, cost as COST, dataset, metrics as M, plannerspec, summary as S, systems
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SEED = 7
@@ -350,6 +350,9 @@ def _read_run(cfg, row, model, folder, expected):
     n_parts = len({r["part_id"] for r in records})
     if len(records) != n_parts * len(repeats) and not any("parts (missing" in w or "repeats" in w for w in warnings):
         warnings.append(f"{len(records)} records for {n_parts} parts x {len(repeats)} repeats: some (part, repeat) are missing")
+    n_api = apierrors.in_records(records)
+    if n_api:
+        warnings.append(f"{n_api} API error(s) in the records (rate limit, outage): " + apierrors.rerun_advice(n_api))
     run["records"], run["repeats"], run["parts"] = records, repeats, sorted({r["part_id"] for r in records})
     if not records:
         run["status"] = "error"

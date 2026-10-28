@@ -20,6 +20,7 @@ Metrics reported (Table 3 of the report)
         whether confidence tells anything: gap to the best Route Builder variant of flagged vs unflagged plans, and the
         Spearman correlation between confidence and that gap (negative = low confidence goes with worse plans)
 """
+from capp import apierrors
 from capp import cost as COST
 from capp import metrics as M
 
@@ -436,6 +437,7 @@ def summarize_set(records: list) -> dict:
         "n_parts": len({r["part_id"] for r in records}),
         "M1": {
             "llm_calls": attempts, "parsed_routes": len(parsed), "parse_rate": M.rate([True] * len(parsed) + [False] * (attempts - len(parsed))),
+            "api_errors": apierrors.in_records(records),
             "v1_valid_of_parsed": M.rate([c["v1_valid"] for _, c in parsed]),
             "strict_valid_of_parsed": M.rate([c["first_pass"]["valid"] for _, c in parsed]),
             "v1_valid_but_strict_invalid": sum(1 for _, c in parsed if c["v1_valid"] and not c["first_pass"]["valid"]),
@@ -572,6 +574,8 @@ def format_summary(system: str, s: dict) -> str:
     L.append(f"M1 first pass   : LLM calls {m1['llm_calls']}, parsed {m1['parsed_routes']} (parse rate {_fmt(m1['parse_rate'])}); "
              f"v1-valid {_fmt(m1['v1_valid_of_parsed'])}, strict-valid {_fmt(m1['strict_valid_of_parsed'])} "
              f"(v1-valid but strict-invalid: {m1['v1_valid_but_strict_invalid']})")
+    if m1.get("api_errors"):
+        L.append(f"API errors      : {m1['api_errors']}. " + apierrors.rerun_advice(m1["api_errors"]))
     L.append(f"M2 final        : strict-valid {_fmt(m2['final_strict_valid'])}, v1-valid {_fmt(m2['final_v1_valid'])}; "
              f"provenance {', '.join(f'{k} {v:.2f}' for k, v in m2['provenance_share'].items())}; "
              f"replacements/part {_fmt(m2['whole_route_replacements_per_part'], 2)} (replacement found no route: "

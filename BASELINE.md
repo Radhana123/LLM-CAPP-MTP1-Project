@@ -1290,3 +1290,27 @@ Dono tests theek kiye (Linux par pass; Windows par apply karke tum dekhogi). Baa
 - Diagnostics sirf **dikhata** hai; kisi problem ko thik nahi karta, aur "problem" ka matlab hai "yahan dekho", har ek ka rok-tok hona zaroori nahi (jaise `GROQ_API_KEY` na hona sirf live run ko rokta hai).
 - Jo offline script jis input ke bina skip hui, wo input banne par hi chalegi: `compare_runs` ko dev ke kam se kam do runs chahiye (rb, b1, b0, b0_r1 me se).
 - Mere paas **tumhare asli outputs ab bhi nahi hain** (`all_out.txt`, `risk_out.txt`, `cascade` lines, `b1+ts`, `objective_check`, deadline, Groq prices, `n5_r0_s1+cg1` summary). Ek `diagnostics.txt` me inme se zyadatar aa jaayenge.
+
+---
+
+## Step 32: live run me API error model ki galti nahi hai (patient retry, sahi ginti, sahi jagah rukna)
+
+**Kyun:** G1 me ~120 asli calls hongi. Groq ka rate limit ya koi outage aaya to pehle har fail call "API Error: ..." text ban jaati thi, summary use **model ka parse fail** ginti thi (parse rate neeche), aur Route Builder ka route us jagah laga deti thi. Matlab service ki galti model ke numbers me ghus jaati. Ab aisa nahi hota.
+
+### Kya badla
+1. **`capp/llm_client.py`:** fail hone wali call khud `RETRY_DELAYS = (2, 5, 10, 20, 40)` s ruk ke dobara hoti hai (kul 6 attempts, ~77 s). Server `retry-after` bheje to utna ruka jaata hai (agar delay se zyada ho). `400/401/403/404/422` par retry nahi (dobara bhejne se kuch badalta nahi). `retry-after` 120 s se zyada ho (quota) to bhi retry nahi. Aakhir me `ApiFailure` (status, retry_after, attempts ke saath); message `HTTP 429 (retry after 3000 s): ... [after 6 attempts]` jaisa. `NoApiKey` pehle jaisa. Fail hui call cache me **nahi** jaati. `llm_client_summary` me ab `retries`, `retry_wait_s`, `failures`.
+2. **`capp/apierrors.py` (naya):** records me API error pehchanta hai (sample call, R2 re-prompt, cascade ka dusra tier), ginta hai, aur batata hai kab run rukna chahiye.
+3. **`capp/harness.py`:** key refuse (401/403), model nahi mila (404), ya 429 jisme 120 s se lamba wait maanga ho, to run **pehli call par** `HarnessError` de ke rukta hai (wajah aur kya karna hai ke saath). Baaki API errors par run chalta rehta hai, par ab **lagatar 5** fail (pehle 20) par ruk jaata hai, kyunki ab har fail call ~77 s retry karti hai: asli outage me 20 par ~25 min barbaad hote.
+4. **`capp/summary.py`:** `M1.api_errors` aur summary me `API errors : N. ... wahi command, wahi --tag` line. **`capp/tables.py`:** table banate waqt warning. **`capp/diagnostics.py`:** runs table me `api-err`, `retries` columns aur PROBLEMS me line. **`scripts/run_eval.py`:** run ke aakhir me stderr hint.
+
+### Dobara chalane se kya hota hai
+Wahi command, wahi `--tag`: cache key me tag aur sample id hain, to jo calls ho chuki wo cache se aati hain (koi naya kharch nahi) aur sirf fail wali calls hoti hain. Test me dikhaya: pehle run me 1 call fail, dobara chalane par sirf 1 call gayi (cache hit rate 0.9 se 1.0).
+
+### Test
+`tests/test_apierrors.py` (43, asli planners + harness + nakli transport), `tests/test_llm_client.py` (+14), `tests/test_diagnostics.py`, `tests/test_tables.py` (+1). Poora suite 1993 pass. **51 jaan-boojh ke bugs** (delays, attempts, no-retry set, retry-after cap, `>` vs `>=`, status response se, failure text, `from exc`, 401/403/404 branches, R2/cascade tiers, prefix, harness fatal check, 5 ki limit, summary/tables/diagnostics/run_eval hint): saare pakde gaye, koi bacha nahi.
+
+### Honestly
+- **Retry delays, 120 s cap, 5 ki limit mere chune hue numbers hain.** Groq ke asli limits mujhe nahi pata (tumne console ke prices/limits abhi bheje nahi). Pehli asli run me `retries` aur `retry_wait_s` (diagnostics me) dekh ke bataungi ki ye theek hain ya nahi.
+- Fatal pehchan SDK ke `.status_code` par tika hai (Groq SDK ke `str(exc)` me status nahi hota). Agar SDK kabhi status na de to wo error "retryable" maana jaayega aur 5 lagatar fail par run rukega, pehli call par nahi.
+- Step 32 se **pehle** bane run folders me `api_errors` key nahi hoti: unme purane API errors ab bhi parse-fail ginte hain (records badalte nahi). Unhe wahi command + wahi `--tag` se dobara chalao to fill ho jaayenge.
+- `scripts\run_eval.py` ke stderr hint ka test ek nakli run par hai, asli live run par nahi.
