@@ -80,6 +80,9 @@ def _groq_transport(model, messages, params):
     if _groq_client is None:
         from groq import Groq
         _groq_client = Groq(api_key=key)
+    params = dict(params)
+    if "reasoning_effort" in params:                       # sent in the body: an older version of the SDK has no such argument, the API does
+        params["extra_body"] = {"reasoning_effort": params.pop("reasoning_effort")}
     resp = _groq_client.chat.completions.create(model=model, messages=messages, **params)
     choice = resp.choices[0]
     usage = getattr(resp, "usage", None)

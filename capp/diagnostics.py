@@ -33,6 +33,7 @@ DEFAULT_OUT = "results/diagnostics.txt"
 TIMEOUT = 900                                    # seconds, per check
 MAX_LINES = 400                                  # per check: the first 300 and the last 100 lines
 MAX_RUN_ROWS = 200
+REASON_CHARS = 200                               # of the last output line of a failed check, shown in its problem line
 DATASETS = ("dev_v2", "test_v2", "bench_v1")
 BASELINES = (                                    # the G1 runs of RUNBOOK.md: (system, run_eval options after --tag)
     ("rb", ""),
@@ -242,7 +243,8 @@ def runs_state(root: str) -> dict:
             problems.append(f"results\\{d}: {api} API error(s) (rate limit or outage, not the model's fault): run the same command again with the "
                             "same --tag; the answers already received come from the cache and only these calls are made again")
         if trunc:
-            problems.append(f"results\\{d}: {trunc} answer(s) hit the token limit (finish_reason length): they are cut off; tell Claude")
+            problems.append(f"results\\{d}: {trunc} answer(s) hit the token limit (finish_reason length): they are cut off. Steps 35 and 37 changed the "
+                            "model settings that caused it, so run the same command again with the same --tag (new calls); trunc still above 0 after that: tell Claude")
         fz = _freeze_label(run)
         rows.append([d, run.get("system"), run.get("dataset"), run.get("n_parts"), run.get("repeats"), run.get("model"), run.get("llm_mode"),
                      _pct(m2.get("final_strict_valid")), _pct(m1.get("parse_rate")), cl.get("calls") if cl else None, trunc if cl else None,
@@ -267,6 +269,37 @@ def baselines_state(root: str, tag: str, dataset: str) -> dict:
     if missing == 0:
         lines.append("all three are there: next is `compare_runs` (below) and the benchmark in RUNBOOK.md, G1")
     return {"lines": lines, "problems": []}
+
+
+def baseline_table(root: str, tag: str) -> list:
+    """The four G1 runs of this tag (rb, b1, b0, b0_r1) in one small table: parts, how many answers parsed, how many final routes were valid,
+    live calls, answers cut off at the token limit, API errors. Short enough to read on one screen (the terminal prints it); a run that is not
+    there is a row saying so. Never raises: a damaged file is a row, not an error."""
+    rows = []
+    for system in RUN_SYSTEMS:
+        name, folder = f"{tag}_{system}", _run_dir(root, tag, system)
+        if not _has_records(folder):
+            rows.append([name, None, None, None, None, None, None, "not there yet"])
+            continue
+        try:
+            run = _read_json(os.path.join(folder, "run.json")) if os.path.isfile(os.path.join(folder, "run.json")) else {}
+            summ = _read_json(os.path.join(folder, "summary.json")) if os.path.isfile(os.path.join(folder, "summary.json")) else {}
+            m1, m2, cl = (summ.get("M1") or {}), (summ.get("M2") or {}), (run.get("llm_client_summary") or {})
+            rows.append([name, run.get("n_parts"), _pct(m1.get("parse_rate")), _pct(m2.get("final_strict_valid")), cl.get("calls") if cl else None,
+                         cl.get("truncated") if cl else None, m1.get("api_errors"), "" if summ else "no summary.json"])
+        except Exception as exc:                      # a damaged file is a row, not a stop
+            rows.append([name, None, None, None, None, None, None, f"unreadable ({str(exc)[:60]})"])
+    return _table([[_cell(c) if c != "" else "" for c in r] for r in rows],
+                  ["run", "parts", "parse", "strict-valid", "calls", "trunc", "api-err", "note"])
+
+
+def _reason(text: str, root: str) -> str:
+    """The last line a failed check printed (an error message or the end of a traceback), cut to 200 characters, secrets removed."""
+    lines = [l.strip() for l in (text or "").split("\n") if l.strip()]
+    if not lines:
+        return "no output"
+    last = redact(lines[-1], root)[0]
+    return last if len(last) <= REASON_CHARS else last[:REASON_CHARS - 3] + "..."
 
 
 # ---------------------------------------------------------------- the offline checks
@@ -353,7 +386,7 @@ def build_report(root: str, tag: str = DEFAULT_TAG, dataset: str = DEFAULT_DATAS
     counts = {k: sum(1 for c in done if c["status"] == k) for k in STATUS_ORDER}
     for c in done:
         if c["status"] == "failed" and c["title"] != "freeze verify":          # its exit 1 is the freeze section's drift
-            problems.append(f"check '{c['title']}' ended with exit code {c['code']}")
+            problems.append(f"check '{c['title']}' ended with exit code {c['code']}: {_reason(c['text'], root)}")
         if c["status"] == "timeout":
             problems.append(f"check '{c['title']}' did not finish in {timeout} s")
     stamp = (now or datetime.datetime.now(datetime.timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
@@ -377,7 +410,8 @@ def build_report(root: str, tag: str = DEFAULT_TAG, dataset: str = DEFAULT_DATAS
     text, found = redact(text, root)
     if found:
         text = text.replace("\n", f"\nNOTE: {len(found)} line(s) of this file looked like a secret and were removed.\n", 1)
-    return {"text": text, "problems": problems, "notes": notes, "counts": counts, "removed": found}
+    return {"text": text, "problems": problems, "notes": notes, "counts": counts, "removed": found,
+            "baselines": baseline_table(root, tag)}
 
 
 def write_text(text: str, out: str) -> str:

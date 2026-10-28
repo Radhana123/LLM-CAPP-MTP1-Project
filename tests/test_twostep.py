@@ -197,7 +197,7 @@ def test_two_calls_with_the_right_parameters_and_a_complete_meta():
     res = run_planner()
     assert [s["kind"] for s in seen] == ["reason", "formalise"]
     r, f = seen
-    assert r["params"] == {"temperature": config.REASON_TEMPERATURE, "max_tokens": config.REASON_MAX_TOKENS}
+    assert r["params"] == {"temperature": config.REASON_TEMPERATURE, "max_tokens": config.REASON_MAX_TOKENS, "reasoning_effort": "none"}      # Step 37
     assert f["params"]["temperature"] == 0.0 and f["params"]["max_tokens"] == config.FORMAL_MAX_TOKENS
     assert f["params"]["response_format"] == T.response_format("json_schema")
     assert res["success"] and res["steps"] == rb_route(PART["features"]) and res["model"] == llm_planner.MODEL

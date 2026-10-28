@@ -9,6 +9,7 @@ Environment variables
   CAPP_RUN_TAG        label mixed into every cache key (e.g. rep1..rep5 for repeated runs); default "default"
   CAPP_CACHE_DIR      cache folder (default <repo>/cache/llm)
   CAPP_MODEL_PRIMARY / _SMALL / _LARGE   override model IDs (primary: default; small and large: the two tiers of the cascade)
+  CAPP_QWEN_REASONING none (default) | default | low | medium | high | omit: reasoning of the qwen primary model (see model_params)
 """
 import os
 from pathlib import Path
@@ -72,14 +73,23 @@ FORMAL_TEMPERATURE = 0.0
 FORMAL_MAX_TOKENS = 300
 STRUCTURED_MODES = ("json_schema", "json_object", "none")      # tried in this order, each one only if the one before is refused
 
-# Reasoning models (the gpt-oss family, the small and large tiers of the cascade) think before they answer, and on Groq that hidden reasoning is
-# counted in max_tokens. With the planner's 200 a run of +ms had 96 of its 100 answers cut off (finish_reason "length"), so its numbers measured the
-# token limit, not the model. For these models, and only these, every request asks for low reasoning effort and a token limit of at least
-# REASONING_MIN_MAX_TOKENS (a limit costs nothing that is not generated). The primary model's requests, and so its cache, are unchanged.
-# [TO CONFIRM] against the first +ms run: its "trunc" column (diagnostics) should be 0; if not, raise REASONING_MIN_MAX_TOKENS.
+# Reasoning models think before they answer, and on Groq that hidden reasoning is counted in max_tokens, so the planner's 200 tokens can be used up
+# before the first character of the route. Two families are known to do this, and both are handled here, in one place (model_params):
+#   * gpt-oss (the small and large tiers of the cascade): with the planner's 200 a run of +ms had 96 of its 100 answers cut off (finish_reason
+#     "length"). They get reasoning_effort "low" and a token limit of at least REASONING_MIN_MAX_TOKENS (Step 35).
+#   * qwen3.8 (the primary model): Groq's own page says thinking is its DEFAULT mode (reasoning_effort "default"; "none" is the instruct mode).
+#     So the primary model also got max_tokens 200 with thinking on. It now gets reasoning_effort "none" (Step 37): a plain answer, which is what
+#     the baselines B0/B1 are (an LLM asked for a route, not an LLM that thinks about it first). CAPP_QWEN_REASONING changes that: low / medium /
+#     high / default switch thinking on (with a token limit of at least QWEN_THINKING_MIN_MAX_TOKENS), omit sends nothing (the requests, and so the
+#     cache, of before Step 37).
+# [TO CONFIRM] against the first runs after the change: the "trunc" column of the diagnostics should be 0 for both families.
 REASONING_MODEL_PREFIXES = ("openai/gpt-oss",)
 REASONING_EFFORT = "low"                    # Groq: low, medium or high for gpt-oss
 REASONING_MIN_MAX_TOKENS = 2048
+QWEN_PREFIXES = ("qwen/qwen3.8",)
+QWEN_REASONING_DEFAULT = "none"
+QWEN_REASONING_VALUES = ("none", "default", "low", "medium", "high", "omit")
+QWEN_THINKING_MIN_MAX_TOKENS = 4096
 
 VALID_MODES = ("live", "replay", "nocache")
 
@@ -90,24 +100,40 @@ def model(role: str = "primary") -> str:
     return os.getenv("CAPP_MODEL_" + role.upper(), _DEFAULT_MODELS[role])
 
 
+def qwen_reasoning() -> str:
+    """The reasoning setting of the qwen primary model: CAPP_QWEN_REASONING, else QWEN_REASONING_DEFAULT ('none')."""
+    value = os.getenv("CAPP_QWEN_REASONING", "").strip().lower() or QWEN_REASONING_DEFAULT
+    if value not in QWEN_REASONING_VALUES:
+        raise ValueError("CAPP_QWEN_REASONING=%r, expected one of %s" % (value, QWEN_REASONING_VALUES))
+    return value
+
+
 def model_params(model_id: str) -> dict:
-    """The request settings a model needs beyond what the caller asks for ({} for most models; see REASONING_MODEL_PREFIXES). The keys:
-    reasoning_effort (sent to the API unless the caller set one) and max_tokens_at_least (a floor for max_tokens, not an API parameter)."""
+    """The request settings a model needs beyond what the caller asks for ({} for most models; see the comment above). The keys:
+    reasoning_effort (sent to the API unless the caller set one) and, where there is one, max_tokens_at_least (a floor for max_tokens,
+    not an API parameter)."""
     if any(model_id.startswith(p) for p in REASONING_MODEL_PREFIXES):
         return {"reasoning_effort": REASONING_EFFORT, "max_tokens_at_least": REASONING_MIN_MAX_TOKENS}
+    if any(model_id.startswith(p) for p in QWEN_PREFIXES):
+        value = qwen_reasoning()
+        if value == "omit":
+            return {}
+        if value == "none":
+            return {"reasoning_effort": "none"}                 # no thinking: the answer is short, the limit of the caller is enough
+        return {"reasoning_effort": value, "max_tokens_at_least": QWEN_THINKING_MIN_MAX_TOKENS}
     return {}
 
 
 def apply_model_params(model_id: str, params: dict) -> dict:
     """The parameters of a request to `model_id`: `params` itself for a model without model_params, else a copy with reasoning_effort added
-    (a value the caller set stays) and max_tokens raised to the floor (only if the caller sent one). Called by llm_client.chat before the
-    cache key is made, so the key follows what is really sent."""
+    (a value the caller set stays) and, where the model has a floor, max_tokens raised to it (only if the caller sent one). Called by
+    llm_client.chat before the cache key is made, so the key follows what is really sent."""
     extra = model_params(model_id)
     if not extra:
         return params
     out = dict(params)
     out.setdefault("reasoning_effort", extra["reasoning_effort"])
-    if "max_tokens" in out:
+    if "max_tokens" in out and "max_tokens_at_least" in extra:
         out["max_tokens"] = max(out["max_tokens"], extra["max_tokens_at_least"])
     return out
 

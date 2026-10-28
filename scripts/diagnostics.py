@@ -56,6 +56,9 @@ def main(argv=None) -> int:
     c = rep["counts"]
     if not a.no_checks:
         print("checks: " + ", ".join(f"{c[k]} {k}" for k in G.STATUS_ORDER if c[k]))
+    print(f"\nthe G1 runs (tag {a.tag}):")
+    for line in rep["baselines"]:
+        print("  " + line)
     print(f"\nWritten: {a.out}\nAttach this one file to the chat.")
     return 0
 

@@ -39,7 +39,7 @@ import os
 import random
 import re
 
-from capp import apierrors, cost as COST, dataset, metrics as M, plannerspec, summary as S, systems
+from capp import apierrors, cost as COST, dataset, metrics as M, plannerspec, runcheck, summary as S, systems
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SEED = 7
@@ -312,6 +312,18 @@ def _read_run(cfg, row, model, folder, expected):
                 warnings.append(f"this run on a sealed dataset was made with freeze status {fz.get('status')!r}"
                                 + (f" ({'; '.join(fz.get('differences') or [])[:200]})" if fz.get("differences") else "")
                                 + ": it is not a run of a frozen configuration")
+        cut = runcheck.truncated(info)
+        if cut:
+            errors.append(f"{cut} answer(s) were cut off at the token limit (finish_reason length): this run measures the token limit, not the model; "
+                          "run it again with the same --tag (Steps 35 and 37 changed the settings that caused it)")
+        try:
+            stale = runcheck.stale_settings(info)
+        except ValueError as exc:                      # a wrong CAPP_QWEN_REASONING: said in words, the run is not judged
+            errors.append(str(exc))
+            stale = []
+        if stale:
+            errors.append(f"made with other model settings than today's ({runcheck.stale_text(stale)}): its answers are not comparable with runs made "
+                          "now; run it again with the same --tag (the calls are new, the cache key differs)")
         if not row["independent"]:
             if info.get("model") and info["model"] != model["model"]:
                 errors.append(f"run.json says model {info['model']!r}, the column {model['id']} is {model['model']!r}: "

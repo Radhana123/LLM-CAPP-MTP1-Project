@@ -7,9 +7,9 @@
 It runs the same three commands as RUNBOOK.md, G1 (the list is capp/diagnostics.BASELINES, so the two cannot differ), one after the other,
 with the same options, and then writes the diagnostics file. What it adds is only care:
 
-  * a run that is there and complete is not run again (records are there, the number of parts is the one wanted, no API error in them);
-    a run with API errors or the wrong number of parts is run again with the same command, and the cache makes that cost only the calls that
-    are missing (capp/apierrors.py);
+  * a run that is there and complete is not run again (records are there, the number of parts is the one wanted, no API error in them, no
+    answer cut off at the token limit, and made with the model settings of today: Step 37 changed those for qwen); a run that fails one of
+    these is run again with the same command, and the cache makes that cost only the calls that are missing (capp/apierrors.py);
   * before a run that calls the API it prints the plan (capp/runplan.py: the most calls it can make, and tokens, cost and time from your
     earlier runs) and asks; --yes skips the question;
   * it does not start an API run without GROQ_API_KEY, and says where to put it;
@@ -18,12 +18,13 @@ with the same options, and then writes the diagnostics file. What it adds is onl
 
 It starts only run_eval.py (the three G1 systems) and diagnostics.py; it changes nothing else, and no FREEZE.json is touched.
 """
+import json
 import os
 import shlex
 import subprocess
 import sys
 
-from capp import apierrors, dataset as dataset_mod, diagnostics, harness, runplan
+from capp import apierrors, dataset as dataset_mod, diagnostics, harness, runcheck, runplan, systems
 
 
 class G1Error(ValueError):
@@ -40,6 +41,16 @@ def wanted_parts(extra: str, dataset_size: int) -> int:
     return min(limit, dataset_size) if limit else dataset_size
 
 
+def _run_info(folder: str) -> dict:
+    """run.json of a run folder as a dict; {} when it is not there or cannot be read (an older or interrupted run: nothing to check)."""
+    try:
+        with open(os.path.join(folder, "run.json"), encoding="utf-8") as f:
+            info = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
 def step_state(root: str, tag: str, system: str, wanted: int) -> tuple:
     """("done", "") | ("make", "") | ("redo", why) for one baseline run folder."""
     folder = diagnostics._run_dir(root, tag, system)
@@ -54,6 +65,17 @@ def step_state(root: str, tag: str, system: str, wanted: int) -> tuple:
         return "redo", f"it has {len(records)} record(s), {wanted} wanted"
     if n_api:
         return "redo", f"{n_api} API error(s) in it (rate limit or outage, not the model)"
+    info = _run_info(folder)
+    cut = runcheck.truncated(info)
+    if cut:
+        return "redo", f"{cut} answer(s) in it were cut off at the token limit (finish_reason length)"
+    if systems.parse_system(system) is not None:                      # an LLM run: were the model settings the ones of today?
+        try:
+            stale = runcheck.stale_settings(info)
+        except ValueError as exc:
+            raise G1Error(str(exc)) from None
+        if stale:
+            return "redo", "it was made with other settings for " + runcheck.stale_text(stale)
     return "done", ""
 
 

@@ -325,6 +325,8 @@ def test_a_truncated_answer_a_missing_summary_and_a_record_count_that_disagrees_
     make_run(tmp_path, "short", n=5, records=4, n_records=5)
     res = G.runs_state(str(tmp_path))["problems"]
     assert any("results\\cut: 3 answer(s) hit the token limit" in p for p in res)
+    cut = next(p for p in res if "results\\cut: 3 answer(s) hit the token limit" in p)
+    assert "run the same command again with the same --tag (new calls)" in cut and "Steps 35 and 37" in cut and cut.endswith("tell Claude")
     assert any("results\\nosum: there is no summary.json" in p for p in res)
     assert any("results\\short: records.jsonl has 4 record(s), summary.json says 5" in p for p in res)
     assert len(res) == 3
@@ -559,7 +561,7 @@ def test_a_failed_check_and_a_timeout_are_problems_but_a_freeze_drift_exit_is_th
     monkeypatch.setattr(F, "status", lambda r: {"status": "ok", "id": "a1", "manifest": "FREEZE.json", "differences": []})
     fake = Fake({"physics_check": (2, "boom"), "part_diff": (None, "[stopped after 5 s]"), "freeze": (1, "Freeze a1: DRIFT")})
     rep = report(root, fake, timeout=5)
-    assert "check 'physics_check' ended with exit code 2" in rep["problems"] and "check 'part_diff rb vs b0' did not finish in 5 s" in rep["problems"]
+    assert "check 'physics_check' ended with exit code 2: boom" in rep["problems"] and "check 'part_diff rb vs b0' did not finish in 5 s" in rep["problems"]
     assert not any("freeze verify" in p for p in rep["problems"]) and rep["counts"] == {"ok": 9, "failed": 2, "timeout": 1, "skipped": 0}
 
 
@@ -611,6 +613,109 @@ def test_the_tag_and_the_dataset_show_in_the_header_and_the_commands(tmp_path):
     fake = Fake()
     text = report(root, fake, tag="x1", dataset="test_v2")["text"]
     assert "tag x1   dataset test_v2" in text and "--dataset test_v2" in text and "python scripts\\part_diff.py results\\x1_rb results\\x1_b0" in text
+
+
+# ---------------------------------------------------------------- Step 36: the reason of a failed check, and the baseline table
+def problem_of(rep, title):
+    return next(p for p in rep["problems"] if p.startswith(f"check '{title}' "))
+
+
+def test_a_failed_check_says_why_with_the_last_line_it_printed(tmp_path):
+    out = "folder: some first line\nTraceback (most recent call last):\n  File x\nKeyError: 'system'\n\n\n"
+    rep = report(full_root(tmp_path / "a"), Fake({"physics_check": (1, out)}))
+    assert problem_of(rep, "physics_check") == "check 'physics_check' ended with exit code 1: KeyError: 'system'"
+    rep = report(full_root(tmp_path / "b"), Fake({"physics_check": (1, "out line\n[stderr]\nresults\\dev_b0_r1: no plan has both a confidence score\n")}))
+    assert problem_of(rep, "physics_check").endswith(": results\\dev_b0_r1: no plan has both a confidence score")
+
+
+def test_a_failed_check_with_no_output_says_so_and_the_reason_is_cut_at_200_characters(tmp_path):
+    rep = report(full_root(tmp_path / "a"), Fake({"physics_check": (3, ""), "feasibility_check": (1, "  \n \n")}))
+    assert problem_of(rep, "physics_check") == "check 'physics_check' ended with exit code 3: no output"
+    assert problem_of(rep, "feasibility_check").endswith("exit code 1: no output")
+    for n, cut in ((200, False), (201, True), (500, True)):
+        text = "x" * n
+        reason = G._reason(text, str(tmp_path))
+        assert (len(reason) == 200 and reason.endswith("...") and reason[:197] == "x" * 197) if cut else reason == text
+
+
+def test_the_reason_is_the_last_line_not_the_first_and_is_stripped(tmp_path):
+    assert G._reason("first\n   second   \n\n", str(tmp_path)) == "second"
+    assert G._reason("only", str(tmp_path)) == "only" and G._reason("", str(tmp_path)) == "no output" and G._reason(None, str(tmp_path)) == "no output"
+
+
+def test_a_secret_in_the_last_line_of_a_failed_check_is_not_in_the_problem_line(tmp_path, monkeypatch):
+    secret = "gsk_" + "A1b2C3d4" * 4
+    rep = report(full_root(tmp_path / "a"), Fake({"physics_check": (1, f"the key is {secret}\n")}))
+    assert secret not in "\n".join(rep["problems"]) and secret not in rep["text"]
+    assert problem_of(rep, "physics_check") == "check 'physics_check' ended with exit code 1: [line removed: it looked like a secret (Groq API key)]"
+    monkeypatch.setenv("GROQ_API_KEY", KEY)
+    rep = report(full_root(tmp_path / "b"), Fake({"feasibility_check": (1, f"debug {KEY}\n")}))
+    assert KEY not in "\n".join(rep["problems"]) and KEY not in rep["text"]
+
+
+def test_the_reason_is_in_the_problems_list_of_the_file_and_not_for_a_timeout_or_the_freeze_check(tmp_path, monkeypatch):
+    root = full_root(tmp_path, freeze_file=True)
+    monkeypatch.setattr(F, "status", lambda r: {"status": "ok", "id": "a1", "manifest": "FREEZE.json", "differences": []})
+    rep = report(root, Fake({"physics_check": (2, "boom\n"), "freeze": (1, "Freeze a1: DRIFT\n"), "part_diff": (None, "[stopped after 5 s]")}), timeout=5)
+    top = rep["text"].split("CHECKS")[0]
+    assert "  - check 'physics_check' ended with exit code 2: boom\n" in top
+    assert "  - check 'part_diff rb vs b0' did not finish in 5 s\n" in top and "stopped after" not in top and "DRIFT" not in top
+
+
+def test_the_baseline_table_has_the_four_runs_with_the_numbers_a_reader_needs(tmp_path):
+    root = tmp_path / "repo"
+    make_run(root, "dev_rb", system="rb", n=20, llm=False, strict=0.75, parse=None)
+    make_run(root, "dev_b1", system="b1", n=20, strict=0.5, parse=0.9, llm={"calls": 100, "truncated": 7})
+    make_run(root, "dev_b0", system="b0", n=20, strict=0.625, parse=0.5, api=3, llm={"calls": 200, "truncated": 0})
+    lines = G.baseline_table(str(root), "dev")
+    assert lines[0].split() == ["run", "parts", "parse", "strict-valid", "calls", "trunc", "api-err", "note"]
+    rows = {l.split()[0]: l.split() for l in lines[2:]}
+    assert list(rows) == ["dev_rb", "dev_b1", "dev_b0", "dev_b0_r1"]
+    assert rows["dev_rb"][:7] == ["dev_rb", "20", "-", "75.0%", "-", "-", "-"]
+    assert rows["dev_b1"][:7] == ["dev_b1", "20", "90.0%", "50.0%", "100", "7", "-"]
+    assert rows["dev_b0"][:7] == ["dev_b0", "20", "50.0%", "62.5%", "200", "0", "3"]
+    assert rows["dev_b0_r1"] == ["dev_b0_r1", "-", "-", "-", "-", "-", "-", "not", "there", "yet"]
+
+
+def test_the_baseline_table_uses_the_tag_and_never_raises_on_damaged_files(tmp_path):
+    root = tmp_path / "repo"
+    make_run(root, "x9_rb", system="rb", llm=False)
+    make_run(root, "x9_b1", system="b1", summary=False)
+    bad = make_run(root, "x9_b0", system="b0")
+    (bad / "run.json").write_text("{not json")
+    make_run(root, "dev_b0_r1", system="b0_r1")                              # another tag: not in this table
+    rows = {l.split()[0]: l for l in G.baseline_table(str(root), "x9")[2:]}
+    assert list(rows) == ["x9_rb", "x9_b1", "x9_b0", "x9_b0_r1"]
+    assert rows["x9_b1"].rstrip().endswith("no summary.json") and "unreadable (" in rows["x9_b0"] and "not there yet" in rows["x9_b0_r1"]
+    assert G.baseline_table(str(tmp_path / "nothing"), "dev")[2:] and all("not there yet" in l for l in G.baseline_table(str(tmp_path / "nothing"), "dev")[2:])
+
+
+def test_the_report_carries_the_baseline_table_of_its_tag(tmp_path):
+    root = full_root(tmp_path)
+    rep = report(root, tag="dev")
+    assert rep["baselines"] == G.baseline_table(str(root), "dev") and len(rep["baselines"]) == 2 + len(G.RUN_SYSTEMS)
+    assert report(root, tag="nope")["baselines"][2].split()[0] == "nope_rb"
+
+
+def test_truncated_answers_end_in_a_failed_confidence_tune_whose_reason_and_trunc_the_file_shows(tmp_path):
+    """The real thing, end to end: a b0_r1 run whose every answer is cut off at the token limit (finish_reason length)."""
+    from capp import harness as H, llm_client
+    os.environ["CAPP_CACHE_DIR"] = str(tmp_path / "cache")
+    try:
+        llm_client.set_transport(lambda model, messages, params: {"text": '["Facing", "Cen', "prompt_tokens": 300, "completion_tokens": 200, "finish_reason": "length"})
+        root = tmp_path / "repo"
+        shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "results", "cache", "tests", "release", "sample_drawings", "__pycache__", ".pytest_cache", "FREEZE.json"))
+        H.run_experiment("b0_r1", D.load_dataset("dev_v2")[:3], tag="dev", out_dir=str(root / "results"), progress=None)
+    finally:
+        llm_client.reset_transport()
+        os.environ.pop("CAPP_CACHE_DIR", None)
+    rep = G.build_report(str(root), checks=True, now=NOW)
+    p = problem_of(rep, "confidence_tune b0_r1")
+    assert "exit code 1: " in p and "no plan has both a confidence score and a gap label (no model answer in this run could be read as a route" in p
+    assert "single sample" not in p
+    row = next(l for l in rep["baselines"] if l.startswith("dev_b0_r1"))
+    assert row.split()[:7] == ["dev_b0_r1", "3", "0.0%", row.split()[3], "15", "15", "0"]
+    assert any("15 answer(s) hit the token limit" in q for q in rep["problems"])
 
 
 # ---------------------------------------------------------------- secrets
@@ -726,7 +831,8 @@ def test_the_command_line_passes_its_arguments_on_and_prints_the_problems_and_th
 
     def stub(root, **kw):
         seen.update(kw)
-        return {"text": "t\n", "problems": ["first problem", "second problem"], "notes": [], "counts": {"ok": 3, "failed": 1, "timeout": 0, "skipped": 2}, "removed": [(3, "x")]}
+        return {"text": "t\n", "problems": ["first problem", "second problem"], "notes": [], "counts": {"ok": 3, "failed": 1, "timeout": 0, "skipped": 2}, "removed": [(3, "x")],
+                "baselines": ["run  parts", "---  -----", "t1_rb  3"]}
     monkeypatch.setattr(cli.G, "build_report", stub)
     monkeypatch.setattr(cli.G, "write_text", lambda text, out: written.append((text, out)) or out)
     assert cli.main(["--out", "o.txt", "--tag", "t1", "--dataset", "d1", "--grid", "g.json", "--timeout", "7", "--max-lines", "20"]) == 0
@@ -735,6 +841,8 @@ def test_the_command_line_passes_its_arguments_on_and_prints_the_problems_and_th
     out = capsys.readouterr().out.split("\n")
     assert out[:3] == ["2 problem(s):", "  - first problem", "  - second problem"]
     assert "1 line(s) that looked like a secret were removed from the file" in out and "checks: 3 ok, 1 failed, 2 skipped" in out
+    assert out.index("checks: 3 ok, 1 failed, 2 skipped") < out.index("the G1 runs (tag t1):") < out.index("  run  parts") and "  t1_rb  3" in out
+    assert out.index("  t1_rb  3") < [i for i, l in enumerate(out) if l.startswith("Written: ")][0]
     assert cli.main(["--out", "o.txt", "--no-checks"]) == 0
     assert seen["checks"] is False and "checks:" not in capsys.readouterr().out
 

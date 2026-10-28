@@ -1398,3 +1398,93 @@ python scripts\g1.py --max-calls 150  # har API run N live calls par ruk jaaye
 - **2048 aur `low` mere chune hue hain.** Groq docs ke hisaab se default 1024 "complex reasoning ke liye kam ho sakta hai" aur effort `low/medium/high`; is task ke liye `low` kaafi hona chahiye, par ye maine asli API par nahi dekha. Pehli `+ms` run ka `trunc` 0 aana chahiye; nahi aaya to `REASONING_MIN_MAX_TOKENS` badhao ya mujhe batao.
 - Qwen ke liye maine **kuch nahi badla**, kyunki `b0`/`b1` ka `trunc` abhi dekha nahi (diagnostics file chahiye). Agar qwen ke jawab bhi kat rahe hain to sab baseline numbers galat honge; wo alag, dhyan se tay hoga (cache badalta hai).
 - `reasoning_effort` ek experimental setting hai jo small/large tier ko primary se alag banati hai (primary par wo nahi lagta); report me ye likhna hoga.
+
+---
+
+## Step 36: failed check ki wajah terminal par, aur `confidence_tune` ka galat message
+
+**Kya mila:** tumhari screenshot me `check 'confidence_tune b0_r1' ended with exit code 1` tha, par wajah nahi dikhti thi, aur diagnostics file tum attach nahi kar paayi. Maine nakli "kate hue jawab" (`finish_reason: length`) ke saath asli harness se `b0_r1` chalaya: `confidence_tune` bilkul yahi exit 1 deta hai. Wajah: jab run ke kisi bhi jawab ko route ki tarah padha hi nahi ja sakta, to kisi plan ka confidence banta hi nahi, aur script kehti thi "a run with a single sample has no confidence", jabki `b0_r1` me 5 samples hote hain. **Matlab tumhare exit 1 ka sabse mumkin kaaran ye hai ki `b0_r1` (aur shayad `b0`) ke qwen jawab kat rahe hain, ya API errors hain.** Ye abhi sirf andaza hai: pakka tumhari `trunc`, `api-err`, `parse` values se hoga.
+
+### Kya badla
+- `capp/calibration.py`: jab ek bhi record me koi readable sample route nahi, message ab hai "no plan has both a confidence score and a gap label (no model answer in this run could be read as a route: cut off at the token limit, API errors or invalid JSON; see parse, trunc and api-err in results/diagnostics.txt)". Sach me single-sample wale run ka message pehle jaisa.
+- `capp/diagnostics.py`: har failed check ki problem line me uski **aakhri output line** aati hai (`... ended with exit code 1: <wajah>`, 200 characters tak, secret jaisi line hat jaati hai). Timeout aur freeze verify pehle jaise.
+- `scripts/diagnostics.py`: aakhir me "the G1 runs (tag dev)" table: `dev_rb`, `dev_b1`, `dev_b0`, `dev_b0_r1` ke liye parts, parse, strict-valid, calls, trunc, api-err (jo run nahi bani wo "not there yet"). Isse terminal ka aakhri hissa kaafi hai.
+
+### Tumhe kya karna hai
+`python scripts\diagnostics.py` (ya `scripts\g1.py`) chalao, fir ya to `results\diagnostics.txt` attach karo, ya terminal ke **aakhri 30 lines** ka screenshot (PROBLEMS, checks line, G1 runs table). Dono me ab wajah dikhegi.
+
+### Test
+`tests/test_diagnostics.py` (90) me 9 naye: wajah ka format, khali output, 200 characters ki seema, secret hatna, timeout/freeze par wajah nahi, table (4 runs, tag, toote hue files), report me table, aur ek poora asli test: kate hue jawab ke saath asli `b0_r1` run -> asli `confidence_tune` -> problem line me wajah, table me `trunc 15`. `tests/test_calibration.py` (34): naya message aur purana single-sample message. 26 jaan-boojh ke bugs, sab pakde gaye.
+
+### Honestly
+- **Qwen ke jawab kat rahe hain ya nahi, ye ab bhi mujhe nahi pata.** Ye step sirf dikhane ko aasaan banata hai; kuch theek nahi karta. Agar `trunc` > 0 aaya to sab baseline numbers biased hain, aur fix cache badlega (alag, dhyan se).
+- Terminal ki table sirf `tag` wale chaar runs dikhati hai; baaki runs file ki `runs` table me hain.
+
+---
+
+## Step 37: qwen3.8-27b (primary model) ko bhi thinking mode ka token limit kha raha tha
+
+**Kya mila:** Step 36 ke baad bhi tumhari diagnostics file nahi aayi, to maine purane screenshots dobara dekhe: "6 problem(s)" me se 3 chhupi thin, aur wo alphabetical order me `dev_b0`, `dev_b0_r1`, `dev_b1` ki jagah par fit hoti hain. Phir Groq ka `qwen3.8-27b` page dekha: **thinking default mode hai** (`reasoning_effort="default"`; `"none"` = instruct mode, 131,072 context, 16,384 max output). Hum har call me `max_tokens=200` bhejte hain. Step 35 me maine gpt-oss ke liye yahi kaaran pakda tha, par primary model ko "unchanged" chhod diya tha kyunki mujhe uska `trunc` nahi pata tha. Yahi mere Step 35 ka adhoora hissa tha.
+**Pakka kya hai:** docs ka default aur humari request. **Pakka nahi:** ki tumhare qwen runs sach me kat rahe hain (wo `trunc` column se pata chalega); aur ye ki Groq `max_tokens` me reasoning gintata hai (page ye saaf nahi kehta; gpt-oss ke liye tumhari apni run ne 96/100 kat-ke dikhaya).
+
+### Fix
+- `capp/config.py`: `model_params` ab `qwen/qwen3.8*` ke liye `reasoning_effort="none"` deta hai (token floor nahi, kyunki bina thinking ke jawab chhota hai). Env `CAPP_QWEN_REASONING`: `none` (default) | `default` | `low` | `medium` | `high` | `omit`. `omit` kuch nahi bhejta, yaani Step 37 se pehle ki request aur wahi purana cache. Thinking `low/medium/high/default` ho to `max_tokens` kam se kam 4096 (`QWEN_THINKING_MIN_MAX_TOKENS`). Galat value par `ValueError` shabdon me.
+- `capp/llm_client.py`: `reasoning_effort` ab API ko **body me** (`extra_body`) jaata hai, taaki `groq` SDK ka purana version (jisme ye argument nahi) bhi chale; request wahi hai. Caller ka dict (jo cache key banta hai) chhuaa nahi jaata.
+- `capp/g1.py`: ab "done" ka matlab teen cheezein hain: records poore, API error nahi, **koi jawab kata nahi**, aur **run usi model-settings se bani jo aaj ki hain** (`run.json` ka `model_params`). Warna "to run again: ..." (wajah ke saath): jaise `it was made with other settings for qwen/qwen3.8-27b: then nothing extra, now reasoning_effort=none`.
+- `capp/diagnostics.py`: `trunc` wali problem ab batati hai kya karna hai (wahi command wahi `--tag`).
+- `RUNBOOK.md`: G1 me Step 37 ka paragraph; Step 35 ke paragraph se "qwen ka cache wahi rehta hai" hataya (ab sach nahi).
+
+### Tumhe kya karna hai
+```
+python scripts\g1.py --dry-run
+python scripts\g1.py
+```
+`--dry-run` batayega ki `b1` aur `b0` "to run again" hain (naye calls: b1 ~20, b0 ~80). Phir `trunc` 0 aana chahiye; nahi aaya to mujhe batao. Purani qwen runs (`dev_n5_r1_s3`, `dev_n5_r0_s1+cg1` ...) bhi purani settings se bani hain: unka `trunc` diagnostics me dekho, aur jinki zarurat ho unhe wahi command wahi `--tag` se dobara chalao.
+
+### Experiment ka faisla (tumhara, mera nahi)
+`none` ka matlab B0/B1 = "LLM se seedha route maango". Thinking ke saath wo "LLM soch ke route de" hota. Dono alag baselines hain. Maine seedha jawab chuna kyunki (1) B0/B1 ka naam yahi kehta hai, (2) 200 tokens ka planner prompt isi ke liye bana hai, (3) thinking me ek call 1000+ tokens aur kai second leti, jabki 20 parts x 5 samples chalane hain. Agar Prof. Deb thinking baseline chahte hain to `CAPP_QWEN_REASONING=low` se ek alag tag me chalao aur report me dono dikhao. Report me ye line likhni hai: "primary model: qwen3.8-27b, reasoning_effort=none".
+
+### Test
+`tests/test_model_params.py` (36, pehle 22): kaun se models, `none` default, floor sirf thinking par, env ke saare values, galat value, `omit` se purani key wapas, purane cache ka jawab (kata hua) naye ko nahi milta, har tarah ki call, `run.json`, aur SDK ko `extra_body` me jaana (nakli Groq client). `tests/test_g1.py` (72, pehle 51): kata hua count (aur jo count nahi ginte: `True`, `"7"`, 0, -1, 2.5), purani settings, `omit`, rb kabhi nahi, model badla to, galat env, run.json na ho/kharab ho, wajah ka order, aur ek asli harness run (aaj ki settings = done, setting badli = redo). 37 jaan-boojh ke bugs (mutants), sab pakde gaye.
+
+### Honestly
+- **Asli Groq par maine kuch nahi chalaya.** `reasoning_effort="none"` ka asli asar (jawab ab nahi kat-te, parse rate) tumhari agli `g1.py` se dikhega. Docs ka naam `none` hai; agar API `400` de to mujhe error ka text bhejo.
+- Thinking band karne se qwen ke jawab **behtar ya kharab** ho sakte hain; ye maine naapa nahi.
+- `max_tokens=200` bina thinking ke bhi chhota ho sakta hai agar kisi part ka route bahut lamba ho: `trunc` wahi dikhayega.
+
+---
+
+## Step 38: `smoke_llm.py` ab ek line me batata hai ki Step 37 kaam kiya ya nahi
+
+**Kyun:** Step 37 asli Groq par chalaya nahi gaya, aur `g1.py` ~100 calls karta hai. Pehle 3 calls me check ho jaye to behtar. Aur diagnostics file tum bhej nahi pa rahi thi: ye output 15 line ka hai, ek screenshot kaafi hai.
+
+### Kya badla (`scripts/smoke_llm.py`)
+- `python scripts\smoke_llm.py`: 3 calls (`--samples N`), phir aakhri line **`RESULT: OK ...`** ya **`RESULT: PROBLEM  ...`**: API error (aur agar message me `reasoning` aaye to "ye line Claude ko bhejo"), jawab token limit par kate (`finish_reason length`, chahe kata hua text parse ho bhi jaye), ya jawab "route" hi nahi. Exit code 0/1, key nahi to 2. `settings  :` line batati hai ki kya bheja ja raha hai (`reasoning_effort=none`).
+- **`python scripts\smoke_llm.py --old`: koi API call nahi.** Ye is run ke liye `CAPP_QWEN_REASONING=omit` aur `CAPP_LLM_MODE=replay` lagata hai, yaani wahi purani request jiska cache tumhare paas pehle ke smoke run se bana hoga. Jawab `finish=length` ke saath dikhe to meri hypothesis (qwen ki thinking 200 tokens kha rahi thi) **sach me** sahi thi. Cache me wo call na ho to wahi likhta hai ("none of the old calls is in the cache"), kuch bhejta nahi.
+- "Route" ka matlab: har step planner ke prompt ki operations me se ho (+ `Inspection`). Ye zaruri tha kyunki planner ka parser jawab ko **line-line me tod kar** steps bana deta hai: "I cannot help with that." ya kata hua soch-vichar bhi `success=True` ban jaata. (Isi se `parse` column bhi dhoka de sakta hai: `trunc` aur `strict-valid` dekho.) Dhyan: planner ke prompt ki operations list me `Inspection` hai hi nahi, jabki rule 1 use har plan ke end me maangta hai; maine smoke me use jod diya, planner ko chhua nahi.
+
+### Test
+`tests/test_smoke_llm.py` (16): har verdict (OK, cached, kata hua, API error + hint, route nahi, key nahi, `--samples`), `--old` (koi call transport tak nahi jaati, purana cache dikhta hai, key nahi chahiye, aadha cache), `is_route`, aur known operations. 28 jaan-boojh ke bugs, sab pakde gaye.
+
+### Honestly
+- Asli Groq par yahan bhi nahi chalaya. `--old` tabhi kuch dikhayega jab tumne pehle `smoke_llm.py` usi prompt se chalaya ho; warna "not in the cache".
+- `RESULT: OK` ka matlab sirf 3 chhote calls theek hain, ye nahi ki poore baseline ke numbers theek hain.
+
+## Step 39: ablation grid bhi purani (kati hui ya purani settings wali) runs ko 'ok' nahi maanta
+
+**Kyun:** Step 35 aur 37 ne model settings badli (gpt-oss: `reasoning_effort=low`, qwen: `none`), aur `g1.py` ne baseline runs ke liye ye dekhna seekh liya. Lekin G2 ka grid (`make_tables status / commands / build`) abhi bhi sirf record count aur API errors dekhta tha: purani kati hui `+ms` run ko wo "ok" maankar table me daal deta, jabki wo model nahi, token limit naapti hai.
+
+### Kya badla
+- **`capp/runcheck.py` (naya):** do sawaal ek hi jagah: `truncated(info)` (run.json me kitne jawab `finish_reason length` par kate) aur `stale_settings(info)` (run ke model, aur cascade ke dono tier, aaj ki `config.model_params` se alag settings par bane kya). `run.json` me `model_params` na ho (Step 35 se pehle ki run) to "kuch extra nahi" maana jaata hai: qwen ke liye ye purani hai, jis model ko kuch extra nahi chahiye uske liye theek hai.
+- **`capp/g1.py`:** wahi do checks ab `runcheck` se hote hain (behaviour same; sirf code ek jagah).
+- **`capp/tables.py`:** `_read_run` ab kate hue jawab aur purani settings ko **error** banata hai. Isse `status` me "error", `build` me wo run table se bahar, aur `commands` me dobara chalane wali line (wahi `--tag`, "existing folder is unusable and will be overwritten: ..." ke saath). Message batata hai kya tha aur kya hai: `qwen/qwen3.8-27b: then nothing extra, now reasoning_effort=none`. Shared rows (`abl_shared`) aur cascade ke dono tier bhi dekhe jaate hain. `CAPP_QWEN_REASONING` galat likha ho to wo sirf qwen column par sawaal ki tarah (words me) dikhta hai.
+
+### Tumhe kya karna hai
+Kuch nahi abhi. G2 chalane ka waqt aaye to `make_tables.py commands configs\ablation_template.json` pehle jaisa chalao: ab usme Step 35/37 se pehle ki saari qwen/gpt-oss runs dobara chalane ki lines aayengi (28 me se jitni purani hui). Calls naye hote hain (cache key alag), to Groq ka quota dhyan me rakho: `--plan` / `--max-calls` pehle jaise kaam karte hain.
+
+### Test
+`tests/test_runcheck.py` (32) aur `tests/test_tables.py` me 8 naye: kata hua run, purani settings (qwen `{}`, gpt-oss floor na ho), Step 35 se pehle ki run (model_params hi nahi), `omit` lagane par aaj ki run purani ban jaati hai, galat env sirf qwen column par, run.json na ho to stale nahi, shared rows, aur `status/commands`.
+
+### Honestly
+- Ye sirf us run ko pakadta hai jiske `run.json` me `model_params` / `truncated` likha ho. Bahut purani run jo run.json hi na rakhe use ye check nahi pakadta (diagnostics us folder ko alag se dikhata hai).
+- Kuch badla nahi gaya jo asli Groq par depend kare; ye sab offline tests se pakda gaya hai. Mere paas abhi bhi tumhara `smoke_llm.py` ya `diagnostics.txt` ka output nahi hai, to ye nahi pata ki tumhari asli runs kati thi ya nahi.

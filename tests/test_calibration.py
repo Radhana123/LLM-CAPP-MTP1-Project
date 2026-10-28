@@ -241,6 +241,26 @@ def test_errors(real):
         CAL.analyse_run(single)
 
 
+def test_a_run_whose_answers_could_not_be_read_says_so_and_not_single_sample(real):
+    """Step 36: every answer cut off or invalid (no sample route at all) is not the same as a run with one sample."""
+    nothing = copy.deepcopy(real["records"])
+    for r in nothing:
+        r["info"]["confidence"] = None
+        for c in r["candidates"]:
+            c["llm_ok"] = False
+    with pytest.raises(CAL.CalibrationError, match="no model answer in this run could be read as a route") as e:
+        CAL.analyse_run(nothing)
+    assert "single sample" not in str(e.value) and "token limit" in str(e.value) and "trunc" in str(e.value)
+    assert str(e.value).startswith("no plan has both a confidence score and a gap label (")
+    one_readable = copy.deepcopy(nothing)                                    # a single record with a readable sample is enough for the other message
+    for c in one_readable[0]["candidates"]:
+        c["llm_ok"] = c.get("sample_id", -1) >= 0
+    with pytest.raises(CAL.CalibrationError, match="single sample has no confidence"):
+        CAL.analyse_run(one_readable)
+    with pytest.raises(CAL.CalibrationError, match="no plan has both a raw_agreement score and a gap label$"):
+        CAL.analyse_run(nothing, signal="raw_agreement")                     # the hint is about the confidence only
+
+
 def test_sealed_mode_skips_the_sweep(known):
     res = CAL.analyse_run(known, tune=False, evaluate_at=0.8, resamples=30)
     assert "sweep" not in res and "recommend_budget" not in res and res["evaluate_at"]["n_flagged"] == 4
@@ -347,6 +367,15 @@ def test_cli_errors(known, tmp_path, capsys):
         r["info"]["confidence"] = None
     d = write_run(tmp_path / "single", single)
     assert confidence_tune.main([d]) == 1 and "single sample has no confidence" in capsys.readouterr().err
+    nothing = copy.deepcopy(known)
+    for r in nothing:
+        r["info"]["confidence"] = None
+        for c in r["candidates"]:
+            c["llm_ok"] = False
+    d = write_run(tmp_path / "nothing", nothing)
+    assert confidence_tune.main([d]) == 1
+    err = capsys.readouterr().err
+    assert "no model answer in this run could be read as a route" in err and "single sample" not in err
 
 
 def test_cli_several_runs_are_not_pooled(known, tmp_path, capsys):

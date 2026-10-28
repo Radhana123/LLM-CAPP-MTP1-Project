@@ -458,6 +458,99 @@ def test_api_errors_in_the_records_are_a_warning_that_says_what_to_do(cfg, grid,
     assert clean["warnings"] == [] and clean["status"] == "ok"
 
 
+def set_summary(folder, **kw):
+    path = os.path.join(folder, "run.json")
+    info = json.load(open(path, encoding="utf-8"))
+    info["llm_client_summary"] = dict(info.get("llm_client_summary") or {}, **kw)
+    json.dump(info, open(path, "w", encoding="utf-8"))
+
+
+def test_a_run_with_cut_off_answers_is_an_error_that_says_what_to_do(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
+    set_summary(os.path.join(rd, "g_a_b0_r1"), truncated=4)
+    run = one_run(cfg, rd)
+    assert run["status"] == "error" and len(run["errors"]) == 1
+    assert run["errors"][0].startswith("4 answer(s) were cut off at the token limit (finish_reason length)")
+    assert "same --tag" in run["errors"][0] and "Steps 35 and 37" in run["errors"][0]
+    assert "measures the token limit, not the model" in run["errors"][0]
+    set_summary(os.path.join(rd, "g_a_b0_r1"), truncated=0)
+    assert one_run(cfg, rd)["status"] == "ok"
+
+
+def test_a_run_made_with_other_model_settings_is_an_error_naming_both_settings(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1", "g_b_b0_r1"])
+    edit_run_json(os.path.join(rd, "g_a_b0_r1"), model_params={"qwen/qwen3.8-27b": {}})              # as Step 35 wrote it for qwen
+    run = one_run(cfg, rd)
+    assert run["status"] == "error" and len(run["errors"]) == 1
+    assert "made with other model settings than today's (qwen/qwen3.8-27b: then nothing extra, now reasoning_effort=none)" in run["errors"][0]
+    assert "same --tag" in run["errors"][0]
+    edit_run_json(os.path.join(rd, "g_b_b0_r1"), model_params={"openai/gpt-oss-120b": {"reasoning_effort": "low"}})      # without the token floor
+    run = one_run(cfg, rd, "A2", "b")
+    assert run["status"] == "error" and "then reasoning_effort=low, now max_tokens_at_least=2048, reasoning_effort=low" in run["errors"][0]
+
+
+def test_a_run_from_before_step_35_has_no_model_params_and_counts_as_other_settings(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1", "g_c_b0_r1"])
+    for name in ("g_a_b0_r1", "g_c_b0_r1"):
+        path = os.path.join(rd, name, "run.json")
+        info = json.load(open(path, encoding="utf-8"))
+        info.pop("model_params")
+        json.dump(info, open(path, "w", encoding="utf-8"))
+    assert one_run(cfg, rd, "A2", "a")["status"] == "error"                       # qwen needs a setting now
+    assert one_run(cfg, rd, "A2", "c")["status"] == "ok"                          # a model that needs none does not
+
+
+def test_the_setting_of_today_decides_so_omit_makes_a_run_of_today_stale(cfg, grid, tmp_path, monkeypatch):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1", "g_b_b0_r1"])
+    monkeypatch.setenv("CAPP_QWEN_REASONING", "omit")
+    run = one_run(cfg, rd, "A2", "a")
+    assert run["status"] == "error" and "then reasoning_effort=none, now nothing extra" in run["errors"][0]
+    assert one_run(cfg, rd, "A2", "b")["status"] == "ok"                          # gpt-oss is not touched by the qwen setting
+
+
+def test_a_wrong_qwen_setting_is_said_in_words_for_the_qwen_column_only(cfg, grid, tmp_path, monkeypatch):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1", "g_b_b0_r1"])
+    monkeypatch.setenv("CAPP_QWEN_REASONING", "xhigh")
+    run = one_run(cfg, rd, "A2", "a")
+    assert run["status"] == "error" and any("CAPP_QWEN_REASONING='xhigh'" in e for e in run["errors"])
+    assert one_run(cfg, rd, "A2", "b")["status"] == "ok"
+
+
+def test_a_run_json_that_is_missing_is_not_called_stale_or_cut_off(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
+    os.remove(os.path.join(rd, "g_a_b0_r1", "run.json"))
+    run = one_run(cfg, rd)
+    assert run["status"] == "partial" and not run["errors"]
+
+
+def test_the_shared_rows_are_checked_too(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path, only=["g_shared_n5_r1_s3+ms"])
+    folder = os.path.join(rd, "g_shared_n5_r1_s3+ms")
+    assert one_run(cfg, rd, "A5", "a")["status"] == "ok"
+    set_summary(folder, truncated=96)
+    assert one_run(cfg, rd, "A5", "a")["status"] == "error"
+    set_summary(folder, truncated=0)
+    edit_run_json(folder, model_params={})
+    run = one_run(cfg, rd, "A5", "a")
+    assert run["status"] == "error" and "openai/gpt-oss-20b: then nothing extra, now max_tokens_at_least=2048, reasoning_effort=low" in run["errors"][0]
+
+
+def test_the_status_and_the_commands_of_the_grid_ask_for_a_cut_off_or_stale_run_again(cfg, grid, tmp_path):
+    rd = copy_grid(grid, tmp_path)
+    set_summary(os.path.join(rd, "g_a_b0_r1"), truncated=3)
+    edit_run_json(os.path.join(rd, "g_b_b1"), model_params={})
+    grid_cfg = T.validate_config(make_cfg(rd))
+    loaded = T.load_all(grid_cfg)
+    status = T.status_grid(grid_cfg, loaded)
+    assert "ERROR" in status and "2 run(s) to make or redo." in status
+    lines = T.run_commands(grid_cfg, loaded)
+    a = next(l for l in lines if "--system b0_r1 " in l and "--tag g_a" in l)
+    b = next(l for l in lines if "--system b1 " in l and "--tag g_b" in l)
+    assert "existing folder is unusable and will be overwritten: 3 answer(s) were cut off at the token limit" in a
+    assert "existing folder is unusable and will be overwritten: made with other model settings than today's" in b
+    assert not any("--tag g_c" in l and l.startswith("python") for l in lines)
+
+
 def test_fewer_repeats_than_the_config_asks_is_partial(cfg, grid, tmp_path):
     rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
     rewrite_records(os.path.join(rd, "g_a_b0_r1"), lambda recs: [r for r in recs if r["repeat"] == 1])

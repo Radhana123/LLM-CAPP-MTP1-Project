@@ -26,6 +26,8 @@ API_CAND = {"sample_id": 0, "llm_ok": False, "llm_raw": "API Error: HTTP 503: se
 @pytest.fixture(autouse=True)
 def no_key_in_the_environment(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("CAPP_QWEN_REASONING", raising=False)
+    monkeypatch.delenv("CAPP_MODEL_PRIMARY", raising=False)
 
 
 def load_parts(name):
@@ -33,9 +35,12 @@ def load_parts(name):
     return PARTS
 
 
-def make_run(root, system, n, tag="dev", api=0):
+def make_run(root, system, n, tag="dev", api=0, info=None):
+    """info = the content of run.json (None: no run.json, as before Step 37 these tests had none)."""
     folder = root / "results" / f"{tag}_{system}"
     folder.mkdir(parents=True, exist_ok=True)
+    if info is not None:
+        (folder / "run.json").write_text(json.dumps(info), encoding="utf-8")
     lines = []
     for i in range(n):
         cand = API_CAND if i < api else OK_CAND
@@ -59,7 +64,7 @@ class Runner:
             raise KeyboardInterrupt
         code = self.codes.get(system, 0)
         if code == 0 and system in self.make:
-            make_run(self.root, system, WANTED[system])
+            make_run(self.root, system, WANTED[system], info=None if system == "rb" else llm_info())      # a real run writes run.json again
         return code
 
     @property
@@ -131,6 +136,137 @@ def test_records_that_cannot_be_read_mean_run_again(tmp_path):
     folder.mkdir(parents=True)
     (folder / "records.jsonl").write_text("{not json\n", encoding="utf-8")
     assert G.step_state(str(tmp_path), "dev", "b1", 20) == ("redo", "its records cannot be read")
+
+
+PRIMARY = config.model("primary")
+
+
+def llm_info(truncated=0, params="now", model=PRIMARY, calls=100):
+    """run.json of an LLM run: params 'now' = the settings of today, None = no model_params key (a run before Step 35), or a dict."""
+    info = {"model": model, "llm_client_summary": {"calls": calls, "truncated": truncated}}
+    if params == "now":
+        info["model_params"] = {model: config.model_params(model)}
+    elif params is not None:
+        info["model_params"] = {model: params}
+    return info
+
+
+def test_an_llm_run_made_with_the_settings_of_today_and_no_cut_off_answer_is_done(tmp_path):
+    make_run(tmp_path, "b0", 20, info=llm_info())
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+
+
+def test_a_run_with_cut_off_answers_is_run_again_and_says_how_many(tmp_path):
+    make_run(tmp_path, "b0", 20, info=llm_info(truncated=17))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("redo", "17 answer(s) in it were cut off at the token limit (finish_reason length)")
+    make_run(tmp_path, "b1", 20, info=llm_info(truncated=1))
+    assert G.step_state(str(tmp_path), "dev", "b1", 20)[1].startswith("1 answer(s) in it were cut off")
+    make_run(tmp_path, "rb", 30, info={"model": None, "llm_client_summary": {"truncated": 5}})                       # a number that cannot be for rb: still said
+    assert G.step_state(str(tmp_path), "dev", "rb", 30)[0] == "redo"
+
+
+@pytest.mark.parametrize("bad", [None, "7", True, False, 0, -1, 2.5, [3]])
+def test_a_truncated_count_that_is_not_a_positive_whole_number_is_not_a_cut_off(tmp_path, bad):
+    info = llm_info()
+    info["llm_client_summary"]["truncated"] = bad
+    make_run(tmp_path, "b0", 20, info=info)
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+
+
+def test_a_run_made_before_the_settings_changed_is_run_again_with_the_difference_in_words(tmp_path):
+    for params in ({}, None):                                              # Step 35 wrote {} for qwen, before that there was no key at all
+        make_run(tmp_path, "b0", 20, info=llm_info(params=params))
+        assert G.step_state(str(tmp_path), "dev", "b0", 20) == (
+            "redo", "it was made with other settings for qwen/qwen3.8-27b: then nothing extra, now reasoning_effort=none")
+
+
+def test_the_settings_of_another_model_in_run_json_are_not_the_settings_of_this_one(tmp_path):
+    info = llm_info(params=None)
+    info["model_params"] = {"openai/gpt-oss-20b": {"reasoning_effort": "low", "max_tokens_at_least": 2048}}
+    make_run(tmp_path, "b0", 20, info=info)
+    assert G.step_state(str(tmp_path), "dev", "b0", 20)[0] == "redo"
+    info["model_params"] = "not a dict"
+    make_run(tmp_path, "b1", 20, info=info)
+    assert G.step_state(str(tmp_path), "dev", "b1", 20)[0] == "redo"
+
+
+def test_rb_is_never_run_again_for_model_settings(tmp_path):
+    make_run(tmp_path, "rb", 30, info={"model": None, "model_params": None, "llm_client_summary": None})
+    assert G.step_state(str(tmp_path), "dev", "rb", 30) == ("done", "")
+    make_run(tmp_path, "rb", 30, info={"model": PRIMARY})                  # even a run.json that names a model: rb has none
+    assert G.step_state(str(tmp_path), "dev", "rb", 30) == ("done", "")
+
+
+def test_a_model_that_needs_no_settings_is_done_with_none_recorded(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAPP_MODEL_PRIMARY", "llama-3.3-70b-versatile")
+    make_run(tmp_path, "b0", 20, info=llm_info(params=None, model="llama-3.3-70b-versatile"))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+
+
+def test_omit_makes_a_run_without_settings_done_and_a_run_with_them_not(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAPP_QWEN_REASONING", "omit")
+    make_run(tmp_path, "b0", 20, info=llm_info(params=None))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+    make_run(tmp_path, "b1", 20, info=llm_info(params={"reasoning_effort": "none"}))
+    assert G.step_state(str(tmp_path), "dev", "b1", 20) == (
+        "redo", "it was made with other settings for qwen/qwen3.8-27b: then reasoning_effort=none, now nothing extra")
+
+
+def test_a_run_made_with_thinking_on_is_redone_when_it_is_off_and_the_text_lists_all_settings(tmp_path):
+    make_run(tmp_path, "b0", 20, info=llm_info(params={"reasoning_effort": "low", "max_tokens_at_least": 4096}))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20)[1] == ("it was made with other settings for qwen/qwen3.8-27b: "
+                                                              "then max_tokens_at_least=4096, reasoning_effort=low, now reasoning_effort=none")
+
+
+def test_a_wrong_qwen_setting_is_a_g1_error_in_words(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAPP_QWEN_REASONING", "xhigh")
+    make_run(tmp_path, "b0", 20, info=llm_info(params=None))
+    with pytest.raises(G.G1Error, match="CAPP_QWEN_REASONING='xhigh'"):
+        G.step_state(str(tmp_path), "dev", "b0", 20)
+
+
+def test_run_json_that_is_missing_or_unreadable_or_not_a_dict_does_not_stop_a_complete_run(tmp_path):
+    make_run(tmp_path, "b0", 20)
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+    (tmp_path / "results" / "dev_b0" / "run.json").write_text("{not json", encoding="utf-8")
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+    (tmp_path / "results" / "dev_b0" / "run.json").write_text("[1, 2]", encoding="utf-8")
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("done", "")
+
+
+def test_the_wrong_count_and_the_api_errors_are_said_before_cut_off_answers_and_settings(tmp_path):
+    make_run(tmp_path, "b0", 5, info=llm_info(truncated=3, params=None))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20) == ("redo", "it has 5 record(s), 20 wanted")
+    make_run(tmp_path, "b0", 20, api=2, info=llm_info(truncated=3, params=None))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20)[1].startswith("2 API error(s)")
+    make_run(tmp_path, "b0", 20, info=llm_info(truncated=3, params=None))
+    assert G.step_state(str(tmp_path), "dev", "b0", 20)[1].startswith("3 answer(s)")
+
+
+def test_a_real_run_of_today_is_done_and_the_same_run_is_not_after_the_setting_changes(tmp_path, monkeypatch):
+    from capp import harness, llm_client
+    monkeypatch.setenv("CAPP_CACHE_DIR", str(tmp_path / "cache"))
+    llm_client.set_transport(lambda model, messages, params: {"text": '["Facing", "Inspection"]', "prompt_tokens": 5, "completion_tokens": 4,
+                                                              "finish_reason": "stop"})
+    try:
+        harness.run_experiment("b0", PARTS[:3], tag="dev", out_dir=str(tmp_path / "results"), progress=None)
+    finally:
+        llm_client.reset_transport()
+    assert G.step_state(str(tmp_path), "dev", "b0", 3) == ("done", "")
+    monkeypatch.setenv("CAPP_QWEN_REASONING", "low")
+    state, why = G.step_state(str(tmp_path), "dev", "b0", 3)
+    assert state == "redo" and "then reasoning_effort=none, now max_tokens_at_least=4096, reasoning_effort=low" in why
+
+
+def test_g1_runs_a_run_again_that_was_made_with_old_settings_and_says_why(tmp_path):
+    make_run(tmp_path, "rb", 30)
+    make_run(tmp_path, "b1", 20, info=llm_info(params={}))
+    make_run(tmp_path, "b0", 20, info=llm_info(truncated=4))
+    code, runner, say, _ = go(tmp_path, yes=True)
+    assert runner.systems == ["b1", "b0", "diagnostics"] and code == 0
+    assert "b1 : to run again: it was made with other settings for qwen/qwen3.8-27b: then nothing extra, now reasoning_effort=none" in say.text
+    assert "b0 : to run again: 4 answer(s) in it were cut off at the token limit" in say.text and "rb : done, not run again" in say.text
+    assert runner.calls[0][0] == G.command("b1", " --limit 20", "dev", "dev_v2")
 
 
 def test_the_tag_is_part_of_the_folder(tmp_path):

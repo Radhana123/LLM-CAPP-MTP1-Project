@@ -212,8 +212,14 @@ def analyse_run(records, label="gap", signal="confidence", budget=DEFAULT_BUDGET
     use = _usable(rows, signal, label)
     out["n_used"] = len(use)
     if not use:
-        raise CalibrationError(f"no plan has both a {signal} score and a {label} label"
-                               + (" (a run with a single sample has no confidence)" if signal == "confidence" else ""))
+        why = ""
+        if signal == "confidence":
+            if not any(_sample_routes(rec, "llm_steps") for rec in records):
+                why = (" (no model answer in this run could be read as a route: cut off at the token limit, API errors or invalid JSON; "
+                       "see parse, trunc and api-err in results/diagnostics.txt)")
+            else:
+                why = " (a run with a single sample has no confidence)"
+        raise CalibrationError(f"no plan has both a {signal} score and a {label} label" + why)
     # how well does each score rank the bad plans, for every label
     out["auroc"] = {}
     for l in LABELS:

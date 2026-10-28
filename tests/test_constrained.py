@@ -279,7 +279,7 @@ def test_the_question_shows_only_the_frontier_and_says_what_is_left():
         for _, op, machine in options_of(msgs):
             assert machine == CG.machine_of(op)
     assert "Machine of the last operation" in seen[0]["messages"][1]["content"]
-    assert seen[0]["params"] == {"temperature": config.PLANNER_TEMPERATURE, "max_tokens": config.CG_MAX_TOKENS}
+    assert seen[0]["params"] == {"temperature": config.PLANNER_TEMPERATURE, "max_tokens": config.CG_MAX_TOKENS, "reasoning_effort": "none"}      # Step 37
 
 
 def test_the_question_names_the_machine_of_the_last_operation():

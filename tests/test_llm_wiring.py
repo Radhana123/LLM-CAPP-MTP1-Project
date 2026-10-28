@@ -45,7 +45,7 @@ def test_planner_parses_reply_and_uses_pinned_model_and_v1_settings():
     r = llm_planner.generate_process_plan("Aluminum", ["Hole"], "0.02mm", 500)
     assert r["success"] and r["steps"] == ["Facing", "Drilling", "Inspection"]
     assert t.seen[0]["model"] == config.model("primary") == llm_planner.MODEL
-    assert t.seen[0]["params"] == {"temperature": 0.3, "max_tokens": 200}
+    assert t.seen[0]["params"] == {"temperature": 0.3, "max_tokens": 200, "reasoning_effort": "none"}      # the v1 settings, and since Step 37 no thinking
     assert r["meta"]["cached"] is False and r["meta"]["completion_tokens"] == 20
 
 
