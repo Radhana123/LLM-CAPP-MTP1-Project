@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "name": "mtp1_rehearsal",
+  "created_utc": "2026-10-28T03:09:50Z",
+  "git": {
+    "commit": "3b3aed1af6b08c2e1195ed0dbf35693f1f140540",
+    "branch": "master",
+    "dirty": true,
+    "tags": []
+  },
+  "tags": [
+    "baseline-v0",
+    "freeze-v1"
+  ],
+  "figures": true,
+  "dataset": "dev_v2",
+  "sealed": false,
+  "freeze": {
+    "id": "2d59d8b0a213",
+    "status": "drift"
+  },
+  "ready": false,
+  "blocking": [
+    "the grid runs on dev_v2, a development set: these are development results, not paper results",
+    "30 run(s) missing, partial or excluded: A0/gpt120=missing, A0/gpt20=missing, A0/qwen=missing, A1/gpt120=missing, A1/gpt20=missing, A1/qwen=missing, A2/gpt120=missing, A2/gpt20=missing ...",
+    "the working tree has drifted from freeze 2d59d8b0a213: results are not those of the frozen configuration",
+    "17 required section(s) without text: title, authors, abstract, introduction, related_work, method, setup, rq1, rq2, rq3, rq4, rq5, rq6, case_studies, discussion, limitations, conclusion"
+  ],
+  "files": {
+    "FREEZE.json": "3fa94c5346de1aa573a3ba7c5d503abbad95c4487e1f11246012a0e93dc144fe",
+    "RELEASE.md": "04af144500d1ed6588ef31e1ff635447b750b210feb1779cdb3d029e4b94c9d5",
+    "SHA256SUMS.txt": "6a795b8bfce92a1d6a98c9a27bc8633e51d27b9cc68d602c18c2a5414a8d1ddf",
+    "freeze_verify.txt": "e76665495166a058d649ae428336bac9054f462f32b20b0c3ed4ae739718d655",
+    "inputs/grid.json": "de4d368c866459352d865711c55f25c3fb5edafca33150cc054121ec968b1787",
+    "inputs/paper_text.json": "7a333e213ebddbef7ddc434b35970806e73c0776329c0389c907dcae02f64ced",
+    "inputs/recipe.json": "4bd2104fdfd35623bf40601cb467b83900181b14999a8ea81f9a06d7722ed309",
+    "paper/paper_draft.md": "dfa404b62ccf8aadf6b00c22374dc2cb26716b0c2c99d4b81453b58b3185827e",
+    "paper/readiness.txt": "f025ab262813b0d16437d11d11eebf82e20cd684c5cff0af7783f33f53b8f16a",
+    "tables/consistency.md": "4c77e0ddead2c33ba9d7344e0371523f35f7c1cc81d9b330826672c4c6f2d709",
+    "tables/issues.txt": "99492daea985245f0656b6906315549659338475e344229b605ad8d1ad680883",
+    "tables/manifest.json": "3490773d35aae7a7ff25cf4f1743275e1bf2a366bcacbefdaaee01e8a655765a",
+    "tables/paired.csv": "639de257c91fefe2fced00f04ba8e2491bd6d2665dff6da9e3cc13da1d6b7ec6",
+    "tables/paired.md": "ad83caa66974f27fa6e58e94307f82316248adfecb896ccbe1c2846a8ce6b3d9",
+    "tables/per_part.csv": "9daef56b1b8da82dd9c08d2f215264cec2227b6fda94ff60d2d81141bc707bf0",
+    "tables/table4.csv": "cca37a693d6e23785985fbc3e88267483912510704a256ce3dd449799882af84",
+    "tables/table4.md": "d22924aeda9aa7a0d576e985bfedec3d49869d649f279a51f4a540dfe856a2a4",
+    "tables/table4.tex": "ed4d8e9c0d3559e8e1b912cbf8fafd7935abd6868cc4b1f3a73ae1461d301129"
+  }
+}

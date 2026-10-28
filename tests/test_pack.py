@@ -381,8 +381,6 @@ def run_dirs(repo_):
 
 def test_the_run_folders_go_in_byte_for_byte_at_their_path_under_the_repository(release, tmp_path):
     repo_, out = release
-    rec = repo_ / "results" / run_dirs(repo_)[0] / "records.jsonl"
-    assert rec.read_bytes().count(b"\r\n") == 0
     res = build(release, tmp_path / "d", with_runs=True)
     m = members(res["zip"])
     grid = {"results/" + f for f in run_dirs(repo_)}

@@ -1,0 +1,34 @@
+NOT READY: 4 blocking, 3 advisory item(s) open
+
+[BLOCKING] the grid runs on dev_v2, a development set: these are development results, not paper results
+[ok] 3 LLM(s) in the grid (at least 3 are required)
+[BLOCKING] 30 run(s) missing, partial or excluded: A0/gpt120=missing, A0/gpt20=missing, A0/qwen=missing, A1/gpt120=missing, A1/gpt20=missing, A1/qwen=missing, A2/gpt120=missing, A2/gpt20=missing ...
+[ok] no error in the table issues
+[BLOCKING] the working tree has drifted from freeze 2d59d8b0a213: results are not those of the frozen configuration
+[advisory] M4 is measured against the Route Builder variants (proxy_rb), not against an expert: say so, or run the benchmark
+[advisory] no case studies given (--case-studies): report 7.5 asks for 3 to 5 cases per main failure type
+[advisory] no extraction run given (--extraction): RQ6 has no evidence
+[BLOCKING] 17 required section(s) without text: title, authors, abstract, introduction, related_work, method, setup, rq1, rq2, rq3, rq4, rq5, rq6, case_studies, discussion, limitations, conclusion
+[ok] no TODO or placeholder left in the prose
+[ok] every written section is within its word budget
+[ok] 0 words of prose (6 to 8 pages is roughly 4000 to 5500 words with the tables)
+
+Prose:
+  Title                  0 words  (3-20)  empty
+  Authors                0 words  (1-40)  empty
+  Abstract               0 words  (150-250)  empty
+  Introduction           0 words  (400-700)  empty
+  Related work           0 words  (350-600)  empty
+  Method                 0 words  (500-900)  empty
+  Setup remarks          0 words  (80-300)  empty
+  RQ1 answer             0 words  (80-250)  empty
+  RQ2 answer             0 words  (80-250)  empty
+  RQ3 answer             0 words  (80-250)  empty
+  RQ4 answer             0 words  (80-250)  empty
+  RQ5 answer             0 words  (80-250)  empty
+  RQ6 answer             0 words  (80-250)  empty
+  Case studies           0 words  (200-500)  empty
+  Discussion             0 words  (300-600)  empty
+  Limitations            0 words  (150-350)  empty
+  Conclusion             0 words  (120-250)  empty
+  Acknowledgements       0 words  (0-100)  empty

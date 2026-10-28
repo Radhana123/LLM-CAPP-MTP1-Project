@@ -1,0 +1,17 @@
+{
+  "_comment": "Copy to configs/zenodo.json and fill in. 'creators' and 'license' are required; everything else has a default. Names as 'Family, Given'. The licence is your choice (a Zenodo id such as cc-by-4.0). No upload is made by the script: this is the metadata you paste or send yourself.",
+  "title": "",
+  "description": "",
+  "creators": [
+    {"name": "", "affiliation": "", "orcid": ""}
+  ],
+  "license": "",
+  "upload_type": "dataset",
+  "access_right": "open",
+  "version": "",
+  "keywords": ["process planning", "CAPP", "large language models", "benchmark"],
+  "related_identifiers": [
+    {"identifier": "https://github.com/Radhana123/LLM-CAPP-MTP1-Project", "relation": "isSupplementTo", "scheme": "url"}
+  ],
+  "notes": ""
+}

@@ -1,0 +1,14 @@
+Freeze 2d59d8b0a213: DRIFT
+  behaviour files: 5
+    changed  capp/harness.py
+    added    capp/pack.py
+    added    capp/paperdraft.py
+    added    capp/release.py
+    added    capp/slides.py
+  analysis files (allowed): 6
+    changed  capp/freeze.py
+    added    scripts/pack.py
+    added    scripts/paper_draft.py
+    added    scripts/release.py
+    changed  scripts/run_eval.py
+    added    scripts/slides.py

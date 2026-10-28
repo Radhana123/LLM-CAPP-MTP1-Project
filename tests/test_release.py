@@ -462,7 +462,7 @@ def test_the_benchmark_is_copied_with_its_datasheet(repo):
 def test_the_datasheet_written_at_import_is_used_when_it_is_there(repo):
     (repo / "data").mkdir()
     json.dump(bench_parts(), open(repo / "data" / "bench.json", "w"))
-    (repo / "data" / "bench_datasheet.md").write_text("# The datasheet of the import\r\nwith a conflicts section\r\n")
+    (repo / "data" / "bench_datasheet.md").write_bytes(b"# The datasheet of the import\r\nwith a conflicts section\r\n")      # bytes: write_text would turn \n into \r\n on Windows
     res = build(repo, benchmark="data/bench.json")
     out = repo / "release" / "t"
     assert (out / "benchmark" / "DATASHEET.md").read_bytes() == b"# The datasheet of the import\nwith a conflicts section\n"

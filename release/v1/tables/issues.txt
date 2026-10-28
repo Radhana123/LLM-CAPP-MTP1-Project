@@ -1,0 +1,29 @@
+MISSING  A0 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_b1
+MISSING  A0 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_b1
+MISSING  A0 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_b1
+MISSING  A1 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_b0
+MISSING  A1 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_b0
+MISSING  A1 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_b0
+MISSING  A2 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_b0_r1
+MISSING  A2 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_b0_r1
+MISSING  A2 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_b0_r1
+MISSING  A3 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_b0_r1+ts+h1
+MISSING  A3 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_b0_r1+ts+h1
+MISSING  A3 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_b0_r1+ts+h1
+MISSING  A4 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_b0_r1+ts
+MISSING  A4 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_b0_r1+ts
+MISSING  A4 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_b0_r1+ts
+MISSING  A5 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_n5_r1_s3+ts+h1
+MISSING  A5 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_n5_r1_s3+ts+h1
+MISSING  A5 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_n5_r1_s3+ts+h1
+MISSING  A6 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_n5_r1_s3+ts+h1+fs2
+MISSING  A6 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_n5_r1_s3+ts+h1+fs2
+MISSING  A6 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_n5_r1_s3+ts+h1+fs2
+MISSING  A7 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_n5_r1_s3+ts+h1+fs2+fz2
+MISSING  A7 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_n5_r1_s3+ts+h1+fs2+fz2
+MISSING  A7 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_n5_r1_s3+ts+h1+fs2+fz2
+MISSING  A8: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_shared_n5_r1_s3+ts+h1+fs2+fz2+cas1
+MISSING  A9 gpt120: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt120_n5_r0_s1+cg1
+MISSING  A9 gpt20: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_gpt20_n5_r0_s1+cg1
+MISSING  A9 qwen: no run: C:\All-Projects\LLM-CAPP-MTP1-Project\results\abl_qwen_n5_r0_s1+cg1
+INFO    : no figures: no usable run yet

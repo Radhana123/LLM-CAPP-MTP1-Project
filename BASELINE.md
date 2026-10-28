@@ -1238,3 +1238,19 @@ Metadata (defaults, har galat key ka karan, sab problems ek saath, shipped templ
 
 ### Abhi kya nahi hai
 Zenodo par asli upload (tumhara kaam), `baseline-v0` aur `freeze-v1` tags, asli runs aur asli release.
+
+## Step 30: `RUNBOOK.md`, aur `requirements.txt` ki kami
+
+Naya code nahi: **ek hi file jo batati hai kaunsa command kab chalana hai**. `RUNBOOK.md`: setup, G1, G2 (aur freeze), G3, G4, Week 8 (release, paper, slides, pack), "jab bhi dekhna ho" (UI, route sheet, show_plan), aur "mat karo" ki list. Har gate par **"Mujhe paste karo"** line: kya bhejna hai taaki main next step bana sakun. BASELINE.md step-wise log hai, RUNBOOK.md order hai.
+
+### Jo is dauran mila
+1. **`requirements.txt` me `openpyxl` aur `reportlab` nahi the.** Route sheet ka PDF/XLSX aur benchmark ke Excel workbooks inhi par tike hain; fresh install par ye "needs reportlab / openpyxl" error dete. Dono jod diye (version pin nahi). Tumne `requirements.txt` me khud kuch joda ho to merge karna, zip use overwrite karti hai.
+2. **Final grid ke tags naye hone chahiye.** Run folder ka naam `results\<tag>_<system>` hai, dataset naam me nahi: `configs\final.json` me template wale tags (`abl_*`) rakhoge to dev ke results folders overwrite honge. RUNBOOK me `fin_*` tags likhe hain.
+3. `results\` aur `cache\` `.gitignore` me hain: wahi saboot hain, unki alag backup. `release\*.zip` ko `.gitignore` me tum jodo (maine tumhari `.gitignore` nahi chhui).
+
+### Test: `tests/test_runbook.py` (+8)
+RUNBOOK ke har code block ki har command line ko asli scripts ke saamne check karta hai: script maujood, sub-command sahi (`benchmark.py sheets`, `release.py build` ...), har `--flag` us script ke apne `--help` me, har `--system` naam `parse_system` accept kare, `--dataset` / `--from` in (`dev_v2`, `test_v2`, `bench_v1`) me, har config file ya maujood ya runbook ki hi `copy` line se bane (aur use se **pehle**), aur `scripts\` ki **har script runbook me ho** (naya script bina runbook me aaye test fail). 'decide' rows template me wahi hon jo runbook kehta hai; `requirements.txt` me wo har package ho jo `capp/`, `scripts/`, `week*/` import karte hain.
+**11 jaan-boojh kar bugs** (galat flag, galat system, galat dataset, galat sub-command, galat script ka naam, script runbook se gayab, galat config ka naam, `copy` line hata dena, requirements se `openpyxl` / `reportlab` / `python-dotenv` hata dena): sab pakde gaye.
+
+### Honestly
+Test sirf itna kehta hai ki commands **maujood aur sahi likhe** hain. Ye nahi ki kisi gate ke liye wahi sahi order hai: wo report ke Table 6 ke hisaab se maine likha hai, aur **calendar dates tumhari deadline par tike hain, jo mujhe abhi pata nahi**.

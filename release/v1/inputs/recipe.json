@@ -1,0 +1,11 @@
+{
+  "benchmark": null,
+  "case_studies": null,
+  "extraction": [],
+  "freeze": null,
+  "grid": "configs/ablation_template.json",
+  "name": "mtp1_rehearsal",
+  "notes": "Rehearsal on the development grid. For the final release: grid = your copy of the ablation config on test_v2 / bench_v1, benchmark = data/bench_v1.json, case_studies.runs = the baseline-row run folder of each LLM, extraction = the M9 run folder(s).",
+  "results": null,
+  "text": "paper/paper_text.json"
+}
