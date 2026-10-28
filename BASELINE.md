@@ -1192,3 +1192,49 @@ Text file semantics (kabhi overwrite nahi, orphans, order), slide ka order aur t
 
 ### Abhi kya nahi hai
 Asli talk ki prose (tumhari), asli runs aur release, `.pptx` ka design/template, `baseline-v0` aur `freeze-v1` tags (tumhare haath se).
+
+## Step 29 (WP12): release ko ek zip me pack karna, `scripts/pack.py`
+
+Report 8.4 ke deliverables (iii) aur (iv) ko rakhne/upload karne ke liye: verified release folder (+ run folders, + LLM cache) **ek deterministic zip** me, saath me `.sha256`, `PACK.md`, aur Zenodo metadata. **Koi upload nahi, koi account nahi, koi API call nahi**: zip tum khud upload karogi.
+
+```
+copy configs\zenodo_template.json configs\zenodo.json         # creators aur license bharo (required)
+python scripts\pack.py check  release\v1 --with-runs          # kya jaayega aur kya rok raha hai (kuch likhta nahi)
+python scripts\pack.py build  release\v1 --with-runs          # -> release\v1.zip aur release\v1.zip.sha256
+python scripts\pack.py build  release\v1 --with-runs --with-cache --out dist
+python scripts\pack.py verify release\v1.zip                  # archive akela: repo ke bina
+```
+Flags: `--metadata FILE` (default `configs\zenodo.json`), `--with-runs`, `--with-cache` (`--cache-dir`), `--no-regenerate` (release ka rebuild chhodo, sirf file hashes), `--out` (default `release\`). Exit: check/build 0 ok, 1 kuch block kar raha hai (**build me kuch nahi likhta**), 2 input galat; verify 0 verified, 1 not, 2 pack nahi hai.
+
+### Build se pehle teen cheezein rukti hain (blocking)
+1. **Release verified ho** (`release.py verify`: files badli nahi, rebuild wahi deta hai). Source badla ho (prose, run) to rukta hai, sahi bhi hai. Dusri machine par rebuild nahi ho sakta to `--no-regenerate`, aur advisory aati hai.
+2. **Metadata poora ho** (`configs\zenodo.json`): `creators` (name "Family, Given") aur `license` **tum likhogi, main choose nahi karta**. Baaki defaults: title "LLM-CAPP MTP-1: release <name>", `upload_type` dataset, `access_right` open, version = release name, description auto (dev release par "DEVELOPMENT RESULTS, NOT PAPER RESULTS" se shuru). Galat key, bura ORCID, galat upload_type: sab problems ek saath.
+3. **Koi secret nahi**: archive me jaane wali **har file** scan hoti hai: Groq/`sk-`/GitHub/AWS/Google/HF/Slack keys, private key, `api_key=...`-type assignment, aur **tumhare `.env` ya environment ke key/token/secret/password naam wale variables ki asli value** (chahe kisi bhi shakal ki ho). Message me sirf `file`, `line`, `kya mila` aata hai; **secret kabhi print nahi hota**. Mile to key badal do (agar kahin publish hui thi) aur file saaf karo.
+
+### Archive me kya hai (top folder `<name>/`)
+```
+PACK.md  PACK_manifest.json  SHA256SUMS.txt  zenodo_metadata.json
+release\    release folder jaisa hai (text files LF me, taaki Windows aur Linux ka same ho)
+runs\       --with-runs: grid ke runs + case-study runs + extraction runs, repo ke andar ke path par, **byte-for-byte** (CRLF bhi nahi chhuta: tables/manifest.json me records ka hash hai)
+cache\llm\  --with-cache: **poora** LLM cache (har cached call, sirf is release ki nahi; cache me key per-run nahi milti)
+```
+Zip me fixed time (1980-01-01), sorted order, fixed permissions: same inputs = same zip, same machine/Python/zlib par. **Alag zlib version compress alag kar sakta hai**: isliye `verify` zip ke bytes nahi, **har member ka SHA-256** compare karta hai.
+
+### `verify` (archive akela, repo nahi chahiye)
+Har member ka hash `PACK_manifest.json` se; koi member badla, gaya, ya jura (`extra`); `SHA256SUMS.txt` files se match; `.sha256` (zip ke bagal me) zip se match; andar ka release apne `release_manifest.json` se match (agar kisi ne dono, pack manifest aur file, saath badle to bhi yeh pakadta hai); `..` wale unsafe path; toota hua zip (CRC). `.sha256` na ho to bas "not checked".
+
+### Jo honestly likhna hai
+1. **Pack saabit karta hai ki archive wahi hai jo pack hua, aur release verify hua tha. Ye nahi ki inputs sahi hain** (runs, benchmark annotation, prose tumhare hain).
+2. **Code archive me nahi hai**: wo git repo ka commit hai (`PACK.md` me commit/tags). Rebuild ke liye wahi commit chahiye. `FREEZE.json` ka verify bhi isi par tika hai.
+3. `runs\` ke bina tables rebuild nahi ho sakti (advisory aati hai). Rebuild ke steps `PACK.md` me.
+4. `--with-cache` me dev runs ki bhi calls hain. Zenodo ke liye sochke lo.
+5. Benchmark ke annotations archive me jaate hain: **annotators ki sahmati aur licence** tumhara decision hai (advisory).
+6. Metadata ka format Zenodo ke `.zenodo.json` / deposit `metadata` jaisa hai, par **Zenodo ke server se jaanch nahi hui** (offline): upload par woh apna check karega.
+7. Dev release ka pack bhi ban jaata hai (rehearsal); advisory batati hai ki ise result ke roop me upload mat karo.
+
+### Tests (+111, `tests/test_pack.py`)
+Metadata (defaults, har galat key ka karan, sab problems ek saath, shipped template, missing/broken file), secrets (11 kisam ke secrets, 9 normal text jo secret nahi hone chahiye, `sk-` ki length ka boundary, line numbers, literal values, `.env` aur environment, **secret message me kabhi nahi**), plan (release verify, source badla, rebuild nahi ho sakta, missing metadata, blocking sab ek saath), archive (members, release files = release folder, hashes, deterministic zip, CRLF checkout ka same zip, repo ko kuch nahi badalta, refuse par kuch nahi bachta, purana zip replace), runs (byte-for-byte, CRLF, dedupe, missing, repo ke bahar), cache (sirf `.json`, tmp files nahi, byte-for-byte), **grid ka jo run release ke waqt bana hi nahi tha wo block nahi karta** (end-to-end smoke test me yeh bug mila: template grid par `--with-runs` unhe "not found" bolta tha), zip ki permissions, secrets files me (runs, cache, release, `.env`, environment), `verify` (har tarah ka badlav, pack dobara bana ke bhi, unsafe, toota zip, pack nahi hai, naam badla, repo ke bina), CLI.
+**56 jaan-boojh kar bugs** daal kar check kiya (lookbehind hataya, literal scan band, line number off-by-one, verify ignore, CRLF normalise band, sort hataya, system 0, tmp files andar, dedupe hata, outside-repo check, sums/sidecar/name ignore, unsafe, release inside, testzip, license/creators optional, dev banner, sums me pack manifest na rakhna, blocking par bhi zip likhna, ... ). **8 bach gaye the**: `sk-` key ki min length, run folder me half-written `.tmp` file, cache me sirf `.json`, zip tamper tests me `.sha256` ka mismatch sums-check ko chhupa raha tha (ab tamper test sidecar hata deta hai), zip likhte waqt fail hone par temp file ka bachna (ab test hai). **Teen jagah code hi faltu nikla** (equivalent mutant), isliye test nahi, code hata diya: andar ke release check me CRLF normalise (archive me text LF me hi hota hai), `testzip` (har member waise bhi padha jaata hai, CRC wahin pakadta hai), `.env` ka `export` handling (naam regex se waise bhi match hota hai). Ab sab pakde gaye.
+
+### Abhi kya nahi hai
+Zenodo par asli upload (tumhara kaam), `baseline-v0` aur `freeze-v1` tags, asli runs aur asli release.

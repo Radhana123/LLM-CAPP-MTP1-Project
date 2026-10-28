@@ -1,0 +1,32 @@
+NOT READY: 4 blocking, 3 advisory item(s) open
+
+[BLOCKING] the grid runs on dev_v2, a development set: these are development results, not paper results
+[ok] 3 LLM(s) in the grid (at least 3 are required)
+[BLOCKING] 30 run(s) missing, partial or excluded: A0/gpt120=missing, A0/gpt20=missing, A0/qwen=missing, A1/gpt120=missing, A1/gpt20=missing, A1/qwen=missing, A2/gpt120=missing, A2/gpt20=missing ...
+[ok] no error in the table issues
+[BLOCKING] the working tree has drifted from freeze 2d59d8b0a213: results are not those of the frozen configuration
+[advisory] M4 is measured against the Route Builder variants (proxy_rb), not against an expert: say so, or run the benchmark
+[advisory] no case studies given (--case-studies): report 7.5 asks for 3 to 5 cases per main failure type
+[advisory] no extraction run given (--extraction): RQ6 has no evidence
+[BLOCKING] 16 slide(s) without your sentences: Title, Authors and date, Problem and gap, Foundation: LLM-CAPP v1, Components under test, Data and protocol, First results, RQ1, RQ2, RQ3, RQ4, RQ5, RQ6, Failure case studies, Limitations, Conclusion
+[ok] no TODO or placeholder left in the slides' text
+[ok] every slide's text is within its budget
+
+Slides' text:
+  Title                         0 words  (3-15)  empty
+  Authors and date              0 words  (1-25)  empty
+  Problem and gap               0 words  (15-70)  empty
+  Foundation: LLM-CAPP v1       0 words  (15-70)  empty
+  Components under test         0 words  (15-70)  empty
+  Data and protocol             0 words  (10-60)  empty
+  First results                 0 words  (15-70)  empty
+  RQ1                           0 words  (15-70)  empty
+  RQ2                           0 words  (15-70)  empty
+  RQ3                           0 words  (15-70)  empty
+  RQ4                           0 words  (15-70)  empty
+  RQ5                           0 words  (15-70)  empty
+  RQ6                           0 words  (15-70)  empty
+  Cost and quality              0 words  (0-60)  empty
+  Failure case studies          0 words  (15-70)  empty
+  Limitations                   0 words  (15-70)  empty
+  Conclusion                    0 words  (15-70)  empty
