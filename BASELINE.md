@@ -1314,3 +1314,33 @@ Wahi command, wahi `--tag`: cache key me tag aur sample id hain, to jo calls ho 
 - Fatal pehchan SDK ke `.status_code` par tika hai (Groq SDK ke `str(exc)` me status nahi hota). Agar SDK kabhi status na de to wo error "retryable" maana jaayega aur 5 lagatar fail par run rukega, pehli call par nahi.
 - Step 32 se **pehle** bane run folders me `api_errors` key nahi hoti: unme purane API errors ab bhi parse-fail ginte hain (records badalte nahi). Unhe wahi command + wahi `--tag` se dobara chalao to fill ho jaayenge.
 - `scripts\run_eval.py` ke stderr hint ka test ek nakli run par hai, asli live run par nahi.
+
+---
+
+## Step 33: run se pehle plan (`--plan`), kharch par hard cap (`--max-calls`), aur `+ts` ka retry fix
+
+**Kyun:** G2/G3 me ek command hazaaron calls kar sakti hai (`n5_r2_s1+cas2` ya `+ts` jaise systems, `--repeats 5`). Pehle command chalane ke baad hi pata chalta tha. Ab pehle dekh sakti ho, aur chalte waqt roka bhi ja sakta hai.
+
+### 1. `--plan` (koi API call nahi, kuch likhta nahi)
+```
+python scripts\run_eval.py --system n5_r2_s1+ts --dataset dev_v2 --limit 20 --plan
+```
+Dikhata hai (`capp/runplan.py`):
+- **Live calls ka maximum: ye bound hai.** Ek sample slot = planner ki calls (1; `+ts` me 2; `+cg1` me har us step par ek jahan 2+ options hon, yani zyada se zyada operations − 1) + 1 re-prompt (R2/R3 me). Cascade (`+cas1/+cas2`) me large model har slot dobara pooch sakta hai, to bound do guna, model ke hisaab se alag-alag. Cache me jo answers hain unka kharch zero hai; kitne cached hain ye run se pehle pata nahi (re-prompt pichle answer par tika hai), isliye ye khaali cache ka kharch hai.
+- **Tokens, kharch, time: andaza**, tumhari `results\*\run.json` ki purani runs ke average se (us **model** ki runs). Us model ki koi purani run nahi hai to likhta hai "no earlier run with this model", andaza nahi lagata. Prices `capp/config.py` ke hain ([TO CONFIRM], Groq console se milao). Time = ek call ek baar me + `--throttle`. Rate-limit ka intezaar isme nahi hai.
+
+### 2. `--max-calls N`
+`run_eval` / `harness.run_experiment(max_calls=N)`: run N **live** calls ke baad do parts ke **beech** ruk jaata hai (`stopped after 2 of 4 parts: 10 live calls reached --max-calls 7`). Gini jaati hain: live jawab aur wo calls jo retry ke baad bhi fail hui; cache hit nahi gini jaati. Wahi command dobara chalao (ya bada `--max-calls`): jo ho chuka wo cache se aata hai, sirf baaki calls hoti hain. Aakhri part par nahi rukta (kuch baaki hi nahi). Granularity ek part hai, to cap thoda paar ho sakta hai (ek part ki calls tak).
+
+### 3. `+ts` ka fix (Step 32 ka side-effect)
+Two-step planner ka formalise call 3 structured-output modes (`json_schema`, `json_object`, plain) ek-ek try karta tha, kisi bhi error par. Step 32 ke baad har fail call ~77 s retry karti hai, to outage/rate-limit me ye 3 guna intezaar hota **aur** sample chupke se plain-text mode me chala jaata (alag experiment). Ab sirf format ka inkaar (HTTP 400/422, ya "response_format ... not supported" jaise shabd) agle mode par le jaata hai; 429, 5xx, connection error, 401/403/404 par turant ruk jaata hai.
+
+### Test
+`tests/test_runplan.py` (62) + `tests/test_twostep.py` (+3). Sabse zaroori: **asli planners, asli llm_client aur asli harness par** ek transport jo hamesha galat jawab deta hai (worst case) chalaya, aur calls ginin: `b0, b1, b0_r2, b0_r3, +ms, +ml, +cas1, +cas2, +fs2+h1, +fz1, +ts` par bound **barabar** nikla (na kam, na zyada), `+cg1` par kabhi zyada nahi. 62 jaan-boojh ke bugs me se 56 pehle hi pakde gaye, 5 ke liye tests jode (ab saare pakde), 1 equivalent (`except` use pehle hi pakad leta hai).
+
+### Honestly
+- **`+cg1` ka bound dhila hai:** operations − 1 hai, par asli me ~2 calls per route lagti hain (development set par; `capp/constrained.py` ka docstring). Bound sach hai, par andaza nahi.
+- Tokens/kharch/time ka andaza purani runs ke average par hai; naye system ki calls lambi ho (jaise `+fs4` ke examples) to zyada lag sakta hai. Isiliye sirf **call count** ko bound kaha hai.
+- Retries (rate limit par dobara bhejna) alag HTTP requests hain; ek "call" ke 6 requests tak ho sakte hain. Groq ka requests-per-minute limit isse bhi chhuta hai. `--throttle` ab bhi tumhara control hai.
+- `--max-calls` abhi diagnostics ya `make_tables` se nahi jura; sirf `run_eval` ka flag hai.
+- Dataset file na ho (jaise `bench_v1` import se pehle) to ab traceback ki jagah saaf usage error aata hai.

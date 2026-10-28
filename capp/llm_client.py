@@ -212,6 +212,12 @@ def reset_call_log():
         _stats.update(retries=0, retry_wait_s=0.0, failures=0)
 
 
+def live_calls() -> int:
+    """Calls that went to the service since the last reset: answered live, plus those that failed for good. A cache hit is free."""
+    with _lock:
+        return sum(not c["cached"] for c in _calls) + _stats["failures"]
+
+
 def _pct(sorted_vals, q):
     if not sorted_vals:
         return 0.0

@@ -144,6 +144,15 @@ def reset_refusals():
     _REFUSED.clear()
 
 
+def _service_error(exc) -> bool:
+    """True if a failed formalisation call says nothing about the output format: a rate limit, an outage, a refused key (llm_client has
+    already waited and retried by now). Only a refusal of the format (HTTP 400/422, or the provider's words for it) is a reason to ask for
+    another mode. Asking again in plain text after a 503 would cost another round of waiting and would quietly change the experiment."""
+    if _REFUSAL.search(str(exc)):
+        return False
+    return getattr(exc, "status", None) not in (400, 422)
+
+
 def _formalise_call(messages, model, sample_id):
     """Ask for structured output, falling back mode by mode. Returns (LLMResponse, mode used, [[mode, why it was skipped]])."""
     modes = list(config.STRUCTURED_MODES)
@@ -166,7 +175,7 @@ def _formalise_call(messages, model, sample_id):
             skipped.append([mode, "not in cache"])
         except Exception as exc:
             last = exc
-            if mode == "none":
+            if mode == "none" or _service_error(exc):
                 raise
             if _REFUSAL.search(str(exc)):
                 _REFUSED.add((model, mode))

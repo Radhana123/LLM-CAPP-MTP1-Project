@@ -52,6 +52,8 @@ Examples (repo root, PowerShell):
     python scripts/cascade_pareto.py results/dev_n5_r1_s3+ms results/dev_n5_r1_s3+ml results/dev_n5_r1_s3+cas1   # validity against cost
     python scripts/run_eval.py --system n5_r0_s1+cg1 --limit 20 --tag dev         # constrained planner (A9): about 2 short calls per sample
     python scripts/run_eval.py --system b0 --dataset dev_v2 --repeats 5 --tag dev # five repeated runs (M8)
+    python scripts/run_eval.py --system n5_r1_s3+ts --limit 20 --plan            # what it would ask of the API (a bound), no call is made
+    python scripts/run_eval.py --system b0 --limit 20 --tag dev --max-calls 60    # stop between two parts after 60 live calls; run again to continue
     python scripts/run_eval.py --summarize-only results/dev_b0                    # re-print a finished run
     python scripts/run_eval.py --summarize-only results/dev_n5_r1_s3 --confidence-flag 0.93   # same run, plans flagged below confidence 0.93 (scripts/confidence_tune.py picks T)
 
@@ -66,7 +68,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from capp import config, dataset, freeze, harness, summary, systems   # noqa: E402
+from capp import config, dataset, freeze, harness, runplan, summary, systems   # noqa: E402
 
 
 def main():
@@ -86,6 +88,10 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results"))
     ap.add_argument("--mode", choices=["live", "replay", "nocache"], help="sets CAPP_LLM_MODE (default: live)")
     ap.add_argument("--throttle", type=float, default=0.0, help="seconds to sleep after a part that made live API calls")
+    ap.add_argument("--plan", action="store_true",
+                    help="print what this command would ask of the API (live calls at most, tokens, cost and time from your earlier runs) and exit; no API call, nothing written")
+    ap.add_argument("--max-calls", type=int, default=None, metavar="N",
+                    help="stop between two parts once N live API calls have been made (cached answers are free); run the same command again to continue from the cache")
     ap.add_argument("--summarize-only", metavar="DIR", help="print the summary of an existing results folder and exit")
     ap.add_argument("--confidence-flag", type=float, metavar="T",
                     help="flag a plan for human review when its confidence is below T (default systems.CONFIDENCE_FLAG = 0.8; "
@@ -104,6 +110,8 @@ def main():
         return
     if not args.system:
         ap.error("--system is required (or use --summarize-only)")
+    if args.max_calls is not None and args.max_calls < 1:
+        ap.error("--max-calls must be 1 or more")
     try:
         systems.parse_system(args.system)
         pspec = systems.planner_spec(args.system)
@@ -118,7 +126,7 @@ def main():
             systems.normalize_weights(weights)
         except ValueError as exc:
             ap.error(f"--weights: {exc}")
-    if dataset.is_sealed(args.dataset) and args.system != "rb":
+    if dataset.is_sealed(args.dataset) and args.system != "rb" and not args.plan:      # a plan makes no call, so it needs no freeze
         print(f"WARNING: {args.dataset} is sealed (final runs only: no prompt or setting may change after its results are seen). "
               "Continue only if this is the final run.", file=sys.stderr)
         fz = freeze.status(config.ROOT, args.freeze)
@@ -136,13 +144,20 @@ def main():
     if args.mode:
         os.environ["CAPP_LLM_MODE"] = args.mode
 
-    parts = dataset.load_dataset(args.dataset)[args.offset:]
+    try:
+        parts = dataset.load_dataset(args.dataset)[args.offset:]
+    except (OSError, ValueError) as exc:                      # bench_v1 does not exist before `benchmark.py import`; a bad path; invalid rows
+        ap.error(f"--dataset {args.dataset}: {exc}")
     if args.limit:
         parts = parts[:args.limit]
+    if args.plan:
+        p = runplan.estimate(runplan.plan(args.system, parts, repeats=args.repeats, throttle=args.throttle), runplan.history(args.out))
+        print(runplan.format_plan(p))
+        return
     try:
         out = harness.run_experiment(args.system, parts, repeats=args.repeats, tag=args.tag, out_dir=args.out,
                                      dataset_name=args.dataset, throttle=args.throttle, weights=weights,
-                                     pool=args.pool, analysis=not args.no_analysis, freeze_path=args.freeze)
+                                     pool=args.pool, analysis=not args.no_analysis, freeze_path=args.freeze, max_calls=args.max_calls)
     except harness.HarnessError as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
         sys.exit(2)

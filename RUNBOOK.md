@@ -40,6 +40,12 @@ Run folder ka naam `results\<tag>_<system>` hota hai. Pehla folder (`rb`) refere
 
 **Run ke beech API error (rate limit, outage):** har call pehle khud 2, 5, 10, 20, 40 s ruk ke 5 baar dobara try karti hai. Phir bhi fail ho to wo model ki galti nahi gini jaati: summary me `API errors` line aati hai aur diagnostics me `api-err` column. Bas **wahi command, wahi `--tag`** dobara chalao: jo answers mil chuke wo cache se aate hain (dobara paise nahi), sirf fail wali calls phir se hoti hain. Key refuse (401/403), model gayab (404) ya bahut lamba quota-wait ho to run pehli call par hi ruk jaata hai aur wajah batata hai; lagatar 5 calls fail hon (outage) tab bhi ruk jaata hai.
 
+**Run shuru karne se pehle: kitni calls lagengi?** Koi bhi `run_eval` command me `--plan` jod do:
+```
+python scripts\run_eval.py --system b0 --dataset dev_v2 --tag dev --limit 20 --plan
+```
+Ye koi API call nahi karta aur kuch likhta nahi. Dikhata hai: live calls ka **maximum** (ye bound hai, isse zyada nahi ho sakti; cache me jo answers hain unka kharch zero hai), aur tumhari `results\` ki purani runs ke average se tokens, list-price kharch aur time (us model ki koi purani run nahi hai to likhta hai ki nahi hai, andaza nahi lagata). Run chalate waqt `--max-calls N` lagao to N live calls ke baad run parts ke **beech** ruk jaata hai (cache me sab rehta hai): wahi command dobara chalao, sirf baaki calls hoti hain.
+
 Benchmark v0 (lagbhag 20 parts) supervisor ko bhejne ke liye. Pehle rehearsal placeholder se, phir asli parts se:
 ```
 python scripts\benchmark.py select --from test_v2 --n 20 --out bench\spec_placeholder.xlsx

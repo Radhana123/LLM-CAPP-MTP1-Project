@@ -301,6 +301,55 @@ def test_an_ordinary_error_is_not_remembered_as_a_refusal():
     assert [s["mode"] for s in seen if "mode" in s].count("json_schema") >= 2 and not T._REFUSED
 
 
+def modes_asked(seen):
+    return sorted({s["mode"] for s in seen if "mode" in s})
+
+
+def test_a_service_error_does_not_try_another_output_format():
+    # an outage, a rate limit, a refused key say nothing about json_schema: asking again as json_object or plain text would cost another round of
+    # waiting and would quietly make this sample a different experiment (meta.structured_used)
+    for message in ("503 service unavailable", "429 rate limit reached", "Connection error."):
+        seen = []
+        refusing({"json_schema", "json_object", "none"}, seen, message)
+        res = run_planner()
+        assert res["success"] is False and res["raw_response"].startswith("API Error")
+        assert modes_asked(seen) == ["json_schema"], message
+
+
+def test_an_http_status_decides_between_a_refused_format_and_a_service_error(monkeypatch, tmp_path):
+    cases = [(400, True), (422, True), (401, False), (403, False), (404, False), (429, False), (500, False), (503, False)]
+    for status, falls_back in cases:
+        monkeypatch.setenv("CAPP_CACHE_DIR", str(tmp_path / f"cache{status}"))      # an answer cached by the case before would hide the second ask
+        seen = []
+        inner = fake(seen)
+        t0 = llm_client._transport
+
+        def t(model, messages, params, status=status):
+            rf = params.get("response_format")
+            if kind(messages) == "formalise":
+                seen.append({"mode": rf["type"] if rf else "none"})
+                if rf and rf["type"] == "json_schema":
+                    err = RuntimeError("bad request")
+                    err.status_code = status
+                    raise err
+            return t0(model, messages, params)
+        llm_client.set_transport(t)
+        res = run_planner()
+        assert (modes_asked(seen) != ["json_schema"]) == falls_back, status
+        assert res["success"] is falls_back, status
+        if falls_back:
+            assert res["meta"]["structured_used"] == "json_object"
+        llm_client.reset_transport()
+        T.reset_refusals()
+
+
+def test_a_refused_format_still_falls_back_when_the_error_has_no_status():
+    seen = []
+    refusing({"json_schema"}, seen, "response_format json_schema is not supported by this model")
+    res = run_planner()
+    assert res["success"] and res["meta"]["structured_used"] == "json_object" and modes_asked(seen) == ["json_object", "json_schema"]
+
+
 def test_every_mode_failing_is_an_api_error_for_the_guard():
     fake()
     t0 = llm_client._transport

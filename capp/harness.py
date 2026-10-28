@@ -148,7 +148,8 @@ def _feasibility(steps, part):
 def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp", out_dir: str = "results",
                    dataset_name: str = "", planner=None, throttle: float = 0.0, max_consecutive_errors: int = MAX_CONSECUTIVE_API_ERRORS,
                    front_uses_dims: bool = False, progress=print, write: bool = True, repair_planner=None,
-                   weights=None, pool=None, planner_factory=None, analysis: bool = True, freeze_path: str = None) -> dict:
+                   weights=None, pool=None, planner_factory=None, analysis: bool = True, freeze_path: str = None,
+                   max_calls: int = None) -> dict:
     """Run `system` on every part, `repeats` times (rb is deterministic: one run). `system` is rb, b0, b1, a repair variant
     (b0_r1 ... b1_r3) or a generic name n<N>_r<0-3>_s<0-3> (see systems.parse_system), optionally with planner options
     (+fs2, +fs4x, +h1: retrieval few-shot, hint; +fz1, +fz2: feasibility-aware repair; see capp/plannerspec.py).
@@ -157,7 +158,12 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     from the system name. `pool` (a planners.Pool or a dataset name, default dev_v2) is where few-shot examples come from.
     `weights` (time, cost, energy) are the priorities of selection S2. `analysis` adds the physics analysis (cutting energy kc,
     Taylor tool-wear cost, Ra risk) and the physical-feasibility check (capp/feasibility.py) of every final route and of every raw LLM
-    route to its record; it needs no API call and does not change any route or any validity decision."""
+    route to its record; it needs no API call and does not change any route or any validity decision.
+    `max_calls` (a positive int, default none): stop with a HarnessError, between two parts, once this run has made that many live calls
+    (answers from the cache are free and do not count). The answers made so far are in the cache, so the same command run again
+    continues where this one stopped. Use `python scripts/run_eval.py ... --plan` to see the bound before starting."""
+    if max_calls is not None and (isinstance(max_calls, bool) or not isinstance(max_calls, int) or max_calls < 1):
+        raise HarnessError(f"max_calls must be a whole number of 1 or more, not {max_calls!r}")
     try:
         spec = systems.parse_system(system)
         pspec = systems.planner_spec(system)
@@ -201,6 +207,8 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
     records = []
     old_tag = os.environ.get("CAPP_RUN_TAG")
     t_start = time.time()
+    live0 = llm_client.live_calls()
+    total_parts = repeats * len(parts)
     try:
         for r in range(1, repeats + 1):
             os.environ["CAPP_RUN_TAG"] = f"{tag}-r{r}"
@@ -231,6 +239,10 @@ def run_experiment(system: str, parts: list, repeats: int = 1, tag: str = "exp",
                     progress(f"[{system} r{r}/{repeats}] {i}/{len(parts)} parts, {time.time() - t_start:.0f}s")
                 if throttle and _live_call_made(rec):
                     time.sleep(throttle)
+                if max_calls is not None and len(records) < total_parts and llm_client.live_calls() - live0 >= max_calls:
+                    raise HarnessError(f"stopped after {len(records)} of {total_parts} parts: {llm_client.live_calls() - live0} live calls reached "
+                                       f"--max-calls {max_calls}. The answers made so far are in the cache: run the same command again "
+                                       "(with a larger --max-calls, or none) and only the calls that are missing are made.")
     finally:
         if old_tag is None:
             os.environ.pop("CAPP_RUN_TAG", None)
