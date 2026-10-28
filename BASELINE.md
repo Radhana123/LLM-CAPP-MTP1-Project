@@ -1146,3 +1146,49 @@ Recipe (defaults, idempotent, 27 galat recipes ke reasons, sab problems ek saath
 
 ### Abhi kya nahi hai
 Asli runs aur asli final release, presentation (report 8.4 vi), release ko ek zip ya Zenodo upload me pack karna, `baseline-v0` aur `freeze-v1` tags (tumhare haath se).
+
+## Step 28 (WP12): presentation skeleton, `scripts/slides.py`
+
+Report 8.4 ke deliverables (vi) "presentation". Release folder (ya grid config) se **slides ka Markdown** banta hai: tables aur paired results jagah par, tumhari prose alag file me, speaker notes me sirf "kya bolna hai" ke neutral prompts. **Koi API call nahi, koi run shuru nahi.**
+
+```
+python scripts\slides.py release\v1                                  # release folder se: uske tables, cases, benchmark
+python scripts\slides.py release\v1 --format marp --out slides_final --strict
+python scripts\slides.py configs\ablation_template.json              # dev grid par rehearsal
+python scripts\slides.py configs\final.json --benchmark data\bench_v1.json --case-studies results\case_studies\final --freeze FREEZE.json
+```
+Likhta hai: `slides\slides.md`, `slides\readiness.txt`, aur `slides\slides_text.json` (har slide ki ek khali entry; `--text FILE` se alag file). Exit 0 ok, 1 `--strict` me blocking item, 2 input me problem (STOPPED).
+
+**Convert:** `pandoc slides\slides.md -o slides\slides.pptx` (pandoc installed ho; notes speaker notes ban jaate hain), ya Marp (`--format marp`, VS Code extension ya `marp slides\slides.md --pptx`). **Design/layout tumhara**: script sirf content aur order deta hai. Chaude tables par font chhota karna pad sakta hai.
+
+### Slides (ek `## ` = ek slide)
+Problem and gap, Foundation: LLM-CAPP v1, Research questions, Components under test (table), Data and protocol, [Expert benchmark], First results (wahi headline table jo paper draft me), [First results: the ablation path (figure)], RQ1: Baseline failures, RQ1: Failure types of the raw routes, RQ2: Two-step planning and the hint, RQ3: Localized repair, RQ3: How much of the LLM route survives (M3), RQ4: Candidates and selection, RQ5: Repair or constrain, RQ6: Extraction and confirmation (M9), [Cost and quality (figure)], Failure case studies, Limitations, Reproducibility, Conclusion. Bracket wale tabhi aate hain jab benchmark / figure / cost figure ho.
+- Har RQ slide par wahi paired comparisons (A_i vs A_j, 95% interval) aur wahi metrics jo us RQ ke liye matter karte hain (RQ2/3: M1, M2p; RQ4: M2p, M4, M7; RQ5: M2p, M7). Jo comparison us RQ ka nahi, wo wahan nahi.
+- Table 8 rows (`MAX_ROWS`) se lambi ho to bacha hua paper draft me; slide par line aati hai "+N more rows".
+- Dev grid par har results slide par "Development results (...), not paper results." Sealed grid par jab tak blocking item khula ho: "Not final: n blocking item(s)".
+- Limitations slide par paper draft ki generated list ke **pehle 5 items ke pehle sentence**.
+
+### Ek zaroori design rule (pandoc)
+pandoc pptx me table (ya image) ke baad jo bhi aaye wo **nayi slide** ban jaati hai. Isliye har slide par pehle sentences/notes, **table ya figure sabse last**, aur ek slide par ek hi table. Jo slide ko do tables chahiye uske liye do slides. Test ek asli pandoc conversion chalata hai: 18 headings + title = 19 slides, aur notes ki ginti.
+
+### Tumhari prose: `slides_text.json`
+Ek entry har slide ki, word budget ke saath (jaise 15-70 words; title 3-15). Dobara generate karne par tumhari entries **kabhi nahi chhuti**; sirf missing keys khali judti hain, aur jo key kisi slide se match nahi karti wo orphan ke roop me rehti hai (note aata hai). Khali entry par slide par `_TO WRITE (15-70 words): <hint>_` dikhta hai. Script kabhi nahi likhta ki numbers ka **matlab** kya hai: speaker notes me sirf prompts hain ("Read the interval, not the point estimate", ...).
+
+### Readiness
+Paper draft ke checks (jo `text_*` nahi hain, kyunki slides ki apni prose alag hai) plus: `slides_missing` (blocking: required slide ki entry khali, benchmark slide tabhi required jab benchmark hai), `slides_placeholders` (blocking: `TODO`, `_TO WRITE`, `[TO CONFIRM]` bache hain), `slides_budget` (advisory: words budget se kam ya zyada).
+
+### Release folder se
+`collect_from_release` release ke `tables\` aur `case_studies\` use karta hai (case-study ke asli run folders hat gaye ho tab bhi chalta hai), recipe se benchmark, freeze, extraction, results padhta hai. Release folder na ho, `recipe.json` na ho, grid ya input gum ho to STOPPED (nam ke saath).
+
+### Honestly
+1. Ye **talk ka dhaancha** hai, taiyaar talk nahi: kya bolna hai, kis slide par kya zor dena hai, tumhara kaam hai.
+2. Dev grid par deck rehearsal hai (banner). Asli numbers ke liye asli runs aur release chahiye.
+3. Layout ka koi test nahi (pandoc ka default template); wide tables aankh se dekho.
+4. Slides ka matlab nahi ki claims support ho gaye: ek test check karta hai ki script "significant", "outperform", "demonstrate", "prove", "we show", "superior", "confirms", "shows that", "supports", "improve" jaisa kuch likhta hi nahi (RQ ke sawaal ke text ke siva).
+
+### Tests (+51, `tests/test_slides.py`)
+Text file semantics (kabhi overwrite nahi, orphans, order), slide ka order aur titles, benchmark slide, YAML/Marp titles (quoting), separators aur notes, **tables last** (grid par aur case studies+benchmark+extraction wale release par), **asli pandoc conversion**, headline = paper ka headline table, RQ routing aur metrics, `MAX_ROWS` aur note ki jagah, status line, case studies, limitations, M9, figure, reproducibility, no-claims, readiness ke saare variants, `write_all`, `collect_from_release` ke errors, CLI (grid, release, strict, errors, subprocess).
+**30 jaan-boojh kar bugs** daal kar check kiya (text overwrite, benchmark required na rakhna, note table ke baad, legend table ke baad, case table ke baad extra line, galat RQ routing, galat metrics, dev banner hata dena, blocking banner hata dena, placeholders/budget/missing checks band, marp separators aur notes, YAML quoting, text sync band, galat tables dir, ...). **Teen bach gaye the**: cases slide par table ke baad text (tables-last test me case studies nahi the), limitations ka 5-item cap (fixture me 5 se kam limitations), RQ6 par "+N more run(s)" note ki jagah (ek hi extraction run). Teeno ke test jode, ab sab pakde gaye.
+
+### Abhi kya nahi hai
+Asli talk ki prose (tumhari), asli runs aur release, `.pptx` ka design/template, `baseline-v0` aur `freeze-v1` tags (tumhare haath se).
