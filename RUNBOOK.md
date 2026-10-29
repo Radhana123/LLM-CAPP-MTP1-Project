@@ -169,7 +169,10 @@ python scripts\pack.py verify release\v1.zip
 
 ## Jab bhi dekhna ho
 
+**Step 41: pehle `where.py`.** Ye 15 line ka, offline aur ek second ka command hai: kuch chalata nahi, API nahi, kuch likhta nahi. Pehli `TODO` wali line batati hai tum kis gate par ho, aur `NEXT` ke neeche wahi command hain jo chalane hain. 'Ab kya?' poochne ki jagah iska screenshot bhej do.
+
 ```
+python scripts\where.py
 python scripts\diagnostics.py
 streamlit run week6\app.py
 python scripts\route_sheet.py from-run results\dev_b0_r1 --part DEV_004 --out results\DEV_004.pdf

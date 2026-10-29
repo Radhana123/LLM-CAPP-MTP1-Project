@@ -1511,3 +1511,23 @@ Abhi kuch nahi. G2 ka waqt aaye to pehle `--dry-run`. **Number dhyan se padhna:*
 - Asli Groq par nahi chalaya. Bound ek upar ki seema hai, andaza nahi; kharch/samay ka andaza tabhi aata hai jab us model ki pehle ki run `results\` me ho aur price `capp/config.py` me ho (wo bhi [TO CONFIRM]).
 - 28 runs ek baar me chalane ka matlab lambi sequence hai; rate limit par har run andar se retry karta hai, aur 5 lagataar API errors par ruk jaata hai. Tab wahi command dobara chalao.
 - Mere paas ab bhi tumhara `smoke_llm.py` / `diagnostics.txt` ka output nahi hai. `g2.py` chalane se pehle `smoke_llm.py` ka `RESULT: OK` dekh lena behtar hai: warna sab columns purani/galat settings par 28 runs kha sakte hain.
+
+## Step 41: `scripts\where.py`, "ab kya?" ka jawab ek screenshot me
+
+**Kyun:** tum "next" bhejti ho, par mujhe pata nahi hota ki tumne zip lagayi, kaunsa command chalaya, kahan atki. Aur `diagnostics.py` kai minute leta hai aur lambi file banata hai. Ye chhota alag tool hai: **15 line, offline, ek second, kuch chalata/likhta nahi, API nahi.**
+
+### Kya dikhata hai
+`python scripts\where.py`: RUNBOOK ke order me har gate ki ek line: `key` (GROQ_API_KEY mili ya nahi, value kabhi nahi dikhti), `LLM runs` (`results\` ki LLM runs me se kitni aaj ki settings par bani aur kati nahi, kitni kati hui, kitni purani settings ki), `smoke` (agar koi run abhi tak nahi dikhati ki Step 37 ki settings tumhare account par chalti hain), `G1 rb / b1 / b0` (wahi check jo `g1.py` karta hai) aur `G1 diag`, `G2 grid` (kitne cells ok, kitni runs baaki), `G2 table`, `freeze`, `G3/G4` (final grid), `release`.
+- Pehli **TODO** line batati hai tum kahan ho; **NEXT** ke neeche wahi command jo chalane hain. Chalane ke baad phir `where.py`.
+- **WARN** line: jo khud theek karna ho, jaise `FREEZE.json` G2 poora hone se pehle hai (agar jaan-boojh kar nahi banayi to `git rm FREEZE.json` + commit), freeze `drift` hai, ya koi config padhi nahi ja rahi. Koi file na padhi jaye to tool rukta nahi, us line par `WARN` likhta hai.
+- Jo tool dekh nahi sakta wo likhta hai: 'decide' rows ka faisla, case-study commentary, paper/slides ka prose, Zenodo fields tumhare hain.
+
+### Tumhe kya karna hai
+Zip lagane ke baad `python scripts\where.py` chalao aur **uska screenshot bhejo**. Isse mujhe ek hi baar me pata chal jayega: key hai ya nahi, `trunc` wali purani runs hain ya nahi, G1 kahan tak pahuncha, G2 kitna baaki.
+
+### Test
+`tests/test_where.py` (41): har gate ke liye ek chhota nakli folder (`results\`, `configs\`, `.env`): naya folder (key pehle), key ke baad smoke, aaj ki settings ki run ke baad smoke ghaayab aur `g1.py`, kati/purani/API-error wali runs, G1 poora to diagnostics, phir G2 (`g2.py --dry-run`, `--only <column>`), table, final config, freeze, sealed runs (freeze ke baad hi), release, galat `CAPP_QWEN_REASONING`, kharab config, kharab `run.json`, kuch likhta nahi, har line 100 characters me aur ASCII. 81 jaan-boojh ke bugs me se 14 pehli baar me bach gaye the (unme ek asli bug nikla: key ki line me do space); un sab ke liye test jode, ab sab pakde jaate hain.
+
+### Honestly
+- Ye sirf `results\`, `configs\`, `FREEZE.json`, `.env` padhta hai. Ye nahi jaanta ki tumne zip lagayi ya commit kiya, ya Groq par model chalta hai: wo `smoke_llm.py` batata hai.
+- `LLM runs` me 'aaj ki settings' ka matlab wahi hai jo `capp/config.py` me abhi hai; `CAPP_QWEN_REASONING` badloge to purani runs 'old settings' ban jaayengi.
