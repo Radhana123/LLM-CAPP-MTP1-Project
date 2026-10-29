@@ -1488,3 +1488,26 @@ Kuch nahi abhi. G2 chalane ka waqt aaye to `make_tables.py commands configs\abla
 ### Honestly
 - Ye sirf us run ko pakadta hai jiske `run.json` me `model_params` / `truncated` likha ho. Bahut purani run jo run.json hi na rakhe use ye check nahi pakadta (diagnostics us folder ko alag se dikhata hai).
 - Kuch badla nahi gaya jo asli Groq par depend kare; ye sab offline tests se pakda gaya hai. Mere paas abhi bhi tumhara `smoke_llm.py` ya `diagnostics.txt` ka output nahi hai, to ye nahi pata ki tumhari asli runs kati thi ya nahi.
+
+## Step 40: `scripts\g2.py`, ablation grid ek command me
+
+**Kyun:** G2 me template par 28 runs hain (3 LLM columns x 9 rows + 1 shared). `make_tables.py commands` unki lines chhapta hai, par har line haath se chalani padti hai, har column ke liye `$env:CAPP_MODEL_PRIMARY` badalna padta hai, aur kisi run ke beech me ruk jaane par pata hi nahi chalta kahan tak pahunche. G1 ke liye `g1.py` ye kaam karta tha; ab G2 ke liye bhi.
+
+### Kya hai
+- **`python scripts\g2.py configs\ablation_template.json --dry-run`**: kuch nahi chalata. Batata hai kaunsi runs banni hain (28 me se kitni missing, adhoori, kati hui ya purani settings wali hain) aur har column ka API calls ka bound (aur kharch/samay ka andaza agar tumhare `results\` me us model ki pehle ki run ho).
+- **`python scripts\g2.py configs\ablation_template.json`**: wahi runs, wahi order (jo `make_tables commands` deta hai; dono ek hi list `capp/tables.py::pending_runs` se aate hain), har column ke liye sahi `CAPP_MODEL_PRIMARY` ke saath. Har column se pehle ek baar poochta hai (`--yes` se nahi). `--only qwen` (ya `gpt120`, `gpt20`, `shared`) ek column; `--max-calls N` har run ke liye.
+- Key (`GROQ_API_KEY`) na ho to API run shuru hi nahi karta aur batata hai kahan rakhni hai. Pehli run jo ruk jaaye (error, `--max-calls`, 'n', Ctrl-C) poori sequence rok deta hai; wahi command dobara chalane par jo ban chuka wo dobara nahi chalta aur adhoori run cache se aage badhti hai.
+- Har run ke baad ek line: grid ab us run ko `ok` maanta hai ya kyun nahi (e.g. `error: ... cut off at the token limit`). End me status grid aur "Still to do: ...".
+- Sealed dataset (`test_v2`) ko mana kar deta hai: final grid freeze ke baad, RUNBOOK ke hisaab se.
+- **Chhota fix `tables.py` me:** agar grid config ka `results_dir` `results` se alag ho to `commands` / `g2.py` ki lines me ab `--out <results_dir>` judta hai (pehle run_eval hamesha `results\` me likhta aur grid kisi aur folder me dhoondta). Default `results` par line pehle jaisi hi hai.
+
+### Tumhe kya karna hai
+Abhi kuch nahi. G2 ka waqt aaye to pehle `--dry-run`. **Number dhyan se padhna:** template par bound sab columns milakar kai hazaar calls hai, kyunki har run ko alag, khaali cache maan kar ginta hai. Same tag ke andar same prompts cache se aate hain, to asli calls kam hongi, par kitni kam ye run se pehle nahi pata. Groq ki asli limits/prices mere paas nahi hain (tumne abhi bheji nahi), to pehle ek column `--only qwen --max-calls 100` jaise chhote tukde me.
+
+### Test
+`tests/test_g2.py` (48): asli harness aur nakli planner se runs sach me banti hain (koi API call nahi). Order, har column ka model (shared rows ko `CAPP_MODEL_PRIMARY` nahi), kitni baar poochta hai, 'n' ka asar, key na ho, run ka exit code, Ctrl-C, "exit 0 par bhi grid use nahi maanta", kati hui aur purani-settings wali run dobara banti hai, `--only`, `--max-calls`, sealed dataset, dry-run kuch nahi likhta, `scripts/g2.py` ke exit codes, aur asli template ka dry-run (28 runs).
+
+### Honestly
+- Asli Groq par nahi chalaya. Bound ek upar ki seema hai, andaza nahi; kharch/samay ka andaza tabhi aata hai jab us model ki pehle ki run `results\` me ho aur price `capp/config.py` me ho (wo bhi [TO CONFIRM]).
+- 28 runs ek baar me chalane ka matlab lambi sequence hai; rate limit par har run andar se retry karta hai, aur 5 lagataar API errors par ruk jaata hai. Tab wahi command dobara chalao.
+- Mere paas ab bhi tumhara `smoke_llm.py` / `diagnostics.txt` ka output nahi hai. `g2.py` chalane se pehle `smoke_llm.py` ka `RESULT: OK` dekh lena behtar hai: warna sab columns purani/galat settings par 28 runs kha sakte hain.

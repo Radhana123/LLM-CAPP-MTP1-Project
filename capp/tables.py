@@ -963,55 +963,78 @@ def _cache_key(system):
     return (p.few_shot, p.loo, p.hint, p.two_step, p.model, p.cascade, p.constrained), -spec[0]
 
 
+SHARED = "shared"                       # the 'column' of the rows that choose their own models (+ms, +ml, +cas1, +cas2)
+
+
+def run_argv(cfg: dict, row: dict, tag: str) -> list:
+    """The run_eval.py command of one row, as an argument list (after `python`). run_commands prints it, scripts/g2.py runs it."""
+    argv = ["scripts/run_eval.py", "--system", row["system"], "--dataset", cfg["dataset"], "--tag", tag, "--repeats", str(row["repeats"])]
+    if cfg["limit"]:
+        argv += ["--limit", str(cfg["limit"])]
+    if cfg["offset"]:
+        argv += ["--offset", str(cfg["offset"])]
+    if systems.planner_spec(row["system"]).few_shot and cfg["pool"] != "dev_v2":
+        argv += ["--pool", cfg["pool"]]
+    if cfg["results_dir"] != "results":                       # run_eval writes to results/ unless told: the grid reads cfg["results_dir"]
+        argv += ["--out", cfg["results_dir"]]
+    return argv
+
+
+def _why(run: dict) -> str:
+    if run["status"] == "error":
+        return "existing folder is unusable and will be overwritten: " + "; ".join(run["errors"])[:150]
+    if run["status"] == "partial":
+        return "incomplete (cached answers are reused): " + "; ".join(run["warnings"])[:150]
+    return ""
+
+
+def pending_runs(cfg: dict, loaded: dict) -> list:
+    """The runs still to make, in the order they should be run (one block per LLM column, cheapest order first, then the shared rows):
+    [{"column": model id | SHARED, "label", "model": the model id string for CAPP_MODEL_PRIMARY (None for the shared rows, which choose
+    their own), "row", "tag", "argv", "why"}]. `why` is '' for a run that does not exist yet. A row that is not built is not in it."""
+    runs = loaded["runs"]
+    out = []
+    for model in cfg["models"]:
+        pending = [r for r in cfg["rows"] if r["built"] and not r["independent"]
+                   and runs[(r["id"], model["id"])]["status"] in ("missing", "error", "partial")]
+        for r in sorted(pending, key=lambda r: _cache_key(r["system"])):
+            out.append({"column": model["id"], "label": model["label"], "model": model["model"], "row": r, "tag": model["tag"],
+                        "argv": run_argv(cfg, r, model["tag"]), "why": _why(runs[(r["id"], model["id"])])})
+    shared = [r for r in cfg["rows"] if r["built"] and r["independent"]
+              and runs[(r["id"], cfg["models"][0]["id"])]["status"] in ("missing", "error", "partial")]
+    for r in sorted(shared, key=lambda r: _cache_key(r["system"])):
+        out.append({"column": SHARED, "label": "", "model": None, "row": r, "tag": cfg["shared_tag"],
+                    "argv": run_argv(cfg, r, cfg["shared_tag"]), "why": _why(runs[(r["id"], cfg["models"][0]["id"])])})
+    return out
+
+
 def run_commands(cfg: dict, loaded: dict) -> list:
     """The run_eval lines for every cell whose run is missing, unusable or incomplete, grouped by LLM, cheapest order first.
     Returns a list of text lines (comments start with #)."""
-    runs = loaded["runs"]
     out, warn = [], []
     if dataset.is_sealed(cfg["dataset"]):
         warn = [f"# WARNING: {cfg['dataset']} is sealed. Run it only for the final results (WP11): once its results are seen no prompt,",
                 "# setting or choice of row (A5, A7, A8 ...) may change. Develop and decide on the development set first, then freeze:",
                 "#   python scripts/freeze.py create --grid <this config> --run-tests ; git add FREEZE.json ; git commit -m Freeze ; git tag freeze-v1",
                 "# run_eval stops on a sealed dataset if FREEZE.json is missing or the working tree has drifted from it.", ""]
-    todo = 0
+    jobs = pending_runs(cfg, loaded)
 
-    def line(row, tag, why):
-        parts = [f"python scripts/run_eval.py --system {row['system']} --dataset {cfg['dataset']} --tag {tag} --repeats {row['repeats']}"]
-        if cfg["limit"]:
-            parts.append(f"--limit {cfg['limit']}")
-        if cfg["offset"]:
-            parts.append(f"--offset {cfg['offset']}")
-        p = systems.planner_spec(row["system"])
-        if p.few_shot and cfg["pool"] != "dev_v2":
-            parts.append(f"--pool {cfg['pool']}")
-        text = " ".join(parts)
-        return f"{text}    # {why}" if why else text
+    def line(job):
+        text = "python " + " ".join(job["argv"])
+        return f"{text}    # {job['why']}" if job["why"] else text
 
-    def reason(run):
-        if run["status"] == "error":
-            return "existing folder is unusable and will be overwritten: " + "; ".join(run["errors"])[:150]
-        if run["status"] == "partial":
-            return "incomplete (cached answers are reused): " + "; ".join(run["warnings"])[:150]
-        return ""
-
+    todo = len(jobs)
     for model in cfg["models"]:
-        block = []
-        pending = [r for r in cfg["rows"] if r["built"] and not r["independent"]
-                   and runs[(r["id"], model["id"])]["status"] in ("missing", "error", "partial")]
-        for r in sorted(pending, key=lambda r: _cache_key(r["system"])):
-            block.append(line(r, model["tag"], reason(runs[(r["id"], model["id"])])))
+        block = [j for j in jobs if j["column"] == model["id"]]
         if block:
-            todo += len(block)
             out += [f"# --- {model['label']}: {len(block)} run(s). Same tag for all of them, so repeated prompts are answered from the cache.",
-                    f'$env:CAPP_MODEL_PRIMARY = "{model["model"]}"'] + block + [""]
-    shared = [r for r in cfg["rows"] if r["built"] and r["independent"]
-              and runs[(r["id"], cfg["models"][0]["id"])]["status"] in ("missing", "error", "partial")]
+                    f'$env:CAPP_MODEL_PRIMARY = "{model["model"]}"'] + [line(j) for j in block] + [""]
+    shared = [j for j in jobs if j["column"] == SHARED]
     if shared:
-        todo += len(shared)
         out += [f"# --- rows that choose their own models (+ms, +ml, +cas1, +cas2): run once, they appear in every column. "
                 "The models come from CAPP_MODEL_SMALL / CAPP_MODEL_LARGE (capp/config.py).",
                 "Remove-Item Env:CAPP_MODEL_PRIMARY -ErrorAction SilentlyContinue"]
-        out += [line(r, cfg["shared_tag"], reason(runs[(r["id"], cfg["models"][0]["id"])])) for r in sorted(shared, key=lambda r: _cache_key(r["system"]))]
+        out += [line(j) for j in shared]
         out.append("")
     if not todo:
         out = out + ["# Nothing to run: every run of the grid is present and complete."]

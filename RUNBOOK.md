@@ -77,6 +77,14 @@ python scripts\make_tables.py build    configs\ablation_template.json
 ```
 `commands` jo lines de unhe order me chalao, phir `status`, phir `build`. Template ki **'decide' rows** (A5 hint ya bina hint, A6 fs2 ya fs4, A7 fz1 ya fz2) dev ke numbers dekhke tay karo, **sealed set dekhne se pehle**.
 
+**Step 40: ye lines haath se chalane ki jagah `g2.py`.** Wahi runs, wahi order, par `g1.py` jaisi dekhbhal ke saath:
+```
+python scripts\g2.py configs\ablation_template.json --dry-run
+python scripts\g2.py configs\ablation_template.json --only qwen --max-calls 100
+python scripts\g2.py configs\ablation_template.json
+```
+`--dry-run` kuch nahi chalata: kaunsi runs banni hain (missing, adhoori, kati hui ya purani settings wali), har column ka calls ka bound aur, agar pehle ki run mili, kharch aur samay ka andaza. `--only` ek column chalata hai (config ke `models[].id`: template me `qwen`, `gpt120`, `gpt20`; `shared` = `+cas1` jaisi rows jo apne models khud chunti hain). Har column se pehle ek baar poochta hai (`--yes` se nahi poochta); `--max-calls N` har run ko N live calls par rok deta hai. Pehli run jo ruk jaaye (error, `--max-calls`, 'n', Ctrl-C) poori sequence rok deta hai; wahi command dobara chalao to cache se wahin se aage badhta hai. Har run ke baad batata hai ki grid ab use `ok` maanta hai ya nahi, aur end me status grid chhapta hai. Sealed dataset ko mana kar deta hai (final grid freeze ke baad, neeche). **Dhyan:** bound har run ko alag, khaali cache maan kar ginta hai; template par ye sab columns milakar kai hazaar calls ban jaata hai. Same prompts same tag ke cache se aate hain, to asli number kam hoga, par kitna kam, ye run se pehle pata nahi. Groq ki asli limit aur prices mere paas nahi hain, isliye pehle `--dry-run`, phir ek column chhote `--max-calls` se.
+
 **Step 35 se pehle ki gpt-oss runs (`+ms`, `+ml`, `+cas1`, `+cas2`) bekaar hain:** unme `gpt-oss` ka chhupa reasoning `max_tokens=200` khaa jaata tha aur jawab kat jaate the (`dev_n5_r1_s3+ms` me 100 me se 96). Ab in models ko `reasoning_effort=low` aur kam se kam 2048 tokens jaate hain (`capp/config.py`: `REASONING_EFFORT`, `REASONING_MIN_MAX_TOKENS`); request badli to cache key bhi nayi hai, to wahi command wahi `--tag` se dobara chalao, calls naye hongi. Run ke baad diagnostics ka `trunc` column 0 hona chahiye; 0 na ho to mujhe batao. **Step 39:** grid ab khud pehchanta hai ki kaunsa run purana hai: jis run ke `run.json` me kate hue jawab hain (`trunc` > 0) ya jo aaj ki model settings se nahi bana (qwen ke liye `reasoning_effort=none`, gpt-oss ke liye `low` + 2048), use `status` me **error** dikhta hai, `build` use table me nahi daalta, aur `commands` use dobara chalane ki line deta hai (wahi `--tag`; likha hota hai ki folder overwrite hoga). Matlab Step 35/37 se pehle ki saari qwen aur gpt-oss ablation runs ek baar naye sire se chalani padengi; `rb` wale rows par ye asar nahi karta.
 
 Madad ke offline checks (koi API call nahi):
