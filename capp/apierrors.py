@@ -13,11 +13,14 @@ calls that failed are made again. Nothing here changes a record.
 """
 import re
 
-from capp import llm_client
+from capp import config, llm_client
 
 PREFIX = "API Error"
 _HEAD = re.compile(r"^API Error: HTTP (\d{3})(?: \(retry after (\d+) s\))?")
 FATAL_STATUS = (401, 403, 404)                 # the key or the model is wrong: every further call fails the same way
+# Groq words a rate limit like: "... service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199700, Requested 660. Please try again in
+# 4m46s." The run's own stop line cuts the text at 200 characters, before this part, so it is read here from the whole text.
+_LIMIT = re.compile(r"\bon ([a-z]+(?: [a-z]+)* per (?:minute|hour|day)) \(([A-Za-z]{3,4})\): Limit (\d+), Used (\d+), Requested (\d+)")
 
 
 def is_api_error(raw) -> bool:
@@ -44,9 +47,22 @@ def run_fatal(raw):
         return ("the model was not found (HTTP 404): Groq may have retired it. Check the model ids in capp/config.py (or CAPP_MODEL_PRIMARY, "
                 "CAPP_MODEL_SMALL, CAPP_MODEL_LARGE) against the Groq console.")
     if status == 429 and wait and wait > llm_client.MAX_RETRY_AFTER:
-        return (f"the rate limit asks for a wait of {wait} s (about {max(1, round(wait / 60))} min): this is the quota, not the per-minute limit. "
+        text = (f"the rate limit asks for a wait of {wait} s (about {max(1, round(wait / 60))} min): this is the quota, not the per-minute limit. "
                 "The answers made so far are in the cache: run the same command again later with the same --tag and only the missing calls are made.")
+        which = limit_clause(raw)
+        if which:
+            text += " " + which
+        if config.quota_wait() < wait <= config.QUOTA_WAIT_LIMIT:
+            text += (f" To sit such a wait out inside the run (slow, and the laptop must stay on and awake), set CAPP_QUOTA_WAIT to at least {wait}, "
+                     "for example in PowerShell: $env:CAPP_QUOTA_WAIT=\"900\" and run the same command again.")
+        return text
     return None
+
+
+def limit_clause(raw) -> str:
+    """Which limit Groq says was reached ('Groq says: tokens per day (TPD): limit 200000, used 199700, requested 660.'), '' if the text has no such part."""
+    m = _LIMIT.search(raw) if isinstance(raw, str) else None
+    return f"Groq says: {m.group(1)} ({m.group(2)}): limit {m.group(3)}, used {m.group(4)}, requested {m.group(5)}." if m else ""
 
 
 def in_candidate(cand: dict) -> int:

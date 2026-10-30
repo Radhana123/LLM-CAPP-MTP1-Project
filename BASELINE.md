@@ -1531,3 +1531,64 @@ Zip lagane ke baad `python scripts\where.py` chalao aur **uska screenshot bhejo*
 ### Honestly
 - Ye sirf `results\`, `configs\`, `FREEZE.json`, `.env` padhta hai. Ye nahi jaanta ki tumne zip lagayi ya commit kiya, ya Groq par model chalta hai: wo `smoke_llm.py` batata hai.
 - `LLM runs` me 'aaj ki settings' ka matlab wahi hai jo `capp/config.py` me abhi hai; `CAPP_QWEN_REASONING` badloge to purani runs 'old settings' ban jaayengi.
+
+## Step 42: `g2.py --rows`, aur `where.py` ka G2 hint theek kiya
+
+**Kyun:** tumhari G2 run me dikha ki `g2.py` ek fixed order me chalata hai (`A1 b0`, `A2`, `A0`, phir `A9`, ...): jo runs same prompts bhejti hain wo saath aati hain taaki cache bache. Is order me optional aur sabse mehngi row `A9` (constrained planner, template par ek column me ~1590 calls tak) Tier-1 rows (`A3`, `A4`, `A5`, ...) se **pehle** aa jaati hai. Aur `where.py` ne `--max-calls 100` suggest kiya tha: wo galat salah thi, kyunki jis run ko 300 calls chahiye (`A1 b0`) wo 100 par ruk jaati hai aur poori sequence rok deti hai.
+
+### Kya badla
+- **`python scripts\g2.py configs\ablation_template.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7`**: sirf ye rows chalti hain (order grid ka hi rehta hai, jo tumne type kiya wo nahi). `A8` (cascade, `shared` column) aur `A9` baad me. Galat row ka naam ho to batata hai kaunsi rows hain; jis row me abhi system nahi (not built) use mana karta hai. `--only` ke saath dono lagte hain.
+- **`where.py`** ab G2 ke liye `g2.py <grid> --only <column>` dikhata hai, `--max-calls 100` nahi.
+- RUNBOOK ka G2 hissa isi hisaab se.
+
+### Tumhe kya karna hai
+Qwen column ke liye: `python scripts\g2.py configs\ablation_template.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7`. Jo runs ban chuki hain wo dobara nahi chalti.
+
+### Test
+`tests/test_g2.py` me 7 naye (order, `--only` ke saath, galat row, not-built row, khaali list, end-message, script ke options) aur `tests/test_where.py` ka hint wala test; 13 jaan-boojh ke bugs, sab pakde gaye.
+
+### Honestly
+`A7` ko maine isme rakha kyunki `fz` rows naye sample calls nahi leti (RUNBOOK ke template note ke hisaab se); agar tumhare numbers me wo bhi bhaari lage to plan dekh ke `A7` hata do.
+
+## Step 43: `g2.py` ab ruke to wajah screen ke aakhir me batata hai
+
+**Kyun:** tumhari qwen G2 run `A4` par ruk gayi, par ruknay ki wajah (jo `run_eval` ne print ki) output ke beech me thi aur uske baad status grid ne use upar scroll kar diya; screenshot me sirf `Still to do: ...` dikha. Do baar ho chuka tha, aur wajah ke bina main andaza hi laga sakta tha (Groq ka daily quota, key, ya koi error).
+
+### Kya badla
+- **`run_eval.py`** jab ruke (`STOPPED: ...`, ya koi error) to wajah ek line me `results\last_stop.txt` me bhi likhta hai; naya run shuru hote hi purani line hata deta hai. Kuch aur nahi badla: exit code 2 wahi, traceback wahi.
+- **`g2.py`** har run se pehle wo file hata deta hai, run ke non-zero exit par use padhta hai aur **status grid ke neeche** (`Still to do` se theek pehle) chhapta hai: `A4 b0_r1+ts (qwen) stopped (exit code 2). Why: STOPPED: ...`. Agar file nahi bani (galat argument jaisa kuch jo `run_eval` ne likha nahi) to wo run ka poora command deta hai, ki use akele chala ke dekho.
+- Text ASCII me aur 700 characters tak, taaki Windows console par na toote.
+
+### Tumhe kya karna hai
+Zip lagao, phir wahi command: `python scripts\g2.py configs\ablation_template.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7 --yes`. Agar ruke to **sirf neeche ka screenshot** chahiye.
+
+### Test
+`tests/test_laststop.py` (18): file ka likhna/padhna/hataana, ASCII aur 700 ki seema, `run_eval` ke stop aur error par likhna, naye run par purani line hatna, `--plan` par na chhedna, `g2.py` me grid ke neeche aur `Still to do` se pehle, bina file ke command, purani line ko is run ka na samajhna. 24 jaan-boojh ke bugs me se ek bach gaya, wo asal me kuch badalta hi nahi tha (galat mutation).
+
+### Honestly
+Ye wajah batata hai, theek nahi karta. Agar wajah quota nikli to intezaar ke alawa kuch nahi; wahi command baad me dobara chalao, cache se wahin se badhegi.
+
+## Step 44: Groq free plan par G2: slow mode, tokens ke din, aur `ablation_dev_free.json`
+
+**Kyun:** Step 43 se dikha ki `A4` par Groq ka `429` aaya: free plan par har model (`qwen3.8-27b`, `gpt-oss-120b`, `gpt-oss-20b`) ko sirf **200K tokens per day** milte hain. Deadline 5 Nov hai aur tum free par hi rehna chahti ho. Quota lagatar ~2.3 tokens/second ki raftaar se wapas aata hai, isliye har ~5 minute me ek-do calls ho sakti hain; ruk-ruk ke haath se chalana mumkin nahi, aur ye bhi pata hona chahiye ki kaunsi run kitne din ka quota maangti hai.
+
+### Kya badla
+- **`CAPP_QUOTA_WAIT`** (seconds, `0` = band, default): `429` me Groq ka wait 120 s se lamba ho (quota) aur is value se chhota ho to call utna wait + 5 s soti hai aur dobara try karti hai, har baar stderr par `Groq quota of <model> is used up for now: waiting N s ...`. Ek call ke liye 60 waits tak; wait value se lamba ho (jaise poora din) to pehle ki tarah ruk jaata hai. Ye normal attempts (6) me nahi ginta. `401/403/404/400/422` par kabhi nahi rukta. `run_eval.py` aur `g2.py` galat value ko shuru me hi mana karte hain (0 se 7200).
+- **Stop ki line (`Why:`)** ab batati hai kaunsi limit lagi (`Groq says: tokens per day (TPD): limit ..., used ..., requested ...`, Groq ke message se) aur kab `CAPP_QUOTA_WAIT` ka tip deti hai (wait 7200 s tak ho aur variable abhi chhota ho).
+- **`g2.py`**: har column ki line me ab tokens aur din: `about 600K tokens = 3.0 day(s) of the free quota (200K tokens/day) [TO CONFIRM]`; `shared` column me din nahi (uske models alag hain). `config.QUOTA_TOKENS_PER_DAY` = 200000 (Limits page, 2026-10-30); paid plan par badal dena. Slow mode on ho to header me likha aata hai.
+- **`configs\ablation_dev_free.json`**: template jaisi, `A5`, `A6`, `A7` par `repeats: 1`. Template aur uske tests nahi chhue; tags aur run folders wahi.
+
+### Tumhe kya karna hai
+1. Zip lagao, `python -m pytest`, commit.
+2. Dry run: `python scripts\g2.py configs\ablation_dev_free.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7 --dry-run`: tokens/din ka screenshot bhejo.
+3. Prof. Deb ko batao: free quota ki wajah se A5-A7 ek repeat, gpt-oss par sirf A0-A2, final test_v2 runs MTP-2 me.
+4. Phir qwen ke liye `$env:CAPP_QUOTA_WAIT="900"` aur `python scripts\g2.py configs\ablation_dev_free.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7 --yes`. Laptop plugged in, sleep band (Settings > System > Power). Alag terminals me `--only gpt120 --rows A0 A1 A2 --yes` aur `--only gpt20 --rows A0 A1 A2 --yes`.
+
+### Test
+`tests/test_quota.py` (39): variable ka parse aur galat values; quota wait ka wait + margin, notice, attempts na khana, 60 ki seema, 401/404 par kabhi nahi, chhoti `Retry-After` purane tareeke par; stop ka `Groq says` aur tip (aur kab nahi); `run_eval` ka shuru me mana karna; `g2.py` ke tokens, din, `shared` me din nahi, quota None; `ablation_dev_free.json` template se sirf naam, description aur teen rows ke `repeats` me alag. 39 jaan-boojh ke bugs me se 3 pehli baar bach gaye (do ke boundary tests jode: `<` ya `<=`, aur 'note' wali row; teesra galat jagah laga tha), ab sab pakde jaate hain.
+
+### Honestly
+- Quota ka model mera andaza hai: ~2.3 tokens/second ki raftaar tumhare `retry after 286 s` / `201 s` se match karti hai (660 tokens / 286 s), par Groq ka asli formula nahi dekha. Pehli raat ke baad `results\` me dekhna ki kitni calls hui.
+- Token estimate tumhari purani calls ke average se hai (b0/b1: chhote jawab). Two-step me do calls hain aur reasoning ke jawab lambe, to asli kharch isse zyada ho sakta hai. Dry run ko lower bound samjho.
+- Slow mode me ek call ~5 min tak soti hai, to ek poori column kai din chalegi. Qwen A3-A7 ~2.5 din, gpt-oss A0-A2 ~2 din har ek, ye mera rough hisaab hai, na ki Groq ka vaada.
+- `Groq says: ...` wali line Groq ke message ke us format par tiki hai jo docs me dikhta hai ("... on tokens per day (TPD): Limit L, Used U, Requested R"); format alag hua to wo line bas nahi aayegi.

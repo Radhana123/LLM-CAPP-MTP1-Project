@@ -68,7 +68,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from capp import config, dataset, freeze, harness, runplan, summary, systems   # noqa: E402
+from capp import config, dataset, freeze, harness, laststop, runplan, summary, systems   # noqa: E402
 
 
 def main():
@@ -97,6 +97,10 @@ def main():
                     help="flag a plan for human review when its confidence is below T (default systems.CONFIDENCE_FLAG = 0.8; "
                          "pick T with scripts/confidence_tune.py on the development set). With --summarize-only the existing records are re-flagged.")
     args = ap.parse_args()
+    try:
+        config.quota_wait()                                   # CAPP_QUOTA_WAIT: a wrong value stops here, not in the middle of a run
+    except ValueError as exc:
+        ap.error(str(exc))
 
     if args.confidence_flag is not None:
         if not 0.0 < args.confidence_flag <= 1.0 + 1e-9:
@@ -154,13 +158,18 @@ def main():
         p = runplan.estimate(runplan.plan(args.system, parts, repeats=args.repeats, throttle=args.throttle), runplan.history(args.out))
         print(runplan.format_plan(p))
         return
+    laststop.clear(args.out)                                  # the reason of an earlier stop must not be read as this run's (scripts/g2.py reads it)
     try:
         out = harness.run_experiment(args.system, parts, repeats=args.repeats, tag=args.tag, out_dir=args.out,
                                      dataset_name=args.dataset, throttle=args.throttle, weights=weights,
                                      pool=args.pool, analysis=not args.no_analysis, freeze_path=args.freeze, max_calls=args.max_calls)
     except harness.HarnessError as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
+        laststop.write(args.out, f"STOPPED: {exc}")
         sys.exit(2)
+    except Exception as exc:                                  # a bug or a full disk: the traceback follows, and the reason is also written
+        laststop.write(args.out, f"{type(exc).__name__}: {exc}")
+        raise
     print()
     print(summary.format_summary(args.system, out["summary"]))
     print(f"\nFiles: {out['out_dir']}")

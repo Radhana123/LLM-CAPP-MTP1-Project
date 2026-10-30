@@ -167,7 +167,7 @@ def test_when_g1_is_done_the_diagnostics_file_is_next_and_then_the_grid(tmp_path
     cmds = nxt(tmp_path, grid=small_grid(tmp_path))
     assert first_todo(tmp_path, grid=small_grid(tmp_path)) == "G2 grid"
     assert cmds[0].startswith("python scripts\\g2.py configs\\grid.json --dry-run")
-    assert cmds[1].startswith("python scripts\\g2.py configs\\grid.json --only a --max-calls 100")
+    assert cmds[1].startswith("python scripts\\g2.py configs\\grid.json --only a ") and "--max-calls" not in cmds[1]
 
 
 def test_the_grid_line_counts_cells_and_runs_and_waits_for_g1(tmp_path):

@@ -146,9 +146,8 @@ def g2_rows(root: str, grid: str, g1_done: bool) -> tuple:
                                                                           "# then choose the 'decide' rows (A5, A6, A7) from the numbers: RUNBOOK.md, G2")))
         return rows, True
     first = n["first_column"]
-    only = f" --only {first} --max-calls 100" if first != tables.SHARED else " --only shared --max-calls 100"
     cmds = (_py("g2.py", _win(grid), "--dry-run") + "      # what is to run, and the calls it can make",
-            _py("g2.py", _win(grid)) + only + "      # one column in small pieces; the same command continues")
+            _py("g2.py", _win(grid), "--only", str(first)) + "      # one column; if it stops, the same command continues")
     return [Row("G2 grid", f"{n['ok']} of {n['cells']} cells ok, {n['pending']} run(s) to make or run again ({_win(grid)})",
                 "todo" if g1_done else "info", cmds if g1_done else ())], False
 

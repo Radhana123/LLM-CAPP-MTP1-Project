@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import statistics
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -58,6 +59,8 @@ RETRY_DELAYS = (2, 5, 10, 20, 40)              # seconds waited before attempt 2
 MAX_ATTEMPTS = len(RETRY_DELAYS) + 1
 NO_RETRY_STATUS = frozenset({400, 401, 403, 404, 422})       # the request, the key or the model is wrong: the same call fails again
 MAX_RETRY_AFTER = 120.0                        # a Retry-After beyond this is a quota (per day), not a window: do not wait for it inside a run
+MAX_QUOTA_WAITS = 60                           # with CAPP_QUOTA_WAIT: at most this many quota waits for one call, then it fails for good
+QUOTA_MARGIN_S = 5.0                           # seconds added to a quota wait: the refill should not be one token short
 _stats = {"retries": 0, "retry_wait_s": 0.0, "failures": 0}
 
 
@@ -113,6 +116,11 @@ def _retry_after(exc):
     return value if value >= 0 else None
 
 
+def _notify(text):
+    """One line on stderr (tests replace this): a call that sits out a quota wait must not look like a hang."""
+    print(text, file=sys.stderr, flush=True)
+
+
 def _failure(exc, status, retry_after, attempts):
     if status:
         head = f"HTTP {status}" + (f" (retry after {retry_after:.0f} s)" if retry_after else "")
@@ -165,7 +173,8 @@ def chat(messages, *, model=None, sample_id=0, **params):
                         % (key[:12], model, sample_id, config.get_run_tag()))
 
     transport = _transport or _groq_transport
-    for attempt in range(MAX_ATTEMPTS):
+    attempt, quota_waits = 0, 0
+    while True:
         t0 = time.perf_counter()
         try:
             out = transport(model, messages, params)
@@ -175,15 +184,30 @@ def chat(messages, *, model=None, sample_id=0, **params):
             raise
         except Exception as exc:        # network error, rate limit, 5xx ...
             status, wait_hint = _status(exc), _retry_after(exc)
-            if status in NO_RETRY_STATUS or attempt == MAX_ATTEMPTS - 1 or (wait_hint or 0.0) > MAX_RETRY_AFTER:
+            hint = wait_hint or 0.0
+            if (MAX_RETRY_AFTER < hint <= config.quota_wait() and status not in NO_RETRY_STATUS
+                    and quota_waits < MAX_QUOTA_WAITS):
+                # slow mode (CAPP_QUOTA_WAIT): the quota is used up and Groq says when it is free again; wait for that instead of failing.
+                # It does not use one of the attempts: the next one is made after the full wait, as if it were the first.
+                quota_waits += 1
+                wait = hint + QUOTA_MARGIN_S
+                with _lock:
+                    _stats["retries"] += 1
+                    _stats["retry_wait_s"] += wait
+                _notify(f"Groq quota of {model} is used up for now: waiting {wait:.0f} s ({quota_waits} wait(s) for this call). "
+                        "Ctrl-C stops; what is answered is in the cache.")
+                _sleep(wait)
+                continue
+            if status in NO_RETRY_STATUS or attempt == MAX_ATTEMPTS - 1 or hint > MAX_RETRY_AFTER:
                 with _lock:
                     _stats["failures"] += 1
-                raise _failure(exc, status, wait_hint, attempt + 1) from exc
-            wait = max(RETRY_DELAYS[attempt], wait_hint or 0.0)
+                raise _failure(exc, status, wait_hint, attempt + 1 + quota_waits) from exc
+            wait = max(RETRY_DELAYS[attempt], hint)
             with _lock:
                 _stats["retries"] += 1
                 _stats["retry_wait_s"] += wait
             _sleep(wait)
+            attempt += 1
 
     resp = LLMResponse(out["text"], model, out.get("prompt_tokens", 0), out.get("completion_tokens", 0),
                        out.get("finish_reason", ""), latency, False, key)

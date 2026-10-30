@@ -250,15 +250,15 @@ def fake_plan(calls, estimate=None, seconds=0.0, llm=True):
 def test_totals_add_up_and_say_nothing_where_an_estimate_is_missing():
     a = fake_plan(100, [{"usd": 0.5}], 60.0)
     b = fake_plan(50, [{"usd": 0.25}], 30.0)
-    assert G.totals([a, b]) == {"calls": 150, "usd": 0.75, "seconds": 90.0}
+    assert G.totals([a, b]) == {"calls": 150, "usd": 0.75, "seconds": 90.0, "tokens": None}
     assert G.totals([a, fake_plan(10, [{"model": "m", "note": "no earlier run"}])])["usd"] is None
     assert G.totals([a, fake_plan(10, [{"usd": None}])])["seconds"] is None                  # a model without a price
     assert G.totals([a, fake_plan(10)])["usd"] is None                                       # no estimate at all
-    assert G.totals([fake_plan(0, llm=False)]) == {"calls": 0, "usd": 0.0, "seconds": 0.0}
+    assert G.totals([fake_plan(0, llm=False)]) == {"calls": 0, "usd": 0.0, "seconds": 0.0, "tokens": 0.0}
 
 
 def test_totals_text_says_what_is_known_and_never_a_made_up_number():
-    assert G.totals_text({"calls": 0, "usd": 0.0, "seconds": 0.0}) == "no API call"
+    assert G.totals_text({"calls": 0, "usd": 0.0, "seconds": 0.0, "tokens": 0.0}) == "no API call"
     known = G.totals_text({"calls": 120, "usd": 1.234, "seconds": 600.0})
     assert "at most 120" in known and "$1.23" in known and "10 min" in known and "[TO CONFIRM]" in known
     unknown = G.totals_text({"calls": 120, "usd": None, "seconds": None})
@@ -619,10 +619,10 @@ def test_the_script_hands_every_option_to_the_run(tmp_path, monkeypatch):
     monkeypatch.setattr(g2_script.g2, "run_g2", lambda cfg, root, **kw: seen.update(root=root, **kw) or 0)
     path = write_cfg(tmp_path)
     assert g2_script.main([path, "--only", "a", "shared", "--yes", "--dry-run", "--max-calls", "7", "--root", str(tmp_path)]) == 0
-    assert seen == {"root": str(tmp_path), "only": ["a", "shared"], "yes": True, "dry_run": True, "max_calls": 7}
+    assert seen == {"root": str(tmp_path), "only": ["a", "shared"], "yes": True, "dry_run": True, "max_calls": 7, "rows": None}
     seen.clear()
     assert g2_script.main([path]) == 0
-    assert seen == {"root": ROOT, "only": None, "yes": False, "dry_run": False, "max_calls": None}
+    assert seen == {"root": ROOT, "only": None, "yes": False, "dry_run": False, "max_calls": None, "rows": None}
 
 
 def test_a_cut_off_shared_run_is_pending_again_like_any_other(tmp_path):
@@ -656,3 +656,54 @@ def test_the_reason_of_an_error_run_is_its_errors_not_its_warnings(tmp_path):
     assert run["status"] == "error" and run["warnings"] == ["run.json does not name the dataset"]
     text = G._cell_text(cfg, loaded, job)
     assert text == "error: run.json says system 'b1', the row A1 is 'b0'"
+
+
+# ================================================================ --rows (Step 42)
+def test_rows_keeps_only_those_rows_in_the_order_of_the_grid(tmp_path):
+    _, runner, say, _, cfg = go(tmp_path, rows=["A3", "A1"], yes=True)
+    assert runner.tags == [("g_a", "b0"), ("g_a", "n5_r1_s3"), ("g_b", "b0"), ("g_b", "n5_r1_s3")]       # not the order the author typed
+    assert len(T.pending_runs(cfg, T.load_all(cfg))) == 9 - 4
+
+
+def test_rows_and_only_together_are_both_applied(tmp_path):
+    _, runner, _, _, _ = go(tmp_path, only=["a", "shared"], rows=["A0", "A4"], yes=True)
+    assert runner.tags == [("g_a", "b1"), ("g_shared", "n5_r1_s3+ms")]
+
+
+def test_a_row_that_does_not_exist_is_said_with_the_rows_there_are(tmp_path):
+    with pytest.raises(G.G2Error, match=r"--rows A9, X1: no such row\. Rows of this grid: A0, A1, A2, A3, A4, A5"):
+        go(tmp_path, rows=["A9", "X1", "A0"], yes=True)
+
+
+def test_a_row_without_a_system_cannot_be_run(tmp_path):
+    with pytest.raises(G.G2Error, match=r"--rows A5: not built"):
+        go(tmp_path, rows=["A5"], yes=True)
+
+
+def test_an_empty_list_of_rows_means_every_row(tmp_path):
+    _, runner, _, _, _ = go(tmp_path, rows=[], yes=True)
+    assert len(runner.calls) == 9
+
+
+def test_rows_leaves_the_plan_and_the_end_message_to_the_chosen_rows(tmp_path):
+    code, runner, say, _, _ = go(tmp_path, rows=["A0"], dry_run=True)
+    assert code == 0 and "Runs to make or run again: 2" in say.text                       # A0 in the two columns, nothing else
+    code, runner, say, _, _ = go(tmp_path, rows=["A0"], yes=True)
+    assert code == 0 and runner.tags == [("g_a", "b1"), ("g_b", "b1")] and "Nothing is left to run in this selection" in say.text
+    code, runner, say, _, _ = go(tmp_path, rows=["A0"], yes=True)
+    assert code == 0 and runner.calls == [] and "Nothing to run: A0 has nothing to make." in say.text
+
+
+def test_the_end_message_counts_only_the_chosen_rows_as_left(tmp_path):
+    code, runner, say, _, _ = go(tmp_path, rows=["A1"], runner=Runner(tmp_path / "results", make=False), yes=True)
+    assert code == 1 and "Still to do: a/A1 b0, b/A1 b0." in say.text and "A2" not in say.text.split("Still to do:")[1]
+
+
+def test_the_script_hands_rows_to_the_run(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(g2_script.g2, "run_g2", lambda cfg, root, **kw: seen.update(root=root, **kw) or 0)
+    assert g2_script.main([write_cfg(tmp_path), "--rows", "A0", "A2", "--root", str(tmp_path)]) == 0
+    assert seen["rows"] == ["A0", "A2"]
+    seen.clear()
+    g2_script.main([write_cfg(tmp_path)])
+    assert seen["rows"] is None

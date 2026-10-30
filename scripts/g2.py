@@ -2,6 +2,7 @@
 
     python scripts/g2.py configs/ablation_template.json --dry-run     # the runs still to make, the plan per column, nothing is run
     python scripts/g2.py configs/ablation_template.json               # run them column by column (asks before each column)
+    python scripts/g2.py configs/ablation_template.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6    # one column, only these rows
     python scripts/g2.py configs/ablation_template.json --only qwen --max-calls 300     # one column; each run stops after 300 live calls
     python scripts/g2.py configs/ablation_template.json --yes         # do not ask
 
@@ -25,6 +26,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Run the runs of the G2 ablation grid that are still to make.")
     ap.add_argument("config", help="the grid definition (JSON), for example configs/ablation_template.json")
     ap.add_argument("--only", nargs="+", metavar="COLUMN", help="only these columns (the model ids of the config; 'shared' = the rows that choose their own models)")
+    ap.add_argument("--rows", nargs="+", metavar="ROW", help="only these rows of the grid (A0, A1, ...); they still run in the order of the grid")
     ap.add_argument("--yes", action="store_true", help="do not ask before the runs of a column that call the API")
     ap.add_argument("--dry-run", action="store_true", help="list the runs and the plan of each column; run nothing")
     ap.add_argument("--max-calls", type=int, default=None, metavar="N", help="stop each API run after N live calls (the same command later continues)")
@@ -36,7 +38,7 @@ def main(argv=None) -> int:
         print(f"STOPPED: config error: {exc}", file=sys.stderr)
         return 2
     try:
-        return g2.run_g2(cfg, a.root, only=a.only, yes=a.yes, dry_run=a.dry_run, max_calls=a.max_calls)
+        return g2.run_g2(cfg, a.root, only=a.only, rows=a.rows, yes=a.yes, dry_run=a.dry_run, max_calls=a.max_calls)
     except g2.G2Error as exc:
         print(f"STOPPED: {exc}", file=sys.stderr)
         return 2

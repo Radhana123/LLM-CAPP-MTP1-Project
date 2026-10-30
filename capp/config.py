@@ -10,6 +10,8 @@ Environment variables
   CAPP_CACHE_DIR      cache folder (default <repo>/cache/llm)
   CAPP_MODEL_PRIMARY / _SMALL / _LARGE   override model IDs (primary: default; small and large: the two tiers of the cascade)
   CAPP_QWEN_REASONING none (default) | default | low | medium | high | omit: reasoning of the qwen primary model (see model_params)
+  CAPP_QUOTA_WAIT     seconds (default 0 = off): sit out a quota wait (HTTP 429 with a Retry-After above 120 s) of at most this long inside the
+                      run instead of stopping; needs a laptop that stays on (see quota_wait)
 """
 import os
 from pathlib import Path
@@ -105,6 +107,29 @@ def qwen_reasoning() -> str:
     value = os.getenv("CAPP_QWEN_REASONING", "").strip().lower() or QWEN_REASONING_DEFAULT
     if value not in QWEN_REASONING_VALUES:
         raise ValueError("CAPP_QWEN_REASONING=%r, expected one of %s" % (value, QWEN_REASONING_VALUES))
+    return value
+
+
+# Tokens per day per model that the Groq free plan allows (Settings > Limits in the Groq console, read 2026-10-30: 200K for qwen/qwen3.8-27b,
+# openai/gpt-oss-120b and openai/gpt-oss-20b). [TO CONFIRM] Groq changes limits: edit this after an upgrade. None: no figure is shown.
+QUOTA_TOKENS_PER_DAY = 200_000
+QUOTA_WAIT_LIMIT = 7200
+
+
+def quota_wait() -> float:
+    """CAPP_QUOTA_WAIT: the longest wait, in seconds, that one call sits out when Groq says the quota (tokens per day) is used up and when it
+    will be free again (a Retry-After above llm_client.MAX_RETRY_AFTER). 0 (the default, also unset): do not wait, the call fails and the run
+    stops, as before. The tokens-per-day quota refills a little all the time, so a run that waits goes on at the speed of the refill (about
+    200K tokens per day on the free plan): it is slow, the answers it gets are cached, and it needs the laptop to stay on."""
+    raw = os.getenv("CAPP_QUOTA_WAIT", "").strip()
+    if not raw:
+        return 0.0
+    try:
+        value = float(raw)
+    except ValueError:
+        value = float("nan")
+    if not (0 <= value <= QUOTA_WAIT_LIMIT):                       # nan fails both
+        raise ValueError("CAPP_QUOTA_WAIT=%r, expected a number of seconds from 0 to %d" % (raw, QUOTA_WAIT_LIMIT))
     return value
 
 
