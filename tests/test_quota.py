@@ -317,17 +317,23 @@ def test_nothing_to_run_still_announces_the_slow_mode(tmp_path, monkeypatch):
 
 
 # ================================================================ configs/ablation_dev_free.json
-def test_the_free_plan_grid_differs_from_the_template_in_three_repeats_only():
+def test_the_free_plan_grid_differs_from_the_template_in_the_repeats_of_the_two_step_rows_and_in_more_parts():
     import json
-    from capp import tables as T
+    from capp import dataset, tables as T
     a = json.load(open(os.path.join(ROOT, "configs", "ablation_template.json"), encoding="utf-8"))
     b = json.load(open(os.path.join(ROOT, "configs", "ablation_dev_free.json"), encoding="utf-8"))
     T.load_config(os.path.join(ROOT, "configs", "ablation_dev_free.json"))                       # it validates
     assert b["name"] == "ablation_dev_free" and "FREE plan" in b["description"]
     ra, rb = {r["id"]: r for r in a["rows"]}, {r["id"]: r for r in b["rows"]}
     assert list(ra) == list(rb)
-    assert {k: v for k, v in rb.items() if v.get("repeats") == 1}.keys() == {"A5", "A6", "A7"}
+    assert {k: v for k, v in rb.items() if v.get("repeats") == 1}.keys() == {"A3", "A4", "A5", "A6", "A7"}
     for rid in ra:
         assert {k: v for k, v in rb[rid].items() if k != "repeats"} == ra[rid]
-    for key in ("dataset", "limit", "repeats", "results_dir", "pool", "resamples", "seed", "shared_tag", "models"):
+    for key in ("dataset", "repeats", "results_dir", "pool", "resamples", "seed", "shared_tag", "models"):
         assert a[key] == b[key]                                                                  # same tags, so the same run folders
+    # Step 46: more parts than the template's 20, still the first N of the development set
+    parts = dataset.load_dataset(b["dataset"])
+    assert a["limit"] < b["limit"] <= len(parts)
+    first = parts[:b["limit"]]
+    assert min(p["n_features"] for p in first) == 2 and max(p["n_features"] for p in first) == 8   # the first 20 have neither
+    assert 2 not in {p["n_features"] for p in parts[:a["limit"]]} and 8 not in {p["n_features"] for p in parts[:a["limit"]]}

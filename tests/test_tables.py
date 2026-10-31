@@ -558,6 +558,21 @@ def test_fewer_repeats_than_the_config_asks_is_partial(cfg, grid, tmp_path):
     assert run["status"] == "partial" and run["warnings"] == ["1 of 2 repeats"] and len(run["records"]) == N_PARTS
 
 
+def test_a_finished_run_of_fewer_parts_than_a_larger_limit_is_partial_and_is_run_again_with_the_larger_limit(grid, tmp_path):
+    """Step 46: the free grid went from 20 to 30 parts. Runs of the first 20 are incomplete then, not ok and not lost: the commands
+    ask for them again with the new --limit (the cached answers of the first parts are reused by the same tag)."""
+    rd = copy_grid(grid, tmp_path)
+    bigger = T.validate_config(make_cfg(rd, limit=N_PARTS + 2))
+    loaded = T.load_all(bigger)
+    run = loaded["runs"][("A2", MODELS[0][0])]
+    assert run["status"] == "partial" and f"{N_PARTS} of {N_PARTS + 2} parts" in run["warnings"][0]
+    jobs = [j for j in T.pending_runs(bigger, loaded) if j["row"]["id"] == "A2" and j["column"] == MODELS[0][0]]
+    assert len(jobs) == 1 and jobs[0]["why"].startswith("incomplete (cached answers are reused)")
+    argv = jobs[0]["argv"]
+    assert argv[argv.index("--limit") + 1] == str(N_PARTS + 2)
+    assert "partial" in T.status_grid(bigger, loaded)
+
+
 def test_more_repeats_than_the_config_asks_is_a_warning(cfg, grid, tmp_path):
     rd = copy_grid(grid, tmp_path, only=["g_a_b0_r1"])
     run = one_run(T.validate_config(make_cfg(grid, repeats=1)), rd)

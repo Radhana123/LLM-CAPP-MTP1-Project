@@ -1592,3 +1592,51 @@ Ye wajah batata hai, theek nahi karta. Agar wajah quota nikli to intezaar ke ala
 - Token estimate tumhari purani calls ke average se hai (b0/b1: chhote jawab). Two-step me do calls hain aur reasoning ke jawab lambe, to asli kharch isse zyada ho sakta hai. Dry run ko lower bound samjho.
 - Slow mode me ek call ~5 min tak soti hai, to ek poori column kai din chalegi. Qwen A3-A7 ~2.5 din, gpt-oss A0-A2 ~2 din har ek, ye mera rough hisaab hai, na ki Groq ka vaada.
 - `Groq says: ...` wali line Groq ke message ke us format par tiki hai jo docs me dikhta hai ("... on tokens per day (TPD): Limit L, Used U, Requested R"); format alag hua to wo line bas nahi aayegi.
+
+## Step 45: `ablation_dev_free.json`: A3 aur A4 bhi ek repeat par
+
+**Kyun:** 30 ghante ke slow-mode ke baad ka hisaab: qwen ~17 calls per ghanta, gpt-oss ~15 per ghanta; qwen ke 5 runs (~1600 calls) ~3 Nov raat tak, aur uske A6/A7 (poora system) sabse aakhir me aate hain, 5 Nov ki deadline se ~1.5 din pehle. Late hone par wahi rows chhoot jaati.
+
+### Kya badla
+Sirf `configs\ablation_dev_free.json`: `A3` aur `A4` par `"repeats": 1` (A5-A7 par pehle se). Template nahi chhua. Cache key me repeat ka number `<tag>-r<n>` hai, total repeats nahi, to jo calls `--repeats 3` se ho chuki hain wo `--repeats 1` me cache se turant milti hain (A4 jo aadhi ho chuki thi wo turant poori). A3/A4 ke cells me ab SD nahi aata, aur Table 4 isko batata hai.
+
+### Tumhe kya karna hai (agar tum haan kehti ho)
+1. Zip lagao, `python -m pytest`, commit.
+2. Har chalti run ko Ctrl-C karo (sirf ek jawab, jo us waqt ruka tha, adhoora jaata hai), aur wahi command phir chalao (`$env:CAPP_QUOTA_WAIT="900"` ke saath):
+   `python scripts\g2.py configs\ablation_dev_free.json --only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7 --yes` (aur `--only gpt120 --rows A3 A4 A5`, `--only gpt20 --rows A3 A4 A5`).
+
+### Test
+`tests/test_quota.py` ka config test ab `A3` se `A7` maangta hai.
+
+### Honestly
+Ye experiment ka faisla hai (A3/A4 par SD nahi, 20 parts x 1 repeat): Prof. Deb ko batao. Jo A3/A4 3 repeats par pehle se bane hain (agar koi ho) wo 'all are used' warning ke saath partial dikhenge; unko dobara 1 repeat se chalane par saaf ho jaate hain.
+
+## Step 46: `ablation_dev_free.json`: 20 ki jagah 30 parts
+
+**Kyun:** 20 parts (DEV_001 se DEV_020) me 2-feature aur 8-feature (sabse mushkil, jaise Valve Body) parts nahi hain, aur 0.1 mm tolerance zyada hai (6 of 20, baaki me 15 of 180). Pehle 30 parts me DEV_024 (8-feature) aur DEV_025, DEV_026 (2-feature) aa jaate hain. Parts badhne se intervals bhi thode tang hote hain.
+
+### Kya badla
+Sirf `configs\ablation_dev_free.json`: `"limit": 30` (template nahi chhua; tags aur run folders wahi). `--limit` hamesha dataset ke **pehle N** parts leta hai (random nahi), to pehle 20 parts wahi hain aur unke saare jawab cache me hain.
+
+### Kharch (andaaza, upper bound, 10 naye parts ke liye)
+- Har model: A0-A2 ke 3 repeats ~150 calls, A4 ~100, A3 ~100; A5 A3 ke samples cache se leta hai. qwen par A6 ke ~100 aur.
+- Pehle se baaki: A3 ke 10 parts (~100 calls), qwen ke A6 ke 20 parts (~200 calls).
+- Kul: gpt-oss ~450 calls (30 se 37 ghante), qwen ~750 (50 se 60 ghante), 12 se 15 calls per ghanta par. Ye andaaza hai, asli rate cache count se dekho.
+
+### Pehle ke results ka kya hoga
+A0, A1, A2 aur A4 ki 20-part runs 'partial' (`20 of 30 parts`, †) dikhengi jab tak 30 parts poore na ho; unke jawab cache se turant aate hain, sirf 10 naye parts live. Run ka folder tab tak puraane 20-part result ke saath rehta hai jab tak nayi run poori na ho.
+
+### Tumhe kya karna hai
+1. Zip lagao, `python -m pytest`, commit.
+2. Teeno chalti runs Ctrl-C se roko, aur teeno commands (har terminal me `$env:CAPP_QUOTA_WAIT="900"` ke saath) naye rows ke saath chalao:
+   `--only qwen --rows A0 A1 A2 A3 A4 A5 A6 A7`, `--only gpt120 --rows A0 A1 A2 A3 A4 A5`, `--only gpt20 --rows A0 A1 A2 A3 A4 A5` (gpt-oss ke liye ab `A0 A1 A2` bhi, kyunki unhe naye 10 parts chahiye).
+3. g2 sasti row pehle chalata hai: A0 se A2 (naye parts), phir A4, A3, A5, A6, A7.
+
+### Test
+`tests/test_quota.py` ka config test ab maangta hai: template se bada `limit`, dataset ke size ke andar, aur pehle `limit` parts me kam se kam ek 2-feature aur ek 8-feature part (pehle 20 me dono nahi). `limit` ko 20, 23 ya dataset se zyada karke test check kiya: teeno me fail hota hai.
+
+### Honestly
+- Jo rows 3 Nov raat tak 30 parts par poori na hon, wo Table 4 se bahar (future work). A6 aur A7 (sirf qwen) sabse aakhir me chalti hain, to wahi pehle chhootengi.
+- 30 parts bhi pehle 30 hain, random nahi: 0.1 mm tolerance ab bhi 6 of 30 (20%) hai, baaki me kam. Report ke limitations me ye likhna.
+- Pehle likhe 20-part ke natije (paragraph) naye numbers aane par dobara nikalne honge.
+- Ye experiment ka faisla hai (20 ki jagah 30 parts, A3 se A7 ek repeat): Prof. Deb ko batao.
