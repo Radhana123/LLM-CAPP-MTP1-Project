@@ -1640,3 +1640,28 @@ A0, A1, A2 aur A4 ki 20-part runs 'partial' (`20 of 30 parts`, †) dikhengi jab
 - 30 parts bhi pehle 30 hain, random nahi: 0.1 mm tolerance ab bhi 6 of 30 (20%) hai, baaki me kam. Report ke limitations me ye likhna.
 - Pehle likhe 20-part ke natije (paragraph) naye numbers aane par dobara nikalne honge.
 - Ye experiment ka faisla hai (20 ki jagah 30 parts, A3 se A7 ek repeat): Prof. Deb ko batao.
+
+## Step 47: `ablation_dev_free.json`: 30 ki jagah 40 parts
+
+**Kyun:** tumne 30 se zyada parts chahe (zyada parts = tang interval, aur pehle 40 me 2-feature ×3 aur 8-feature ×3 parts aate hain). Keemat saaf thi aur tumne 40 chuna: free quota me qwen ki A6/A7 nahi aa paayengi.
+
+### Kya badla
+Sirf `configs\ablation_dev_free.json`: `"limit": 40` (pehle 30). Tags, run folders aur baaki config wahi. Pehle ke saare jawab (20 parts, aur jo naye parts Step 46 ke baad ban chuke) cache me hain.
+
+### Kharch aur samay (andaaza, upper bound; naye 20 parts par)
+- gpt-oss (har column): A0-A2 ke 3 repeats ~300 calls, A4 ~200, A3 ~300 (A3 ke pehle 10 parts pehle se bane hain), A5 A3 ke samples cache se leta hai. Kul ~800 calls: A0-A2 ~19 calls per ghanta, two-step ~12, to ~58 ghante, yaani 3 Nov dopahar ke aas-paas.
+- qwen: A0-A5 wahi ~800 calls (~58 ghante). A6 ke ~400 calls aur (~33 ghante): wo 3 Nov raat tak nahi hongi.
+- Isliye qwen ki A6/A7 **best-effort** hain: g2 unhe sabse aakhir me chalata hai, to command me rehne do (agar A0-A5 jaldi bani to bacha waqt unhe milega), par rule wahi: jo row 3 Nov raat tak 40 parts par poori nahi, wo Table 4 me nahi, future work me.
+- Ye andaaza hai; asli rate cache count se dekho. Buffer nahi hai: rate kam hua to A3 ya A5 bhi chhoot sakti hai.
+
+### Tumhe kya karna hai
+1. Sab chalti runs roko (process kill, neeche), zip lagao, config check karo (`"limit": 40,`), teeno commands dobara (rows wahi: qwen `A0 ... A7`, gpt-oss `A0 ... A5`).
+2. `python -m pytest`, commit.
+
+### Test
+`tests/test_quota.py` ka config test (Step 46) 40 ke liye bhi sahi hai: template se bada `limit`, dataset ke andar, aur pehle `limit` parts me 2-feature aur 8-feature part. `limit` ko 20, 23 ya dataset se zyada karke test check kiya: teeno me fail hota hai.
+
+### Honestly
+- 40 parts bhi dataset ke pehle 40 hain, random nahi: 0.1 mm tolerance 6 of 40 (15%), baaki me 9 of 160 (6%). Report ke limitations me likhna: "first 40 of 200".
+- Pehle likhe paragraphs ke numbers (20 parts) ab purane hain; naye numbers aane par dobara.
+- Prof. Deb ko batao: 40 parts, A3 se A7 ek repeat, qwen ki A6/A7 best-effort.

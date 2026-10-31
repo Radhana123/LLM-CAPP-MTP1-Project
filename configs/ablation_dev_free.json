@@ -1,8 +1,8 @@
 {
   "name": "ablation_dev_free",
-  "description": "The ablation grid A0-A9 on the development set for the Groq FREE plan (about 200K tokens per day per model, Settings > Limits in the Groq console): the same as ablation_template.json, with the first 30 parts instead of 20 (DEV_001 to DEV_030: they include the 2-feature and the 8-feature parts that the first 20 lack) and with 1 repeat instead of 3 for the five rows with a two-step planner (A3 to A7), which cost the most tokens (five samples, two calls each). Same tags and run folders as the template. A3 to A7 are then single runs: their cells have no SD, and Table 4 says so. Use it only while the quota is the limit; with a paid plan use the template.",
+  "description": "The ablation grid A0-A9 on the development set for the Groq FREE plan (about 200K tokens per day per model, Settings > Limits in the Groq console): the same as ablation_template.json, with the first 40 parts instead of 20 (DEV_001 to DEV_040: they include the 2-feature and the 8-feature parts that the first 20 lack) and with 1 repeat instead of 3 for the five rows with a two-step planner (A3 to A7), which cost the most tokens (five samples, two calls each). Same tags and run folders as the template. A3 to A7 are then single runs: their cells have no SD, and Table 4 says so. Use it only while the quota is the limit; with a paid plan use the template.",
   "dataset": "dev_v2",
-  "limit": 30,
+  "limit": 40,
   "repeats": 3,
   "results_dir": "results",
   "pool": "dev_v2",
