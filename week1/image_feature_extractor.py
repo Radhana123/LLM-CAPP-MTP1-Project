@@ -169,6 +169,65 @@ VISION_SYSTEM_PROMPT_EVIDENCE = VISION_SYSTEM_PROMPT[:_OUTPUT_RULE_AT] + """5. F
 """
 EVIDENCE_MAX_CHARS = 160
 
+# Step 49: optional THIRD feature pass (with_checklist=True, the app uses it): the same drawing is checked against ALL the vocabulary
+# features one by one (yes + the sign it is based on, or no). The two passes above write a free list and stop when the obvious features
+# are named; a per-feature answer forces a look at every feature, and the "yes" must name its evidence, so a guess is easy to spot in
+# the review table. It has its own prompt, so the two passes above are untouched (same messages, same cache keys, same recall).
+CHECKLIST_PASS = "checklist"
+CHECKLIST_SYSTEM_PROMPT = """You are a manufacturing engineer checking a 2D engineering drawing, CAD view or sketch of a
+mechanical part against a checklist.
+
+CHECKLIST (the only feature names you may use, with how each usually appears in a drawing):
+{feature_guide}
+
+TASK: decide for EVERY feature of the checklist, one by one and in the order given, whether it is present in the
+drawing. Look in ALL views (front, side, top, section, detail), at hidden (dashed) lines and centerlines, and read
+ALL the text: dimension callouts, notes, symbols, section labels, title block.
+
+RULES:
+1. Answer "yes" only if you can point to a specific sign: a shape in a named view, or text that is written on the
+   drawing. After "yes" give that sign in at most 12 words, e.g. "yes: circle with dia 10 callout in the front view".
+   "Possible", "typical for this kind of part" and "not visible" all mean "no".
+2. Do not stop after the first few features. A part drawing usually has several, and the easy ones to overlook are
+   still features: a chamfer or fillet that is only a note (1x45, R5), a hole that shows only as a circle in the end
+   view, a thread that shows only as a callout, a feature that appears in a section or detail view only.
+3. First decide what kind of part it is. If it is a block, plate or bracket (prismatic, made by milling), answer "no"
+   for the lathe-only features Turning, Step, Taper, Groove, Knurl, Bore, Parting_Off, Undercut, Contour_Turn and
+   Eccentric; Shoulder, Inclined_Face, Boss, Rib and Slot are the features of such shapes.
+4. If the image is unclear or low-resolution, still answer, and set "confidence" to "low".
+5. Output ONLY a JSON object in exactly this format, nothing else, with one entry for each feature of the checklist:
+   {{"checklist": {{"Hole": "yes: circle with dia 10 callout in the front view", "Slot": "no", "Thread": "no", ...}},
+     "confidence": "high/medium/low", "notes": "ONE short sentence, max 20 words"}}
+"""
+_RECOVERED_NOTE = "Recovered via keyword match"       # what _parse_response writes when the reply was not JSON
+
+
+def _says_yes(answer) -> bool:
+    """True for a checklist answer that means present: True, or text starting with 'yes' ('yes: circle in the front view')."""
+    if answer is True:
+        return True
+    return isinstance(answer, str) and re.match(r"\s*(yes|y|true|present)\b", answer, re.IGNORECASE) is not None
+
+
+def _checklist_answers(parsed: dict):
+    """(names, evidence) from a parsed checklist reply: the features answered 'yes', and the sign the model gave for each. (None, {}) if
+    the reply has no checklist at all. A reply recovered by keyword match is NOT used: the checklist names every feature, so a
+    keyword search would find them all."""
+    checked = parsed.get("checklist")
+    if isinstance(checked, dict):
+        names, evidence = [], {}
+        for name, answer in checked.items():
+            if _says_yes(answer):
+                names.append(name)
+                if isinstance(answer, str):
+                    sign = re.sub(r"^\s*(yes|y|true|present)\b[\s:;,.\-–—]*", "", answer, flags=re.IGNORECASE).strip()
+                    if sign:
+                        evidence[name] = sign
+        return names, evidence
+    if isinstance(parsed.get("features"), list) and not str(parsed.get("notes", "")).startswith(_RECOVERED_NOTE):
+        return parsed["features"], {}                      # a model that gave a plain list instead: still a valid answer
+    return None, {}
+
 # Step 14: optional THIRD pass (with_dimensions=True): the hole diameters that are written on the drawing. It has its own prompt, so the
 # two feature passes above are untouched (same messages, same cache keys, same recall) and one extra call is made per image.
 # The reply is cleaned by capp/dimensions.py; the numbers only pre-fill a field the user edits (AI is verified, not trusted).
@@ -219,6 +278,79 @@ def _extract_dimensions(b64_image: str, image_format: str) -> dict:
         return dict(empty, error=f"Vision API error: {e}")
 
 
+# Step 50: the dimension pass for the WHOLE part (with_part_dimensions=True, the app uses it). One call that replaces the hole-only call above
+# (so the app still makes four calls): it reads the overall size, the dimensions written next to each feature that was found, the hole diameters
+# and the surface roughness. Like the hole pass it only copies what is written (never estimates), and capp/dimensions.py cleans the reply;
+# the numbers pre-fill fields the user edits (AI is verified, not trusted). The features found by the feature passes are named in the
+# prompt, so the dimensions are read feature by feature, as the process calculator (Time-and-Cost-calculator) asks for them per process.
+PART_DIMENSION_SYSTEM_PROMPT = """You are a manufacturing engineer reading the DIMENSION CALLOUTS of a 2D engineering drawing.
+
+TASK: copy the dimensions that are WRITTEN on the drawing into the groups below. Millimetres only.
+
+The manufacturing features found in this drawing are: {features}.
+
+GROUPS:
+1. "overall": the size of the whole part, as written.
+   "diameter_mm": the largest OUTSIDE diameter of a round part (shaft, disc, flange). null for a block or plate.
+   "length_mm": the overall length (round part: along the axis; block or plate: its longest side).
+   "width_mm": block or plate only: the second side. null for a round part.
+   "height_mm": block or plate only: the thickness or height. null for a round part.
+2. "hole_diameters_mm": the diameter of every drilled, reamed, counterbored or bored hole that has a diameter callout
+   (Ø10, 2x Ø6 THRU, Ø12 H7). Not a shaft or boss outside diameter, not a pitch-circle diameter, not a thread callout.
+3. "features": one entry for each feature of the list above that has a dimension written next to it:
+   {{"feature": "Groove", "text": "3 x 2 deep", "diameter_mm": null, "length_mm": null, "width_mm": 3, "depth_mm": 2,
+     "pitch_mm": null, "radius_mm": null, "angle_deg": null}}
+   Give only the numbers that are written: a groove 3 wide and 2 deep: width_mm 3, depth_mm 2; an M10x1.25 thread:
+   diameter_mm 10, pitch_mm 1.25 (and length_mm if a thread length is written); an R5 fillet: radius_mm 5; a 1x45
+   chamfer: length_mm 1, angle_deg 45; a hole Ø10 and 25 deep: diameter_mm 10, depth_mm 25 (a THRU hole has no depth).
+   "text" is the callout as written, max 12 words. Use only feature names from the list above.
+4. "surface_finish": the surface roughness values written on the drawing, as text, for example ["Ra 1.6", "N7"].
+   An empty list if none is written.
+
+RULES:
+1. Report only numbers that are WRITTEN on the drawing. Never estimate a size from how large a shape looks, never
+   measure it and never compute one (no sums, no differences).
+2. Use null for anything that is not written, never 0. A group with nothing written is null or an empty list.
+3. Millimetres only. If the drawing is in inches, give null and empty lists everywhere and say so in the note.
+4. Output ONLY a JSON object in exactly this format, nothing else:
+   {{"overall": {{"diameter_mm": 50, "length_mm": 120, "width_mm": null, "height_mm": null}},
+     "hole_diameters_mm": [10, 6.5], "features": [...], "surface_finish": ["Ra 1.6"],
+     "note": "ONE short sentence, max 20 words"}}
+"""
+
+
+def _extract_part_dimensions(b64_image: str, image_format: str, features) -> dict:
+    """The part-dimension pass. Same contract as _extract_dimensions (never raises, never makes the extraction fail), and the same keys
+    in the report (success, ok, hole_diameters, dropped, note, error), plus "read" (the cleaned dimensions) and "derived" (the values
+    for the sidebar fields, capp/dimensions.derive_part_dims)."""
+    empty = {"success": False, "ok": False, "hole_diameters": [], "dropped": [], "note": "", "read": None, "derived": None}
+    names = ", ".join(f for f in (features or []) if is_valid_feature(f)) or "none (look for any dimension)"
+    try:
+        response = llm_client.chat(
+            [{"role": "user", "content": [
+                {"type": "text", "text": PART_DIMENSION_SYSTEM_PROMPT.format(features=names)},
+                {"type": "image_url", "image_url": {"url": f"data:image/{image_format};base64,{b64_image}"}},
+            ]}],
+            model=VISION_MODEL,
+            sample_id=0,
+            temperature=0,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
+            response_format={"type": "json_object"},
+            reasoning_effort=REASONING_EFFORT,
+            reasoning_format="hidden",
+        )
+        read = dimensions.read_part_dimensions(_parse_response(response.text.strip()))
+        out = {"success": read["ok"], "ok": read["ok"], "hole_diameters": read["hole_diameters"], "dropped": read["dropped"],
+               "note": read["note"], "read": read, "derived": dimensions.derive_part_dims(read) if read["ok"] else None}
+        if not read["ok"]:
+            out["error"] = read["note"]
+        return out
+    except llm_client.NoApiKey:
+        return dict(empty, error="GROQ_API_KEY not configured.")
+    except Exception as e:
+        return dict(empty, error=f"Vision API error: {e}")
+
+
 def _encode_image(image_bytes: bytes) -> str:
     """Image bytes ko base64 string mein convert karo (Groq API ke liye)."""
     return base64.b64encode(image_bytes).decode("utf-8")
@@ -236,18 +368,22 @@ def _clean_evidence(raw, valid_features) -> dict:
 
 
 def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, focus_text: str, sample_id: int = 0,
-                    with_evidence: bool = False) -> dict:
+                    with_evidence: bool = False, checklist: bool = False) -> dict:
     """Ek single Groq API call karke parse + validate karta hai. Internal
     helper -- extract_features_from_image() isse N baar call karke union
-    leta hai consistency ke liye."""
+    leta hai consistency ke liye. checklist=True (Step 49): the per-feature yes/no prompt instead of the free list."""
+    if checklist:
+        prompt = CHECKLIST_SYSTEM_PROMPT.format(feature_guide=feature_guide_str)
+    else:
+        prompt = (VISION_SYSTEM_PROMPT_EVIDENCE if with_evidence else VISION_SYSTEM_PROMPT).format(feature_guide=feature_guide_str,
+                                                                                                    focus=focus_text)
     try:
         response = llm_client.chat(
             [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": (VISION_SYSTEM_PROMPT_EVIDENCE if with_evidence else VISION_SYSTEM_PROMPT)
-                                                 .format(feature_guide=feature_guide_str, focus=focus_text)},
+                        {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {
                             "url": f"data:image/{image_format};base64,{b64_image}"
                         }},
@@ -267,9 +403,17 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
         raw = response.text.strip()
         parsed = _parse_response(raw)
 
+        if checklist:
+            names, evidence_raw = _checklist_answers(parsed)
+            if names is None:                         # no checklist in the reply: this pass failed (the other passes still count)
+                return {"success": False, "features": [], "rejected_features": [], "confidence": None, "notes": "",
+                        "error": "The checklist reply could not be read.", "raw_response": raw}
+        else:
+            names, evidence_raw = parsed.get("features", []), parsed.get("evidence")
+
         valid_features = []
         rejected = []
-        for f in parsed.get("features", []):
+        for f in names:
             if is_valid_feature(f):
                 if f not in valid_features:
                     valid_features.append(f)
@@ -282,7 +426,7 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
             "rejected_features": rejected,
             "confidence": parsed.get("confidence", "medium"),
             "notes": parsed.get("notes", ""),
-            "evidence": _clean_evidence(parsed.get("evidence"), valid_features) if with_evidence else {},
+            "evidence": _clean_evidence(evidence_raw, valid_features) if (with_evidence or checklist) else {},
             "raw_response": raw,
         }
     except llm_client.NoApiKey:
@@ -300,10 +444,20 @@ def _extract_single(b64_image: str, image_format: str, feature_guide_str: str, f
 
 
 def extract_features_from_image(image_bytes: bytes, image_format: str = "png", with_dimensions: bool = False,
-                                with_evidence: bool = False) -> dict:
+                                with_evidence: bool = False, with_checklist: bool = False, with_part_dimensions: bool = False) -> dict:
     """
     Main entry point. 2D image (raw bytes) leke Groq vision model se
     manufacturing features extract karta hai.
+
+    with_part_dimensions=True (Step 50, the app uses it) makes the dimension call read the whole part instead of the holes only (it replaces
+    the with_dimensions call, so there is still ONE dimension call): the result then also has "hole_diameters" and "dimensions" as above, and
+    "part_dimensions" = {"read": overall size, dimensions per feature, Ra (as written), "derived": the values for the sidebar fields}. A
+    failure of that call never fails the extraction.
+
+    with_checklist=True (Step 49, the app uses it) adds a third feature pass that checks the drawing against every vocabulary feature
+    one by one (CHECKLIST_SYSTEM_PROMPT); result["passes"]["checklist"] then holds what it found, with the sign each "yes" is based on
+    as evidence, and its features join the union. If that pass fails the other two still count. Default False: exactly the two passes,
+    as before.
 
     with_dimensions=True (Step 14, the app uses it) adds a third call that reads the hole diameters written on the drawing:
     the result then has "hole_diameters" (mm, largest first, may be empty) and "dimensions" (the full report of that call:
@@ -349,9 +503,11 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
         f"- {f}: {FEATURE_GUIDE.get(f, 'no description')}" for f in GEOMETRY_FEATURES
     )
 
+    pass_names = list(EXTRACTION_PASSES) + ([CHECKLIST_PASS] if with_checklist else [])
     samples = [
-        _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS[p], with_evidence=with_evidence)
-        for p in EXTRACTION_PASSES        # the two passes differ in their prompt text, so they get different cache keys
+        _extract_single(b64_image, image_format, feature_guide_str, PASS_FOCUS.get(p, ""), with_evidence=with_evidence,
+                        checklist=(p == CHECKLIST_PASS))
+        for p in pass_names               # the passes differ in their prompt text, so they get different cache keys
     ]
 
     successful = [s for s in samples if s["success"]]
@@ -380,7 +536,7 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
         combined_notes += f" (combined from {len(successful)} passes; not every feature was seen in every pass)"
 
     passes = {}
-    for name, smp in zip(EXTRACTION_PASSES, samples):
+    for name, smp in zip(pass_names, samples):
         if smp["success"]:
             passes[name] = {k: smp[k] for k in ("success", "features", "rejected_features", "confidence", "notes", "evidence")}
         else:
@@ -396,7 +552,12 @@ def extract_features_from_image(image_bytes: bytes, image_format: str = "png", w
         "passes": passes,
         "passes_ok": len(successful),
     }
-    if with_dimensions:
+    if with_part_dimensions:
+        dim = _extract_part_dimensions(b64_image, image_format, union_features)
+        result["hole_diameters"] = dim["hole_diameters"]
+        result["part_dimensions"] = {"read": dim.pop("read"), "derived": dim.pop("derived")}
+        result["dimensions"] = dim
+    elif with_dimensions:
         dim = _extract_dimensions(b64_image, image_format)
         result["hole_diameters"] = dim["hole_diameters"]
         result["dimensions"] = dim

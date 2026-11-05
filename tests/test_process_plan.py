@@ -55,14 +55,14 @@ def test_flat_rows_count_and_keys():
     n_tool = 41 * len(PT.MATERIALS) + len(PT.MACHINE_TOOL) * len(PT.MATERIALS)
     assert sum(r["table"] == "tool" for r in rows) == n_tool
     assert sum(r["table"] == "range" for r in rows) == 3 * len(PT.MATERIALS)
-    assert len(rows) == n_tool + 21
+    assert len(rows) == n_tool + 3 * len(PT.MATERIALS)
     assert all(set(r) == {"table", "key", "value", "status", "sources", "note"} for r in rows)
 
 
 def test_no_range_is_confirmed_and_the_status_counts_say_so():
     st = PT.status_counts(PT.RANGES.values())
     assert st["confirmed"] == 0                                    # no handbook page was checked: the tables must not claim otherwise
-    assert sum(st.values()) == 21 and st["web"] and st["mixed"]
+    assert sum(st.values()) == 3 * len(PT.MATERIALS) and st["web"] and st["mixed"]
     assert all(r["status"] in PT.STATUSES for r in PT.RANGES.values())
 
 

@@ -6,7 +6,7 @@ A part record (JSON object):
   archetype          archetype name (capp/archetypes.py)
   in_distribution    True for dev parts and for test parts whose archetype is also in the dev pool;
                      False for test parts from held-out archetypes (feature combination never seen in dev)
-  material           one of the 7 materials
+  material           one of the materials (the 320 generated parts use the first 7; Step 55 added 12 more that validate but are not in the dataset)
   features           list of vocabulary features (no duplicates)
   tolerance          "0.005mm" ... "0.5mm"
   batch_size         int, 1..10000 (UI slider range)

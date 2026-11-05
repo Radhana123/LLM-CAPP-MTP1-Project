@@ -35,7 +35,9 @@ def make_part(material, features, tolerance, batch_size, dims=None, required_ra_
     dimensions are reported as not evaluable. hole_diameter (mm, optional) enables HOLE-DEEP and the hole operations of CAP-POWER."""
     d = None
     if dims is not None:
-        d = {k: float(v) for k, v in dims.items() if v is not None}
+        d = {k: float(v) for k, v in dims.items() if v is not None and k != "per_op"}
+        if dims.get("per_op"):                                  # Step 51: dimensions of single operations (week3/agents.op_dims)
+            d["per_op"] = {op: {k: float(v) for k, v in own.items() if v is not None} for op, own in dims["per_op"].items() if own}
         if hole_diameter:
             d["hole_diameter"] = float(hole_diameter)
     return {"part_id": "UI", "material": material, "features": list(features), "tolerance": tolerance, "batch_size": int(batch_size),

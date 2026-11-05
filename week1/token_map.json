@@ -44,7 +44,19 @@
     "Copper":    204,
     "Titanium":  205,
     "Plastic":   206,
-    "Cast Iron": 207
+    "Cast Iron": 207,
+    "Mild Steel": 208,
+    "Alloy Steel": 209,
+    "Tool Steel": 210,
+    "Hardened Steel": 211,
+    "Austenitic Stainless Steel": 212,
+    "Martensitic Stainless Steel": 213,
+    "Nodular Cast Iron": 214,
+    "Bronze": 215,
+    "Hardened Aluminum Alloy": 216,
+    "Inconel": 217,
+    "Pure Titanium": 218,
+    "Magnesium": 219
   },
   "tolerance": {
     "0.005mm": 301,

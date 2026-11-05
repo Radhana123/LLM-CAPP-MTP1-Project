@@ -1662,6 +1662,310 @@ Sirf `configs\ablation_dev_free.json`: `"limit": 40` (pehle 30). Tags, run folde
 `tests/test_quota.py` ka config test (Step 46) 40 ke liye bhi sahi hai: template se bada `limit`, dataset ke andar, aur pehle `limit` parts me 2-feature aur 8-feature part. `limit` ko 20, 23 ya dataset se zyada karke test check kiya: teeno me fail hota hai.
 
 ### Honestly
-- 40 parts bhi dataset ke pehle 40 hain, random nahi: 0.1 mm tolerance 6 of 40 (15%), baaki me 9 of 160 (6%). Report ke limitations me likhna: "first 40 of 200".
+- 40 parts bhi dataset ke pehle 40 hain, random nahi: 0.1 mm tolerance 6 of 40 (15%), baaki me 15 of 160 (9%). Report ke limitations me likhna: "first 40 of 200". (Pehle yahan "9 of 160 (6%)" likha tha: galat; Step 48 me theek kiya.)
 - Pehle likhe paragraphs ke numbers (20 parts) ab purane hain; naye numbers aane par dobara.
 - Prof. Deb ko batao: 40 parts, A3 se A7 ek repeat, qwen ki A6/A7 best-effort.
+
+## Step 48: Pareto charts saaf (app, `make_pareto_charts`)
+
+**Kyun:** tumne app me Pareto Front ke charts dekhe: 3D plot me legend ("Routes", "Optimal") colourbar ke title "Efficiency" ke upar chhap rahi thi, plot chhota tha aur axis labels (Cost, Time) kat rahe the; 2D me saare bubble ek jaise dikhte the, optimal route chhota tha aur uska naam nahi tha. Tumne bola: ya achhe se banao ya hata do. Charts project ka hissa hain (NSGA-II ka Time/Cost/Energy), isliye theek kiye.
+
+### Kya badla
+Sirf `week6/app.py`, function `make_pareto_charts` (Route Only aur Route + Full Analysis dono yehi use karte hain). Route ka koi number, selection ya baaki page nahi badla.
+- **3D:** legend upar (horizontal), colourbar side me (chhoti, `len 0.6`), dono ab ek dusre par nahi aate. Har axis ki range data ke hisaab se (10% padding), `aspectmode='cube'`, camera thoda door aur height 560, to axis labels nahi katte. Neeche ek caption: drag, zoom, hover.
+- **2D:** bubble size ab Energy ke hisaab se 10 se 26 px ke beech (pehle `energy x 8`: sab ek jaise). Optimal route ka diamond bada hai aur uske paas "Optimal" likha hai. Legend upar, axis titles poore, height 360.
+- Hover text wahi hai (route, machine, time, cost, energy, efficiency).
+
+### Test
+Naya `tests/test_pareto_charts.py` (4 tests, AppTest se, bina key ke): legend upar aur colourbar se door, 3D axes padded, 2D bubble size 10 se 26 aur energy ke saath badalti hai, "Optimal" trace aur axis titles maujood. Purani cheezein (legend default, bubble size constant) wapas daalke check kiya: tests fail hote hain.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force`, `python -m pytest`, commit.
+2. `streamlit run week6\app.py`, "Select the features myself" me kuch features chunke Generate dabao aur chart dekho.
+
+### Honestly
+- Charts sirf tab banti hain jab kam se kam 2 alag (Time, Cost, Energy) wale routes hon. Sab routes same hon to "nothing distinct to plot" message aata hai (pehle jaisa).
+- Screenshot sandbox me liya (bina LLM key ke, Route Only me Route Builder ke routes). Tumhari machine par kuch pixel alag ho sakte hain (window width).
+
+## Step 49: Drawing se features: sab seedha list me (Accept/Reject hata) + teesra "checklist" pass
+
+**Kyun:** tumne bola ki photo upload karne par saare features extract hone chahiye. App ke review panel me Bore, Chamfer, Fillet jaise features "needs confirmation" me atak jaate the (sirf ek pass ne dekha) aur jab tak Accept/Reject na karo Generate band rehta tha. Aur jo feature AI ne dekha hi nahi, wo list me aata hi nahi tha. Tumne dono theek karne ko bola. (Drawing ke dimensions aur Part Dimensions ka picture ke hisaab se aana alag step hoga, abhi nahi kiya.)
+
+### Kya badla
+- **Accept/Reject hata:** `capp/extraction_review.py` me `CONFIRM_FLAGGED = False` (default). Extraction ne jo bhi feature diya, sab list me pehle se hain; `pending()` hamesha khali, to Generate kabhi nahi rukta. Table me "Seen by" (geometry / annotation / checklist) aur "Confidence" ab bhi dikhte hain: jo feature sirf ek pass ne dekha uski confidence kam dikhti hai, to tum drawing se match kar sako. Galat ho to sidebar ki Features list se hata do, chhoota ho to wahi se jodo. Status column ab "included" ya "removed".
+- **Teesra pass "checklist":** `week1/image_feature_extractor.py` me `with_checklist=True` (app hamesha True bhejta hai). Model ko 36 features ki poori list di jaati hai aur har feature ke liye "yes: <drawing me kya dikha>" ya "no" bolna padta hai, ek ek karke. Pehle dono pass ek khuli list likhte the aur obvious features ke baad ruk jaate the. "Yes" ke saath evidence zaroori hai, to galat guess table me pakad me aata hai. Geometry aur annotation pass ke prompt, cache keys bilkul same (test se check).
+- **Agreement ka rule:** 3 pass me se kam se kam 2 ne dekha ho to "agreed" (2 pass chale to pehle jaisa: dono). Ek pass fail ho to panel me warning aati hai.
+- **Corrections log:** ab sab features list me aate hain, to ek-pass wala feature tum hatao to wo "removed" correction ginta hai (decision nahi). Entry me `confirm_flagged` field hai.
+- **Strict mode bacha hai (RQ6 ke liye):** `CAPP_CONFIRM_FLAGGED=1` set karke app chalao to purana Accept/Reject wapas aata hai. Offline evaluation (`scripts/extraction_eval.py`, union vs agreement) pehle jaisa chalta hai: wo sirf geometry aur annotation pass padhta hai.
+
+### Test
+2455 pass (pehle 2400). Naye: checklist pass (prompt, parsing, yes/no, evidence, fail hone par baaki pass bachte hain, toota hua JSON poori list "yes" nahi banata), 3-pass agreement, default mode me sab features/Generate band nahi, removed = correction, strict mode ke purane tests `strict` fixture ke saath. Rule tod ke (AGREE_AT badla, keyword-recovery guard hataya) check kiya: tests fail hote hain. Ek purani galti bhi mili aur theek ki: Step 48 ka `tests/test_pareto_charts.py` `os.environ` seedha set karke wapas nahi karta tha, to uske baad chalne wale test (agar order alag ho) replay mode me chalte the; ab `MonkeyPatch.context()` hai.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force`, `python -m pytest`, commit.
+2. `streamlit run week6\app.py`, apni drawing upload karo, Extract dabao. List me sab detected features pehle se hone chahiye, Generate dabne wala. Extract me ab 4 API calls lagti hain (geometry, annotation, checklist, hole diameter), to thoda zyada time.
+
+### Honestly
+- Sandbox me Groq key nahi hai, to maine asli drawing par extraction chala ke nahi dekha: kitne zyada features pakde ye number mere paas nahi hai. Checklist pass ek hypothesis hai ("har feature par ek ek karke haan/na bolne se kam chhootenge"), result nahi. Tumhari drawing par dekho; agar zyada galat features aaye to sidebar se hatao aur mujhe batao.
+- Kyunki sab kuch seedha list me aata hai, galat guess (khaas kar sirf-checklist wale) bina poochhe route me chale jaate hain jab tak tum hatao nahi. Isliye table ka "Seen by"/"Evidence" dekho.
+- RQ6 (selective confirmation) ka app wala hissa ab default me off hai. Report me RQ6 ko offline evaluation se hi likhna, app ke Accept/Reject se nahi.
+
+## Step 50: Drawing me likhe dimensions: table + sidebar Part Dimensions picture se
+
+**Kyun:** tumne bola ki drawing me dimensions likhe hon to wo bhi extract hon, aur sidebar ke Diameter / Length / Depth / Width / Ra / Hole diameter aise hi default (25/50/20/20) nahi, har picture ke hisaab se hone chahiye. Tumne Time-and-Cost-calculator ka link diya: wahan har process ke apne dimensions hain (initial/final diameter, length, depth, tool width, pitch...). Wahi idea yahan: har feature ke saath uske likhe dimensions padhna.
+
+### Kya badla
+- **Extractor (`week1/image_feature_extractor.py`):** `with_part_dimensions=True` (app hamesha True bhejta hai). Ek call, jo purani "sirf hole diameter" wali call ki jagah leti hai (to app ab bhi 4 hi calls karta hai: geometry, annotation, checklist, dimensions). Prompt me wo features likhe jaate hain jo pehle mil chuke, aur model se maanga jaata hai: (1) whole part: bahar ka diameter, length, width, height; (2) hole diameters; (3) har feature ke saath likhe numbers (groove 3 wide 2 deep, M10x1.25, R5, 1x45, Ø10 x 25 deep); (4) surface finish (Ra ya N-grade). Sirf wahi jo likha hai: estimate, naap ya jodna-ghatana nahi; likha na ho to `null`.
+- **`capp/dimensions.py`:** `read_part_dimensions` jawab saaf karta hai (range app jaisi: diameter 1-500, length 1-1000, depth 1-300, width 1-500; bahar wala **clip nahi, drop** hota hai aur list me dikhta hai; thread callout (M10) numbers me nahi chalta; vocabulary ke bahar ka feature drop). `derive_part_dims` sidebar ke liye values nikalta hai: diameter = poore part ka sabse bada bahari diameter; length = overall length; width = block/plate ka doosra side (round part me nahi); depth = kisi bhi feature ke saath likhi sabse zyada depth; hole diameter = sabse bada hole; Ra = sabse sakht (chhota) Ra, agar app ke choices (0.4 ... 12.5) me ho. N-grade (N7 = 1.6) table se. Jo drawing me nahi likha wo `None`: kuch invent nahi hota.
+- **App (`week6/app.py`):**
+  - Review panel me naya table "Dimensions read from the drawing" (whole part, har feature ka likha text aur numbers, surface finish, jo drop hua).
+  - Sidebar ke Diameter / Length / Depth / Width / Ra drawing se bharte hain, ek detection par ek baar (tumhari edit agle rerun me bachi rehti hai; nayi drawing par dobara bharta hai; Route Only se wapas aane par wapas aata hai). Hole diameter ka purana rule jaisa tha waisa.
+  - Fields ke neeche caption: "Read from your drawing: Diameter 50 mm, ..." aur "Not written on the drawing, so the default stays (set it yourself): Width". Dimension padh na paye to wo bhi likha aata hai.
+- **Time model nahi badla:** `week3/agents.py` abhi bhi 4 whole-part numbers leta hai (diameter, length, depth, width). Per-feature numbers sirf dikhte hain, route/time me nahi jaate. (Calculator jaisa per-operation time model alag aur bada kaam hai, aur wo badla to report ke saare numbers badal jaayenge.)
+
+### Test
+2534 pass (pehle 2455). Naya `tests/test_part_dimensions.py` (79 tests): parser (range, units, N-grade, thread, vocabulary, cap), derive (deepest depth, strictest Ra, kuch invent nahi), pre-fill rule (ek baar, edit bachi, nayi drawing, Route Only), extractor (4 calls, prompt me features, fail hone par extraction nahi girta, tuta JSON "kuch likha nahi" nahi banta), page (AppTest: fields, captions, table, pipeline ko wahi dims jaate hain). Rule tod ke (deepest ki jagah pehla, strictest ki jagah largest, clip, prefill har baar, prefill band, features-only reply) check kiya: tests fail hote hain.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force`, `python -m pytest`, commit.
+2. `streamlit run week6\app.py`, apni drawing upload karo, Extract dabao. Sidebar me Part Dimensions me drawing ke numbers aane chahiye, neeche caption me likha ho kaunse drawing se aaye aur kaunse default hain. Review panel me dimensions ka table dekho.
+
+### Honestly
+- Sandbox me Groq key nahi: asli drawing par dimensions padhna maine chalake nahi dekha. Vision model ka padhna galat bhi ho sakta hai (chhota text, dhundhli image), isliye har number "check against the drawing" ke saath aata hai. Tumhari drawing par dekho aur batao kaunse number galat aaye.
+- Kya jaata hai sidebar me: sirf whole-part numbers. Depth ek hi number hai (sabse zyada likhi hui), jabki time model me ye "total depth to achieve" hai: round shaft par turning ka stock removal depth drawing me aksar likha hi nahi hota, to wahan default rahega aur caption batayega.
+- Ra jo app ke choices me nahi (0.2, 25 ...) wo bharta nahi, note aata hai.
+
+
+## Step 51: Har operation ke apne dimensions: dropdown, auto-select, drawing se auto-fill
+
+**Kyun:** tumne bola ki dimensions extract karne ke saath wo auto-fill bhi hon, aur Time-and-Cost-calculator jaisa **saare operations dropdown me dikhen**, features ke hisaab se **auto-select** hon aur unke **dimensions bhi bhar jaayen**. Step 50 me sirf whole-part 4 numbers jaate the; ab har operation ko uske feature ka number milta hai.
+
+### Kya badla
+- **`capp/op_dims.py` (naya, Streamlit-free logic):**
+  - `ALL_OPS`: vocabulary ke saare 41 operations (Facing pehle, Inspection aakhir me).
+  - `USES`: har operation time model me kaunse dimension padhta hai. Ye maine `_op_time` me har dimension badal ke nikala (Parting-off sirf diameter, Drilling diameter + depth, Pocket Milling length + depth + width, Center Drilling / Chamfering / Inspection koi nahi). `tests/test_op_dims.py` ye check har baar dobara karta hai, to schema aur time model alag nahi ho sakte.
+  - `autoselect(features)`: Facing + har feature ki pehli alternative chain (Route Builder ka default) + Inspection.
+  - `drawing_values`: operation ko un features ke numbers jinhe wo **banata** hai (feature ki pehli chain ka aakhri op: Hole -> Drilling, Counterbore -> Counterboring, Slot -> Slot Milling, Step -> Step Turning). Kai rows ho to sabse bada (lamba cut). Range ke bahar ka number drop hota hai, clip nahi.
+  - Jo op sirf taiyari karta hai (Reamed_Hole se pehle ka Drilling) usko apna number nahi milta, wo Part value dikhata hai.
+- **`week3/agents.py`:** optional `dims["per_op"] = {operation: {diameter, length, depth, width}}`. `op_dims(op, dims)` part ke dims ke upar us op ke apne numbers rakhta hai (hole op ka diameter `hole_diameter` bhi ban jaata hai, physics wahi padhta hai). `_op_time` pehli line me ise lagata hai, to time / cost / time breakdown / app ka cost table sab apne aap per-op dims lete hain. `per_op` na ho to `op_dims` wahi object lauta deta hai.
+- **`capp/physics.py`, `capp/process_plan.py`, `capp/analysis_view.py`:** physics (energy, power, Ra), process plan (tool size, spindle, passes) aur `make_part` per-op dims ko samajhte hain. Process plan me us op ki flag "own dimensions for this operation: ..." aur assumptions me ek line.
+- **App (`week6/app.py`):** naya expander "Operations and their dimensions" (Full Analysis mode). Multiselect me 41 ops, features ke hisaab se selected; features badalne par dobara select hota hai. Har selected op ki row: sirf wahi boxes jo wo padhta hai, drawing ke numbers bhare hue, baaki Part Dimensions ki value; har box editable. Last column batata hai dimension-by-dimension kahan se aaya ("diameter, depth: Hole (Ø10, depth 25) | whole part: length", "edited: depth"). Tumhari edit bachi rehti hai (nayi drawing ya sidebar badalne par bhi); jo box tumne chhua nahi wo sidebar / nayi drawing ke saath chalta hai. Generate dabane par wahi panel (band) upar rehta hai, boxes ki values wahi. Time Breakdown ke neeche: "Dimensions of their own were used for: ...".
+- Step 50 ka caption badla: ab per-feature numbers operation ko jaate hain, "sirf dikhte hain" nahi.
+
+### Jo nahi badla (zaroori)
+- **Jab drawing se koi number nahi aaya aur tumne koi box nahi badla, `per_op` khaali hota hai aur har result pehle jaisa hai.** Part value dikhane wale box `per_op` me likhe hi nahi jaate. Isliye report ke saare numbers (ablation, A0-A9, 40 parts x 3 LLM) wahi hain. Dataset me `per_op` allowed bhi nahi (dataset validator sirf 4 keys + hole_diameter leta hai).
+- Dropdown **planner ka route nahi badalta**. Route ab bhi LLM planner / verifier / Route Builder se aata hai. Panel sirf batata hai ki route ke har op ko kaunse dimensions se time/cost/physics me gino. Route ka jo op panel me selected nahi, wo Part Dimensions leta hai.
+
+### Test
+2589 pass (pehle 2534). Naya `tests/test_op_dims.py` (55 tests): **golden hashes** (40 parts x 7 materials x 41 ops ke op times, physics, teeno agents, 24 poore process plans Step 50 ke code se bitwise barabar), schema = `_op_time` ki sensitivity, autoselect, drawing numbers (kaun sa op kaun sa feature banata hai, sabse bada, hata hua feature, range ke bahar, hole diameter fallback), boxes ka rule (follow, edit bachi, nayi drawing), `per_op` me kya jaata hai, model (sirf wahi op badla, dict mutate nahi hota, time ka delta wahi), physics, process plan (tool size, passes, flag, total), page (AppTest: 41 options, selection, fill, edit, sidebar follow, Route Only, manual mode, Generate par `make_part` ko wahi `per_op`, bina numbers ke `per_op` hi nahi). 15 jagah code tod ke dekha (op_dims hataya, physics / plan me per-op hataya, schema galat, "drawing ya edit" ki jagah hamesha likhna, edit overwrite, pehli chain ki jagah aakhri / sabse bada ki jagah sabse chhota...): tests fail hue.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step51_per_operation.zip" .`, phir `python -m pytest`, phir commit. (Step 49 aur 50 pehle lage hone chahiye.)
+2. `streamlit run week6\app.py`, drawing upload karo. Main page par "Operations and their dimensions" me: dropdown me saare ops, features wale selected, Hole ka Ø / depth Drilling me, Slot ka length Slot Milling me. Ek box badal ke Generate dabao: Time Breakdown ke neeche caption me wo op aana chahiye aur route sheet me us op ke Notes me "own dimensions".
+
+### Honestly
+- Sandbox me Groq key nahi: asli drawing par per-feature numbers vision model se kaise aate hain wo maine nahi dekha. Model galat ya adhura padhe to box me galat number aayega: isliye "where the numbers come from" column hai, check karo.
+- Ek op ke liye kai rows (do steps, do holes) me **sabse bada** number jaata hai: ye upper bound hai, average nahi. Hole ke baad ka Drilling jab Reamed_Hole / Counterbore / Internal_Thread ke liye ho to uska number drawing se nahi aata (wo sirf taiyari karta hai): Part value rehti hai, tum type kar sakti ho.
+- Selection pehli alternative chain se hota hai. Agar planner doosri chain chune (Thread ke liye External Threading ki jagah Drilling + Tapping), to wo ops dropdown me pehle se selected nahi honge: tum add kar sakti ho, warna Part Dimensions chalenge.
+- Time model ke formulas wahi hain (Drilling me diameter se RPM, pecks depth se...). Ye per-op dimensions model ko behtar input dete hain, model ko sahi nahi banate: shop-floor time nahi.
+
+
+## Step 52: Time, cost aur energy tumhare Time-and-Cost-calculator ke hisaab se + home page update
+
+**Kyun:** tumne bola ki dimensions ko sirf auto-fill nahi karna, time / cost tumhare calculator ke formulas se calculate hone chahiye, aur home page ke cards (36 Features, 41 Operations, 200 Dataset, 44 Precedence Rules, ₹95.595 Per USD) abhi ke hisaab se hon. `agents.USD_TO_INR` pehle se 96.095 tha, to ₹95.595 purana tha.
+
+### Kya badla
+- **`capp/calculator.py` (naya, Streamlit-free):** tumhare `streamlit_app.py` ("Submit All") ke formulas, jaise likhe hain:
+  - 13 machining processes (Boring, Drilling Center / Pilot / Main, Facing, Grooving, Knurling, Reaming, Threading, Turning Concave / Convex / Straight / Taper): `(approach + overrun + length) / (feed x rpm) x passes + job setting + tool setting`. Har input ka default wahi (feed 0.16, rpm 170, approach 10, tool setting 5, tool cost ₹10 ...). Divisor 0 ho (feed, rpm, depth of cut, tool width) to time 0, jaise tumhare calculator me.
+  - 6 "other processes" (Custom, Blanking, Chamfering, Parting, Resharpening, Tool Change): unka time + 5 min handling, extra tool cost.
+  - Cost: operation cost = time x labour per hour / 60; total = material cost + labour + tool cost + extra process cost. Labour ₹500/hr aur material ₹1000 default.
+- **LLM-CAPP ke operations ko calculator ke process se jodna (`PROCESS_OF`, ye meri judgement hai, bahas kar sakti ho):** Facing; Plain Turning aur Step Turning -> Turning - Straight; Taper Turning -> Turning - Taper; Contour Turning -> Turning - Convex; Grooving/Necking, Internal Grooving, Undercutting -> Grooving; Knurling; External Threading aur Tapping -> Threading; Boring; Center Drilling; Drilling -> Drilling - Main; Reaming; Chamfering aur Parting-off -> "other process". Yaani 41 me se 17 ops ko calculator ka process mila.
+- **Part se calculator inputs (`auto_fields_src`):** ek input ko wahi number milta hai jo wo sach me hai. Drawing me feature ka likha number (📐), ya part ka dimension jahan wo wahi cheez hai (part diameter = turning ka initial diameter; hole diameter = drill / bore ka diameter), ya calculator ka default. "Final" diameters ke liye tumhare hi defaults ke ratio (50 -> 38, 25 -> 28, 30 -> 28). Grooving: final = initial + 2 x depth, groove length = width. Threading ka pitch drawing ke pitch se. **Thread aur knurling ki length part ki length se nahi aati** (wo poori length nahi hoti): drawing na de to calculator ka default (12 / 18 mm). Har input ke neeche likha aata hai kaunsa drawing se, part se, default se, ya tumne edit kiya.
+- **App (`week6/app.py`):**
+  - Sidebar "Time & Cost Model": **Calculator model (default)** ya v1 model (report ke numbers). Calculator me labour cost per hour aur material cost tum type karti ho.
+  - "Operations and their dimensions" me jis op ka calculator process hai, uske **calculator inputs** (feed, rpm, approach, overrun, setting times, tool cost ...) dikhte hain, bhare hue, editable; har op ke neeche us op ka time aur labour cost live. Jinka process nahi (milling wale), unke wahi 4 boxes.
+  - Step 4: har route `CALC.evaluate` se (time, cost). Efficiency = teeno ka route-relative score (100 x best / is route ka, average). Radar usi score se.
+  - "Time & Cost - as in your Time-and-Cost-calculator": Total Time, Labour, Material, Tool, Extra, TOTAL COST; har operation ki row (process, time, labour, tool, extra, source, inputs); time aur cost ke chart. v1 model me purane Time / Cost Breakdown wahi hain.
+  - Home page: cards ab code se aate hain (`capp/home_stats.py`): 36 Features, 41 Operations, 320 Dataset Parts (200 dev + 120 test), 44 Precedence Rules, ₹96.095 Per USD. Teeno purane blurbs naye likhe (calculator model, v1 model, dimensions, INR / physics / route sheet). Cost breakdown ke caption ka "₹95.595" bhi code se. README ka currency row bhi.
+  - Drawing se ab pitch (Thread) aur groove width (Grooving) bhi calculator inputs me jaate hain (`op_dims.EXTRA_DRAWN`); v1 ke 4 boxes aur unki values nahi badli.
+
+### Jo nahi badla (zaroori)
+- `week3/agents.py` (v1 time / cost / energy), NSGA-II (`week4/nsga2.py`), A0-A9 ablation, report ke saare numbers: **koi change nahi**. Calculator sirf app ke Full Analysis me hai. v1 model chun-ne par app pehle jaisa. Golden hashes (Step 51 ke) abhi bhi pass.
+- NSGA-II route **generate** abhi bhi v1 se karta hai (reference part par). Calculator model sirf Step 4 me un routes ko dobara naapta aur best chunta hai.
+
+### Test
+2676 pass (pehle 2589). Naya `tests/test_calculator.py` (86 tests): **oracle** = tumhare `streamlit_app.py` ke formulas ki line-by-line copy, 13 processes x 200 random inputs par `capp/calculator.py` se barabar (negative cutting time ko chhodkar, wo ek alag test), defaults (aur 3 default times haath se), zero divisor -> 0, totals (material + labour + tool + extra) tumhare totals ki copy se, "other process" +5 min, energy v1 ka unchanged aur calculator inputs par depend nahi karta, milling / Inspection ka v1 fallback aur uska "Source", changeover, batch discount nahi, v1 agents aur `week4/nsga2.py` calculator ko import hi nahi karte, mapping rules (har process ke inputs: drawing / part / default, hole diameter, ratios, grooving, thread / knurling), state ke rules (follow, edit bachi), relative efficiency, home page (cards code ke saath badalte hain, dataset files na ho to dash, 95.595 kahin nahi), page (AppTest: default model, inputs drawing se bhare, edit bachi, Generate par settings = labour / material / edits / drawing numbers, table = `CALC.evaluate`, radar aur efficiency relative, v1 model calculator ko bulata hi nahi, manual mode, Route Only, band kiye hue ops bhi drawing ke numbers lete hain). `test_app.py` ka v1-efficiency test v1 model chun ke, `test_op_dims.py` ke page tests v1 model chun ke (unka panel v1 ka hai). 30 jagah code tod ke dekha (formula me 2x / /2 / bina clamp / ZeroDivision par setting time, +5 min, labour /60, extra cost, groove 2x depth, hole diameter, edits, fallback tool cost, energy 0, changeover 0, relative best, state rule, edits rule, app me default settings / edits / hole diameter / efficiency / radar / model switch / disabled, home page ke cards / 95.595, pitch drawing se): tests fail hue. Golden hashes (op times, physics + agents, 24 plans) Step 51 ke barabar. **Fix (Streamlit 1.50 par mila):** radar chart ko test `.key` se dhundta tha; kuch Streamlit versions me ye element par None aata hai (element ke id ke aakhir me key hoti hai), to `chart(at, key)` helper dono tarah se dhundta hai. Streamlit 1.50 aur 1.66 dono par pass. App code nahi badla.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step52_calculator.zip" .`, phir `python -m pytest`, phir commit. (Step 49, 50, 51 pehle lage hone chahiye.)
+2. `streamlit run week6\app.py`. Home page ke cards dekho. Drawing upload karo, Operations panel me har op ke calculator inputs dekho, ek (jaise Drilling ka feed) badlo, Generate dabao: "Time & Cost - as in your Time-and-Cost-calculator" me wahi number aana chahiye jo tumhare calculator me wahi inputs dalne par aata hai. Ek process (jaise Facing, defaults) tumhare calculator me daalke time compare karo: 13.27 min.
+
+### Honestly
+- **Energy ka formula tumhare calculator me hai hi nahi**, aur milling bhi nahi. Isliye energy v1 ka hi hai (har op ka fixed figure, dimensions par depend nahi karta) aur milling / Counterboring / Countersinking / Spotfacing / Thread Milling / Forming / Polishing / Eccentric Turning (24 ops) v1 ke cutting time + calculator ka default 5 min tool setting + ₹10 tool cost se. Har row ke "Source" column me likha hai. Inspection v1 ka fixed 5 min. Machine changeover v1 ke 15 min (cost = un minutes ka labour). Agar energy ko calculator ke time se jodna hai (power x time) to wo formula / power values mujhe do.
+- Ek hi jagah tumhare calculator se alag: negative cutting time (final diameter initial se bada) mai 0 maanti hu, setting time me se ghatati nahi.
+- Material (Aluminum, Steel ...) calculator ke mapped ops ke time me nahi aata, kyunki tumhare calculator me feed / rpm khud likhte ho. Material cost tum type karti ho. v1-fallback ops me v1 ka material factor chalta hai.
+- Batch size calculator model me cost nahi badalta (calculator ek job ka cost deta hai), batch discount nahi. v1 model me discount ab bhi hai.
+- Route sheet ke cutting speed / rpm / feed / times physics model ke hain (v1 ke numbers): unke times calculator ke times se alag hain, page par likha hai.
+- Efficiency calculator model me route-relative hai: v1 ka fixed scale (100 - 1.2 x time) calculator ke times (har op me 5 min setting) par sab ko 0 deta, isliye. Ye number v1 efficiency se compare nahi hota.
+- Sandbox me Groq key nahi: asli drawing se pitch / groove width / dimensions vision model kaise padhta hai wo maine chalake nahi dekha. Mapping ke choices (`PROCESS_OF`) meri judgement hain: agar tum Plain Turning ko Turning - Straight ki jagah kuch aur chahti ho to ek line badalni hai.
+
+
+## Step 53: Milling formulas calculator model me (lathe ke jaise hi)
+
+**Kyun:** tumhare calculator me milling nahi hai, to Step 52 me milling ke ops v1 ke cutting time + 5 min setting se chalte the. Tumne milling ke formulas bheje (Sandvik / Technical Formulas / OSU slide / EngineersPost): ab milling bhi usi style me calculate hoti hai jaise lathe.
+
+### Kya badla
+- **`capp/calculator.py`:** 5 milling processes (`MILLING`), formulas sheets se:
+  - Cutting speed `Vc = pi x D x n / 1000`, spindle speed `n = 1000 x Vc / (pi x D)`, table feed `Vf = n x fz x Z`.
+  - **Milling - Face:** `(approach + overrun + L + D) / Vf x passes` (sheet: `Tm = (L + D) / Vf`).
+  - **Milling - Slab:** `(approach + overrun + L + sqrt(d (D - d))) / Vf x passes` (OSU slide: slab milling).
+  - **Milling - Slot:** `(approach + overrun + L) / Vf x passes`. **Milling - Pocket:** wahi, width ke upar `ceil(W / stepover)` baar. **Milling - Profile:** `(approach + overrun + 2L + 2W) / Vf x passes`.
+  - `passes = ceil(total depth / depth of cut per pass)` (pass fraction nahi ho sakta; tumhare lathe formulas me turn fractional hota hai, milling me ceil, v1 bhi ceil karta hai). Setting times: `+ job setting + tool setting`, wahi 5 min / ₹10 tool cost defaults. Divisor 0 (teeth, fz, Vc, cutter diameter, depth of cut, stepover) to time 0, jaise lathe me.
+  - 11 milling ops ko process mila (`MILLING_OF`, meri judgement): Face Milling -> Face; Slab/Peripheral, Gang -> Slab; Slot, T-Slot, Dovetail, Woodruff Keyway, Angular -> Slot; Pocket -> Pocket; Profile, Surface Contouring -> Profile.
+  - **Defaults:** cutter diameter, teeth aur depth per pass wahi jo v1 us op ke liye maanta hai; Vc aur fz material ke hisaab se v1 ki table se (Steel 80 m/min, 0.06; Aluminum 250, 0.1 ...); stepover = 0.6 x cutter diameter (v1); approach / overrun 0 (sheets ke formula me cutter ka entry term pehle se hai); setting times aur tool cost tumhare calculator ke. Inputs me "v1" source ke saath likha aata hai.
+  - Cut length, total depth, width: drawing me us feature ka number, warna part ki length / depth / width (v1 bhi milling me yahi leta hai).
+  - Row ke note me `n`, `Vf` aur passes dikhte hain.
+- **App:** milling ops ke bhi calculator jaise input blocks (cutter diameter, teeth, Vc, fz, length, total depth, depth of cut, width, stepover, setting times, tool cost); material badalne par jo box tumne nahi chhua wo follow karta hai. Result me Source = "milling formulas (sheets)", summary line me "N by the milling formulas of the sheets". Home page ka calculator blurb naya.
+- Ab 41 me se 17 ops ko tumhare calculator ka process, 11 ko milling process, **13 ko koi formula nahi** (Form / Helical / Thread / Gear Milling, Engraving, Corner Rounding, Counterboring, Countersinking, Spotfacing, Forming, Polishing, Eccentric Turning, Inspection): wo v1 cutting time + 5 min setting, "v1 model" label ke saath.
+
+### Jo nahi badla
+`week3/agents.py` (v1), NSGA-II, ablation, report ke numbers, v1 model: koi change nahi. Energy ab bhi v1 ka. Calculator model ke 13 + 6 processes ke formulas Step 52 jaise.
+
+### Test
+2689 pass (pehle 2676). `tests/test_calculator.py` me 13 naye tests (ab 99): **milling oracle** = sheets ke formulas (n = 1000 Vc / pi D, Vf = n fz Z, face, slab, slot, pocket, profile) test me alag se likhe, 5 processes x 200 random inputs par `capp/calculator.py` se barabar; haath ke numbers (Vc 100, D 20, Z 4, fz 0.1 -> n = 1591.55, Vf = 636.62); jahan sheets ka formula v1 jaisa hai (Face, Slot-type, Profile, 3 materials) wahan cutting time v1 ke barabar (sirf 5 min setting alag); defaults (v1 cutter + material ka Vc / fz); inputs ka source (drawing / part / v1 / default); edit se time badalta hai; har divisor 0 par time 0; row ka source aur n, Vf, passes note; material se time badalta hai; page (milling block bhare hue, material badalne par follow, edit Generate par settings me, table me Source). 17 + 11 + 13 = 41 ka hisaab. 14 jagah code tod ke dekha (n me 1000 ki jagah 100, Vf me Z hataya, passes floor, face me + D hataya, slab me sqrt galat, pocket me width passes hataye, profile me 2L + 2W, Vc aur fz ulte, stepover, drawing / part ulta, source label, milling count, app me material na bhejna, mapping): tests fail hue. Golden hashes (v1) Step 51 / 52 ke barabar.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step53_milling.zip" .`, `python -m pytest`, commit. (Step 52 pehle lagi honi chahiye.)
+2. `streamlit run week6\app.py`, features me Slot ya Pocket / Face lo (milling wale), Operations panel me milling blocks dekho (cutter diameter, teeth, Vc, fz), ek badlo, Generate: Time & Cost table me Source "milling formulas (sheets)".
+
+### Honestly
+- Ye formulas sheets ke hain, tumhare calculator ke nahi: milling ke inputs ke default (cutter, teeth, Vc, fz) mere nahi, v1 ke hain. Real cutter / speed tumhe apne shop ke hisaab se type karne hain.
+- Sheets Face aur Slab ke time dete hain; Slot / Pocket / Profile ke liye mene wahi `Vf` se seedha length / outline wala formula liya (v1 bhi yahi karta hai): ye sheets me alag se likha nahi hai. Mapping judgement hai: jaise T-Slot / Dovetail ko Slot formula, ek simplification hai.
+- Pocket me v1 `area / (Vf x stepover)` fractional passes leta tha, mene `ceil(W / stepover)`: isliye Pocket ka time v1 se zyada aata hai.
+- Sheets ke Material Removal Rate (`Q = ae x ap x Vf / 1000`) aur net power (`Pc = ae x ap x Vf x kc / ...`) formulas time / cost me nahi aate. Energy abhi bhi v1 ka fixed figure hai. Agar energy ko milling power x time se jodna hai (kc material table chahiye: physics module me hai) to bolo, alag step hoga.
+- Sandbox me asli drawing / Groq nahi: milling features ke length / depth / width drawing se kaise aate hain wo demo data par dekha, real extraction par nahi.
+
+
+## Step 54: Calculator model me sab operations dropdown me, add / hatao, auto-select, auto-fill, edit
+
+**Kyun:** Step 51 jaisa dropdown calculator model me bhi chahiye tha: features se operations khud select ho, inputs bhar jayen, sab edit ho, aur jo operation missing ho wo add kar sako. Pehle dropdown me 41 ops the, tumhare calculator ke 6 items (Drilling - Pilot, Turning - Concave, Custom, Blanking, Resharpening, Tool Change) kisi op se map nahi hote the, aur dropdown me jo op tum add karti thi wo total me judta nahi tha.
+
+### Kya badla
+- **`capp/calculator.py`:**
+  - `CALCULATOR_ONLY` = tumhare calculator ke wo 6 items. Inko process mila: Drilling - Pilot aur Turning - Concave (13 machining processes me se), Custom / Blanking / Resharpening / Tool Change ("other processes": time + 5 min handling + extra tool cost). Inputs ka starting value tumhare calculator ka default.
+  - `plan_job(steps, selected, auto)`: job = planner ka route, **minus** wo ops jo features ne select kiye the (`auto`) par tumne dropdown se hata diye, **plus** wo ops jo tumne add kiye aur route me nahi the (last Inspection se pehle). Jo op route me hai par features ne select hi nahi kiya tha (planner ka apna choice) wo tab tak rehta hai jab tak tum use khud hata nahi deti. Kuch badla nahi to route jaisa ka taisa. Badlne par changeover markers machine switch par dobara lagte hain.
+  - `job_changes(steps, job)` = (added, removed), result ke caption ke liye.
+  - Energy: ye 6 items energy me kuch nahi jodte (v1 `energy_agent` unko jaanta nahi, to 0.3 kWh jod deta). Isliye energy unke bina nikalti hai.
+- **`capp/op_dims.py`:** `sync_selection` ko `key` aur `sig_key` parameter mile (default Step 51 wale, v1 model ka behaviour wahi).
+- **`week6/app.py`:** calculator model me dropdown ke 47 options (apni key `op_sel_calc`), v1 model me ab bhi 41 (`op_sel`). Generate par har route ke liye `plan_job`, phir `CALC.evaluate`. Time & Cost ke neeche caption: "You changed the job in the operations list: added ... / taken out ...". Panel caption naya.
+- `capp/home_stats.py`: "Dimensions of every operation" blurb me 6 extra items aur add / hatao ki line.
+
+### Jo nahi badla
+`week3/agents.py` (v1), NSGA-II, report ke numbers, v1 model. Planner ka route nahi badalta (route flow aur completeness check planner ke route par hain); sirf jo job cost hota hai wo badalta hai. Golden hashes (`cae97fb70587326c`, `2ac0615163b86d63`, `155d057b21ade08a`/24) wahi.
+
+### Test
+2709 pass (pehle 2689; `tests/test_calculator.py` ab 119). Naye tests: 6 items ke processes aur defaults (har ek tumhare formula se), `plan_job` (kuch nahi badla, add, hatao, route me pehle se hai, planner ka apna op, markers), add karne par time / cost / extra cost ka hisaab, hatane par totals me kami, energy me 6 items nahi, dropdown 47 (calculator) / 41 (v1), page par `Custom` + `Turning - Concave` add, edit, Generate: table me aate hain aur total badalta hai, hataya hua op rows me nahi, features badalne par dropdown dobara select hota hai (v1 me badal kar wapas aane par bhi). 2 purane tests naye behaviour ke hisaab se badle (hataya hua Drilling ab rows me nahi, par uske drawing numbers `own` me rehte hain; Route Only test me dono keys). 15 jagah code tod ke dekha (`plan_job` ka hatana / jodna / Inspection se pehle rakhna / markers / kuch nahi badla wala shortcut, energy, 6 items ke mapping, `job_changes`, app me `plan_job` na lagana, dropdown me 47 ki jagah 41, dropdown ka signature, `auto` ko `selected` jaisa karna, `sync_selection` ka signature check): 12 pehle hi pakde gaye, 2 bach gaye (`plan_job` me "features ne select kiya par route me nahi" wala op; "kuch nahi badla to route jaisa ka taisa") to unke test jode, ab dono pakde jaate hain; 1 equivalent nikla (calculator dropdown ki signature key ka naam badalna ya v1 wali ke saath share karna: jo dropdown dikhta nahi uska state Streamlit hata deta hai, to behaviour wahi rehta hai).
+`test_g1.py::test_a_real_run_of_today...` ko agar `CAPP_LLM_MODE=replay` export karke chalao to 4 file ek saath chalane par fail hota hai: ye Step 53 par bhi hota hai (mene clean checkout par dekha), env variables ke bina poori suite pass hai.
+
+### Tumhe kya karna hai
+1. Zip `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step54_all_operations.zip" .`, `python -m pytest` (env variables set kiye bina), commit. (Step 53 pehle lagi honi chahiye.)
+2. `streamlit run week6\app.py`, Operations dropdown me **Custom** ya **Tool Change** type karke add karo, uske box (time_min, extra_tool_cost) badlo, Generate: Time & Cost table me wo row aati hai aur total badalta hai. Koi auto-select op (jaise Drilling) hatao to wo job se nikal jata hai.
+
+### Honestly
+- Dropdown me har op sirf ek baar ho sakta hai (ek job me Drilling do baar nahi add hota). Do baar chahiye to abhi nahi.
+- Add kiya hua op route ke sabse aakhir me (Inspection se pehle) jata hai: precedence rules (kaun sa op kab) calculator mode ka job check nahi karta, na planner ka route badalta hai. Total sirf jodta hai.
+- Drilling - Pilot ke inputs (depth, diameter, ...) tumhare calculator ke default se shuru hote hain, hole ke diameter se nahi bharte: wo tum type karoge.
+- Custom / Blanking / Resharpening / Tool Change energy me kuch nahi jodte (tumhare calculator me energy formula hi nahi hai).
+- Planner ke route ka flow aur "Completeness Verified" planner ke route par rahte hain: agar tum koi zaroori op hata do to bhi wo check pass dikhega, kyunki wo route ka hai, job ka nahi.
+
+
+## Step 55: 12 naye materials (7 se 19)
+
+**Kyun:** Material dropdown me sirf 7 materials the (Aluminum, Steel, Brass, Copper, Titanium, Plastic, Cast Iron). Tumne kaha jitne ho sake utne add karo.
+
+### Kya badla
+Naye 12 (purane 7 ke baad, unka order wahi): **Mild Steel, Alloy Steel, Tool Steel, Hardened Steel, Austenitic Stainless Steel, Martensitic Stainless Steel, Nodular Cast Iron, Bronze, Hardened Aluminum Alloy, Inconel, Pure Titanium, Magnesium.**
+Material 7 jagah bandha tha, sabme naye jode:
+- `week6/app.py`: sidebar ka Material dropdown ab `week1/material_tokens.MATERIALS` se banta hai (19 options).
+- `week1/material_tokens.py` (naam + description) aur `week1/token_map.json` (naye tokens 208 se 219; purane 201 se 207 wahi).
+- `capp/materials.py` (physics: kc1.1, mc, Taylor n, tool life, edge cost).
+- `week3/agents.py` (v1: cutting speeds / feeds, cost factor, energy factor). **Sirf entries judi hain**, purani 7 ki koi line nahi badli.
+- `capp/process_tables.py` (tool material per operation, speed / feed ranges: turning, drilling, milling per material, naya source S5).
+- `capp/planners.py` (`MATERIAL_CLASS`: naye materials ki class, similar-example chunne ke liye).
+
+### Numbers kahan se aaye (jo asli hai aur jo andaza hai)
+- **kc1.1 aur mc** (11 materials): wahi table jo purani 7 ke liye use hui (machiningdoctor.com, "specific cutting force kc / kc1.1"), is baar uski rows padh kar: Mild Steel 1350 / 0.21, Alloy Steel (Q&T) 1725 / 0.24, Tool Steel 2450 / 0.23, Hardened Steel 4600 / 0.25, Austenitic Stainless 2150 / 0.20, Martensitic Stainless 1875 / 0.21, Nodular Iron 1225 / 0.25, Bronze 700 / 0.27, Hardened Aluminum 800 / 0.25, Inconel 3300 / 0.24, Pure Titanium 1700 / 0.23. Purani 7 ki wahi values is table se milti hain. **Magnesium** table me nahi hai: kc1.1 = 450 **andaza** hai (`ASSUMED` likha hai).
+- **v1 cutting speeds:** purani row x ratio, ratio = machinability rating (Engineering ToolBox, AISI 1112 = 100%): Mild Steel 78/59, Tool Steel 42/59, Austenitic Stainless 45/59, Martensitic Stainless 54/59 (1045 ko 59% maana), Magnesium 480/360 of Aluminum; Alloy Steel 0.70, Hardened Steel 0.40, Inconel 0.25 of Steel (carbide speed ranges, cnc-optimizations.pages.dev, 304 ke saamne), Nodular Iron 0.80 of Cast Iron (wahi page, ductile vs grey). Bronze 0.75 of Brass, Hardened Aluminum 0.85 of Aluminum, Pure Titanium 1.25 of Titanium: **andaza**. **Feeds sab andaza hain** (typical practice).
+- **Cost factor** (v1): **andaza** (kathin / mehenge material ka zyada). **Energy factor**: purane 4 anchors (Al 700 -> 1.0, Cast Iron 1150 -> 1.5, Steel 1500 -> 1.6, Ti 2110 -> 2.2) ke beech kc par interpolate, bahar extrapolate: Hardened Steel 4.65, Inconel 3.37 bade lagenge, kc ke hisaab se hain par **andaza**.
+- **Tool life (`t_ref_min`), Taylor n, edge cost:** **andaza** (purani 7 ke jaise, "calibrate karo / sensitivity analysis").
+- **Handbook ranges** (`RANGES`, 36 nayi rows): Mild Steel, Bronze, Hardened Aluminum, Pure Titanium = purani row ki copy (jinhe pages wahi group maante hain; note me "same row as ..."; Pure Titanium `mixed` kyunki page Ti-6Al-4V ka hai). Alloy / Tool / Hardened Steel, 2 Stainless, Nodular Iron, Inconel: speed S5 (carbide speeds table) se, feed andaza => `mixed`. Magnesium aur kuch drilling rows: `indicative` (koi page nahi padha). **Koi row `confirmed` nahi.**
+
+### Jo nahi badla
+Purani 7 materials ke saare numbers (golden hashes `cae97fb70587326c`, `2ac0615163b86d63`, `155d057b21ade08a`/24 wahi), dataset (320 parts, ab bhi sirf purane 7 materials), NSGA-II, report ke numbers, LLM planner ke prompts purane materials ke liye.
+
+### Test
+`tests/test_more_materials.py` (76 naye): purani 7 ki har value aur jagah, 19 materials sab tables me, tokens 208 se 219 (koi clash nahi, tokenizer unhe deta hai), kc = table ki row, Magnesium ka `ASSUMED`, speed = row x ratio, energy factor = interpolation, materials ka sensible order (Hardened Steel < Alloy < Steel < Mild Steel; Inconel sabse dheema; Magnesium sabse tez; cost / energy / tool life order), tool + range har op / material ke liye, copy rows, har naye material par v1 agents + physics + process plan + calculator, aur page (6 materials Full Analysis, 1 Route Only, dropdown me 19 options). 13 jagah code tod ke dekha: sab pakde gaye. Purane tests badle: `test_op_dims.py` (golden purane 7 materials par), `test_process_plan.py` (rows ka count `3 x len(MATERIALS)`), `test_dataset.py` (dataset ke 7 materials), `test_physics.py` (dev parts ab bhi purane 7 materials cover karte hain). Poori suite: 2785 test, sab pass (10 min).
+
+### Tumhe kya karna hai
+1. Step 54 ke baad `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step55_more_materials.zip" .`, `python -m pytest` (env variables set kiye bina), commit.
+2. `streamlit run week6\app.py`: sidebar ke Material me ab 19 options.
+
+### Honestly
+- **Naye materials ke cutting speeds / feeds / cost / energy / tool life andaze hain** (do web pages aur kc table ke upar), kisi handbook ya tumhari sheet se nahi. Report me naye materials ke numbers quote karne se pehle inhe check karo. `confirmed` rows ke liye handbook ka page chahiye.
+- Dataset aur sab experiments (NSGA-II, LLM runs, report ke tables) purane 7 materials par hain: naye materials sirf app me chunne par (ya benchmark file me likhne par) dikhte hain. Kisi naye material par LLM planner kabhi chala nahi, replay cache me uska kuch nahi: key ho to Groq live call hogi.
+- Ye step behaviour files badalta hai (`agents.py`, `planners.py`, `token_map.json`, `materials.py`). `FREEZE.json` abhi bana nahi, to koi asar nahi; freeze banane se pehle ye zip lagana, warna drift ginega.
+- Hardened Steel ke liye carbide ranges halki cuts ke hain (CBN / ceramic tez chalti hai), Magnesium ke chips me aag ka khatra hai (water-based coolant nahi): table me likha hai par app koi warning nahi dikhata.
+
+
+## Step 56: Route + Full Analysis me wo sab jo Route Only me aata hai
+
+**Kyun:** Tumne kaha: jo bhi Route Only me aata hai wo sab Route + Full Analysis me bhi aana chahiye. Maine dono modes chala ke sections ki list milayi. Full Analysis (calculator model, jo ab default hai) me ye nahi tha:
+- tool change / position change / machine changeover ka section ("Where changes occurred" aur chart),
+- Pareto front me Route Builder ki *alternative operation chains* (Route Only inhe jodta hai, Full sirf search ke routes dikhata tha),
+- "All N valid routes" ki list.
+(Full ke v1 model me Time Breakdown pehle se tha; alternatives aur list wahan bhi nahi thi.)
+
+### Kya badla (sirf `week6/app.py`, sirf jodna, kuch hataya nahi)
+- **Calculator model:** route ke neeche naya section "Tool, Position and Machine Changes of the Route (v1 model split)": Machining / Tool Change / Position / Changeover ke minutes, "Where changes occurred", chart. Ye v1 model ke minutes hain (calculator ka apna tool setting time hai), isliye section ka naam "Time Breakdown" nahi rakha aur caption bolta hai ki ye dusre model ka figure hai: job ka time wahi hai jo upar calculator ne diya.
+- **Pareto front (dono models):** search ke routes + baaki valid aur complete operation chains (Hole = Drilling, ya Drilling + Reaming, ...), Route Only jaisa. Unki value usi model se: calculator me `plan_job` + `evaluate` (tumhare add / remove kiye operations ke saath), v1 me agents tumhare Part Dimensions ke saath. Calculator me chart ki efficiency chart ke saare points ke hisaab se relative hai (caption me likha).
+- **"All N valid routes"** expander.
+- Ek hi route ho to Pareto heading ke neeche "Only one distinct valid route..." message (pehle kuch nahi dikhta tha).
+- **Table aur optimal route ka selection pehle jaisa:** sirf search ke routes se. Alternatives sirf chart me hain, selection ya numbers me nahi.
+
+### Jo nahi badla
+Route Only poora same hai, v1 / NSGA-II ke numbers, golden hashes (`cae97fb70587326c`, `2ac0615163b86d63`, `155d057b21ade08a`/24). Route Only me operations dropdown / dimension boxes / Part Dimensions abhi bhi nahi hain (wo analysis ke inputs hain, aur Route Only ke purane tests jaan-boojh ke "no panel" maante hain).
+
+### Test
+`tests/test_mode_parity.py` (16 naye): Route Only ka har section Full me hai (rename table se: Route Only me naya section aaye aur Full me na ho to test fail hoga), expanders aur download, split ka sum = total aur Part Dimensions ke saath badalta hai, Pareto ke points v1 me Route Only ke barabar, alternatives tumhare dimensions se value hote hain, galat order ya adhoori chain plot nahi hoti, calculator ki efficiency saare points ke hisaab se. Code tod ke dekha (14 jagah): 12 pakde gaye; do bache: "search points ki efficiency ko chart ke saare points se dobara nikalna" (is part par alternatives search ke routes se behtar nahi, isliye same numbers aate hain) aur "calculator me plan_job" (ye `test_calculator.py` pakadta hai).
+
+### Tumhe kya karna hai
+1. Step 55 ke baad `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step56_full_shows_route_only.zip" .`, `python -m pytest` (env variables set kiye bina), commit.
+2. `streamlit run week6\app.py`: Route + Full Analysis me Generate karo: neeche "Tool, Position and Machine Changes of the Route" aur "Pareto Front" (zyada points), "All N valid routes". Route Only pehle jaisa.
+
+### Honestly
+- Agar tumhara matlab tha ki Route Only me bhi operations dropdown / parameter boxes dikhein, wo **nahi kiya**: batao to laga dunga.
+- Ek purani chhoti galti mili, **theek nahi ki**: "Where changes occurred" ki lines kabhi title ke count se kam ho sakti hain. Lines wala loop "Facing ke turant baad ka position change" nahi likhta, v1 model (`agents._count_setup_events`) use ginta hai, aur title me v1 ka count aata hai. Sirf samjhane wali list hai, numbers par asar nahi; Route Only aur v1 page me bhi yahi hai.
+- Calculator page ke split ke minutes v1 model ke hain: report ke liye job ka time calculator wala total hai.
+
+
+## Step 57: Pareto front graph app se hata diya
+
+**Kyun:** Tumne kaha: pareto front graph ko app se hata do.
+
+### Kya badla
+- `week6/app.py`: Route Only aur Route + Full Analysis dono se "Pareto Front" ka section (heading, caption, 3D chart, 2D chart, "one route / all converge" messages) hata diya. Uska code bhi nikala: `make_pareto_charts`, Step 56 ka `alternative_routes` (wo sirf Pareto ke liye tha), header ka comment, aur page ke subtitle se "· Pareto Front".
+- `tests/test_pareto_charts.py` (Step 48 ke chart ke tests, ab chart hi nahi) ka naam rakha par andar ke tests badle: ab wo check karte hain ki graph wapas na aaye (dono modes me koi Pareto chart / heading nahi, NSGA-II ka result aur routes ki list bachi hain, app me Pareto chart ka code nahi bacha). `tests/test_mode_parity.py`: Pareto wale 7 tests hataye. README me teen jagah (Pareto front dashboard me dikhta hai) theek ki.
+
+### Jo nahi badla
+- **NSGA-II khud:** "Found N Pareto-optimal route(s)" wali line, best route ka selection, table, "All N valid routes" list, Step 56 ka tool / position / machine changes section, sab pehle jaisa. Numbers, golden hashes wahi.
+- `capp/pareto.py` (model cascade ka validity-vs-cost Pareto, report 6.4) alag cheez hai, app ka graph nahi: wo wahin hai.
+- Step 48 / 56 ke purane entries history hain, unme Pareto chart ka zikr rehne diya.
+
+### Test
+`tests/test_pareto_charts.py` (3 tests) + `tests/test_mode_parity.py` (9). Pareto chart, heading ya message wapas daalke dekha (3 jagah): teeno pakde gaye.
+
+### Tumhe kya karna hai
+Step 56 ke baad `Expand-Archive -Force "$env:USERPROFILE\Downloads\MTP1_step57_no_pareto_graph.zip" .`, `python -m pytest -q` (env variables ke bina). Kuch delete nahi karna: purani test file ki jagah wahi naam naye tests ke saath aati hai.
+
+### Honestly
+Agar kabhi graph wapas chahiye ho to Step 56 ka commit (`c77a14a`) me wahi code hai (aur Step 48 ke chart ke tests wahin).

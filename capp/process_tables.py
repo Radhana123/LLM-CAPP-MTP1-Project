@@ -36,9 +36,15 @@ SOURCES = {
            "https://www.mie.utoronto.ca/wp-content/uploads/2016/10/MODULE-1-The-Drill-Press.pdf"),
     "S4": ("incoherency.co.uk, lathe speeds (turning speeds for HSS and carbide in m/min; the page itself cites Chegg: a secondary source)",
            "https://incoherency.co.uk/jesref/lathe-speeds.html"),
+    "S5": ("cnc-optimizations.pages.dev, 'CNC Material & Cutting Speed Reference' (Step 55: uncoated carbide, roughing; turning and milling speeds in "
+           "SFM and m/min by material group; no feed values; a secondary web page, as the others)",
+           "https://cnc-optimizations.pages.dev/resources/tables/cutting-speed-reference/"),
 }
 
-MATERIALS = ("Aluminum", "Steel", "Brass", "Copper", "Titanium", "Plastic", "Cast Iron")
+MATERIALS = ("Aluminum", "Steel", "Brass", "Copper", "Titanium", "Plastic", "Cast Iron",
+             # Step 55
+             "Mild Steel", "Alloy Steel", "Tool Steel", "Hardened Steel", "Austenitic Stainless Steel", "Martensitic Stainless Steel",
+             "Nodular Cast Iron", "Bronze", "Hardened Aluminum Alloy", "Inconel", "Pure Titanium", "Magnesium")
 STATUSES = ("confirmed", "web", "mixed", "indicative")
 
 # family -> what the operation is, for the tool-material rule and for the speed class
@@ -102,6 +108,18 @@ _INSERT = {
     "Copper": "uncoated carbide, sharp positive geometry",
     "Titanium": "uncoated or PVD-coated carbide, sharp edge, coolant",
     "Plastic": "uncoated polished carbide or HSS, sharp positive geometry",
+    "Mild Steel": "coated carbide (CVD / PVD)",
+    "Alloy Steel": "coated carbide (CVD / PVD)",
+    "Tool Steel": "coated carbide (PVD, tough grade)",
+    "Hardened Steel": "CBN or ceramic inserts (carbide only for light cuts)",
+    "Austenitic Stainless Steel": "coated carbide, positive geometry, coolant (it work-hardens: keep the feed up)",
+    "Martensitic Stainless Steel": "coated carbide",
+    "Nodular Cast Iron": "coated carbide (cast-iron grade)",
+    "Bronze": "uncoated carbide, positive or zero rake",
+    "Hardened Aluminum Alloy": "uncoated or polished carbide, sharp positive geometry (PCD for large batches)",
+    "Inconel": "ceramic or fine-grain coated carbide, rigid set-up, coolant",
+    "Pure Titanium": "uncoated or PVD-coated carbide, sharp edge, coolant",
+    "Magnesium": "uncoated polished carbide, sharp positive geometry; dry or mist, no water-based coolant (fire risk)",
 }
 _MILL = {
     "Steel": "coated carbide",
@@ -111,6 +129,18 @@ _MILL = {
     "Copper": "uncoated carbide, polished flutes",
     "Titanium": "coated carbide (AlCrN / TiAlN), coolant",
     "Plastic": "polished carbide or HSS, 1-2 flutes",
+    "Mild Steel": "coated carbide",
+    "Alloy Steel": "coated carbide",
+    "Tool Steel": "coated carbide (AlTiN), rigid set-up",
+    "Hardened Steel": "solid carbide with AlTiN / TiSiN coating (light cuts) or CBN",
+    "Austenitic Stainless Steel": "coated carbide, coolant",
+    "Martensitic Stainless Steel": "coated carbide",
+    "Nodular Cast Iron": "coated carbide",
+    "Bronze": "uncoated carbide or HSS-Co",
+    "Hardened Aluminum Alloy": "uncoated carbide, polished flutes (2-3 flutes)",
+    "Inconel": "solid carbide, AlTiN / TiAlN coated, low radial engagement, coolant",
+    "Pure Titanium": "coated carbide (AlCrN / TiAlN), coolant",
+    "Magnesium": "uncoated carbide, polished flutes (2-3 flutes); dry or mist, no water-based coolant (fire risk)",
 }
 _DRILL = {
     "Steel": "HSS-Co (or TiN / TiAlN-coated HSS)",
@@ -120,9 +150,21 @@ _DRILL = {
     "Copper": "HSS-Co",
     "Titanium": "HSS-Co, coolant (solid carbide for large batches)",
     "Plastic": "HSS, polished flutes, low-angle point",
+    "Mild Steel": "HSS-Co (or TiN / TiAlN-coated HSS)",
+    "Alloy Steel": "HSS-Co (or TiN / TiAlN-coated HSS)",
+    "Tool Steel": "HSS-Co or solid carbide, coolant",
+    "Hardened Steel": "solid carbide, coolant",
+    "Austenitic Stainless Steel": "HSS-Co, coolant, a steady feed (it work-hardens)",
+    "Martensitic Stainless Steel": "HSS-Co, coolant",
+    "Nodular Cast Iron": "HSS-Co (or TiN-coated HSS)",
+    "Bronze": "HSS-Co, ground for bronze (reduced rake)",
+    "Hardened Aluminum Alloy": "HSS-Co, polished flutes",
+    "Inconel": "solid carbide or HSS-Co, coolant, rigid set-up",
+    "Pure Titanium": "HSS-Co, coolant (solid carbide for large batches)",
+    "Magnesium": "HSS-Co, polished flutes; dry or mist (fire risk)",
 }
-_TAP = {m: "HSS-E" + (", TiN-coated" if m in ("Steel", "Cast Iron") else "") for m in MATERIALS}
-_REAM = {m: ("carbide-tipped" if m in ("Cast Iron", "Titanium") else "HSS") for m in MATERIALS}
+_TAP = {m: "HSS-E" + (", TiN-coated" if m in ("Steel", "Cast Iron", "Mild Steel", "Alloy Steel", "Nodular Cast Iron") else "") for m in MATERIALS}
+_REAM = {m: ("carbide-tipped" if m in ("Cast Iron", "Titanium", "Nodular Cast Iron", "Pure Titanium", "Inconel", "Hardened Steel") else "HSS") for m in MATERIALS}
 
 TOOL_MATERIAL = {("insert", m): v for m, v in _INSERT.items()}
 TOOL_MATERIAL.update({("mill", m): v for m, v in _MILL.items()})
@@ -173,6 +215,42 @@ _row("mill", "Brass", (100, 300), (0.05, 0.30), "mixed", ["S2"], "S2 brass 190 m
 _row("mill", "Copper", (76, 250), (0.05, 0.15), "mixed", ["S2"], "S2 bronze 76 m/min, fz 0.05-0.15; upper end typical practice")
 _row("mill", "Titanium", (15, 65), (0.025, 0.10), "web", ["S1", "S2"], "S1 titanium VHM 30-65, S2 15 m/min; fz S1 0.025-0.05, S2 0.04-0.10")
 _row("mill", "Plastic", (100, 500), (0.10, 0.80), "mixed", ["S2"], "S2 acetal: 190 m/min, fz 0.20-0.76; wider bounds typical practice")
+
+# Step 55: the rows of the twelve more materials. A material that the pages read treat as the same group as an old one gets that row (same sources, same
+# status); the others get S5 (carbide speeds by group, turning and milling) for the speed and typical practice for the feed ("mixed"), or "indicative".
+_COPY = {"Mild Steel": "Steel", "Bronze": "Copper", "Hardened Aluminum Alloy": "Aluminum", "Pure Titanium": "Titanium"}
+for _new, _old in _COPY.items():
+    for _cls in ("turn", "drill", "mill"):
+        _r = dict(_R[(_cls, _old)])
+        _r["note"] = f"same row as {_old}: " + _r["note"]
+        if _new == "Pure Titanium":
+            _r["status"] = "mixed" if _r["status"] == "web" else _r["status"]
+            _r["note"] += "; those rows are for Ti-6Al-4V, pure titanium machines a little easier, so the range is on the careful side"
+        _R[(_cls, _new)] = _r
+_row("turn", "Alloy Steel", (45, 150), (0.10, 0.35), "mixed", ["S5"], "S5 alloy steel (4140 / 4340, 30-40 HRc) carbide turning 45-120; upper end typical practice (annealed is faster); feeds typical practice")
+_row("turn", "Tool Steel", (25, 120), (0.08, 0.30), "mixed", ["S5"], "S5 tool steel (D2 / H13 / A2, 45-55 HRc) carbide turning 25-75; upper end typical practice for annealed; feeds typical practice")
+_row("turn", "Hardened Steel", (25, 75), (0.05, 0.20), "mixed", ["S5"], "no hardened-steel row: S5 tool steel 45-55 HRc, carbide turning 25-75; feeds typical practice (CBN runs faster)")
+_row("turn", "Austenitic Stainless Steel", (45, 135), (0.10, 0.35), "mixed", ["S5"], "S5 300 series stainless (304, 316L) carbide turning 45-135; feeds typical practice")
+_row("turn", "Martensitic Stainless Steel", (35, 135), (0.10, 0.35), "mixed", ["S5"], "S5 17-4PH 35-105 up to the 300 series 45-135 (no 410 / 420 row); feeds typical practice")
+_row("turn", "Nodular Cast Iron", (60, 120), (0.15, 0.45), "mixed", ["S5"], "S5 ductile iron 60-120 carbide turning; feeds typical practice")
+_row("turn", "Inconel", (12, 45), (0.05, 0.20), "mixed", ["S5"], "S5 Inconel / nickel (718, 625, Hastelloy) carbide turning 12-45; feeds typical practice")
+_row("turn", "Magnesium", (200, 1000), (0.10, 0.50), "indicative", [], "no page read: typical practice for carbide in magnesium; chips are a fire risk")
+_row("drill", "Alloy Steel", (15, 35), (0.08, 0.18), "indicative", [], "no page read for alloy steel: typical practice, a little below the mild / medium-carbon row of S1")
+_row("drill", "Tool Steel", (10, 25), (0.06, 0.15), "indicative", [], "no page read: typical practice for annealed tool steel with HSS-Co")
+_row("drill", "Hardened Steel", (8, 30), (0.03, 0.10), "indicative", [], "no page read: typical practice, solid carbide drills")
+_row("drill", "Austenitic Stainless Steel", (8, 20), (0.05, 0.15), "indicative", [], "no page read: typical practice for HSS-Co in 300 series stainless")
+_row("drill", "Martensitic Stainless Steel", (10, 25), (0.06, 0.18), "indicative", [], "no page read: typical practice for HSS-Co in 400 series stainless")
+_row("drill", "Nodular Cast Iron", (18, 35), (0.15, 0.25), "mixed", ["S1"], "S1 has a grey cast iron row only: used for nodular iron, whose speed is somewhat lower in practice")
+_row("drill", "Inconel", (4, 12), (0.03, 0.08), "indicative", [], "no page read: typical practice for HSS-Co / carbide in nickel alloys")
+_row("drill", "Magnesium", (60, 200), (0.10, 0.40), "indicative", [], "no page read: typical practice; chips are a fire risk")
+_row("mill", "Alloy Steel", (46, 120), (0.03, 0.15), "mixed", ["S5"], "S5 alloy steel (30-40 HRc) carbide milling 150-300 SFM = 46-91 m/min; upper end typical practice; fz typical practice")
+_row("mill", "Tool Steel", (24, 100), (0.03, 0.12), "mixed", ["S5"], "S5 tool steel (45-55 HRc) carbide milling 80-200 SFM = 24-61 m/min; upper end typical practice for annealed; fz typical practice")
+_row("mill", "Hardened Steel", (24, 61), (0.02, 0.08), "mixed", ["S5"], "no hardened-steel row: S5 tool steel 45-55 HRc, 80-200 SFM = 24-61 m/min; fz typical practice")
+_row("mill", "Austenitic Stainless Steel", (46, 107), (0.03, 0.15), "mixed", ["S5"], "S5 300 series stainless carbide milling 150-350 SFM = 46-107 m/min; fz typical practice")
+_row("mill", "Martensitic Stainless Steel", (37, 107), (0.03, 0.15), "mixed", ["S5"], "S5 17-4PH 120-280 SFM = 37-85 up to the 300 series 46-107 m/min (no 410 / 420 row); fz typical practice")
+_row("mill", "Nodular Cast Iron", (61, 107), (0.05, 0.15), "mixed", ["S5"], "S5 ductile iron carbide milling 200-350 SFM = 61-107 m/min; fz typical practice")
+_row("mill", "Inconel", (12, 30), (0.02, 0.08), "mixed", ["S5"], "S5 Inconel / nickel carbide milling 40-100 SFM = 12-30 m/min; fz typical practice")
+_row("mill", "Magnesium", (200, 1000), (0.05, 0.30), "indicative", [], "no page read: typical practice for carbide in magnesium; chips are a fire risk")
 RANGES = _R
 
 

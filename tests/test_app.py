@@ -74,12 +74,21 @@ def test_agent_table_gets_the_physics_columns():
 
 
 def test_physics_columns_do_not_enter_the_efficiency_score():
-    """Efficiency is still the v1 function of the three v1 numbers; the new columns only describe the routes."""
+    """v1 model: efficiency is still the v1 function of the three v1 numbers; the new columns only describe the routes."""
     from capp import legacy       # noqa: F401
     from agents import efficiency_agent
-    df = generate(start()).dataframe[0].value
+    at = start()
+    at.radio(key="time_model").set_value("\U0001F4C8 v1 model (numbers of the report)").run()          # Step 52: the calculator model is the default
+    df = generate(at).dataframe[0].value
     for _, row in df.iterrows():
         assert row["Efficiency"] == efficiency_agent(row["Time (min)"], row["Cost (₹)"], row["Energy (kWh)"])
+
+
+def test_calculator_efficiency_is_relative_to_the_routes_and_ignores_the_physics_columns():
+    from capp import calculator as CALC
+    df = generate(start()).dataframe[0].value             # the default model of Full Analysis is the calculator
+    want = CALC.relative_efficiency(list(zip(df["Time (min)"], df["Cost (₹)"], df["Energy (kWh)"])))
+    assert list(df["Efficiency"]) == want and max(want) <= 100.0
 
 
 def test_required_ra_drives_the_ra_panel():

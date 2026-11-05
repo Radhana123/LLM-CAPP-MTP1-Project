@@ -37,6 +37,8 @@ def isolated(monkeypatch, tmp_path):
 
 def pass_of(messages):
     text = messages[0]["content"][0]["text"]
+    if "against a checklist" in text:
+        return "checklist"
     return "geometry" if "DRAWN GEOMETRY" in text else "annotation" if "TEXT AND SYMBOLS" in text else "other"
 
 
@@ -227,3 +229,115 @@ def test_clean_evidence_drops_empty_and_non_text_values():
 def test_clean_evidence_collapses_white_space_and_truncates():
     out = ife._clean_evidence({"Hole": "  circle \n in   the\tview  ", "Slot": "x" * 500}, VALID)
     assert out["Hole"] == "circle in the view" and len(out["Slot"]) == ife.EVIDENCE_MAX_CHARS == 160
+
+
+# ---------------------------------------------------------------- Step 49: the checklist pass (with_checklist=True)
+CHECKLIST = {"checklist": {"Hole": "yes: circle with dia 8 callout in the front view", "Slot": "no", "Thread": "Yes - note M10",
+                           "Chamfer": "yes: 1x45 note at the shaft end", "Pocket": "no", "Counter Bore": "yes: CBORE note"},
+             "confidence": "medium", "notes": "checked every feature"}
+
+
+def test_without_the_option_the_checklist_prompt_is_never_sent():
+    t = transport({"geometry": GEOMETRY, "annotation": ANNOTATION})
+    llm_client.set_transport(t)
+    r = extract()
+    assert {c["pass"] for c in t.seen} == {"geometry", "annotation"} and "checklist" not in r["passes"]
+
+
+def test_the_checklist_pass_is_a_third_call_with_its_own_prompt_and_the_two_others_are_unchanged(monkeypatch):
+    t1 = transport({"geometry": GEOMETRY, "annotation": ANNOTATION})
+    llm_client.set_transport(t1)
+    extract()
+    monkeypatch.setenv("CAPP_RUN_TAG", "with-checklist")
+    t2 = transport({"geometry": GEOMETRY, "annotation": ANNOTATION, "checklist": CHECKLIST})
+    llm_client.set_transport(t2)
+    extract(with_checklist=True)
+    assert [c["pass"] for c in t2.seen] == ["geometry", "annotation", "checklist"]
+    plain = {c["pass"]: (c["messages"], c["params"], c["model"]) for c in t1.seen}
+    withc = {c["pass"]: (c["messages"], c["params"], c["model"]) for c in t2.seen}
+    assert plain["geometry"] == withc["geometry"] and plain["annotation"] == withc["annotation"]      # same cache keys as before
+
+
+def test_the_checklist_prompt_lists_every_feature_and_formats():
+    from feature_vocab import GEOMETRY_FEATURES
+    guide = "\n".join(f"- {f}: x" for f in GEOMETRY_FEATURES)
+    text = ife.CHECKLIST_SYSTEM_PROMPT.format(feature_guide=guide)
+    assert all(f"- {f}:" in text for f in GEOMETRY_FEATURES) and '{"checklist": {"Hole":' in text
+    assert "one by one" in text and "Possible" in text
+
+
+def test_the_checklist_pass_keeps_the_yeses_with_their_evidence():
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION, "checklist": CHECKLIST}))
+    r = extract(with_checklist=True)
+    c = r["passes"]["checklist"]
+    assert c["success"] and c["features"] == ["Hole", "Thread", "Chamfer"] and c["rejected_features"] == ["Counter Bore"]
+    assert c["evidence"] == {"Hole": "circle with dia 8 callout in the front view", "Thread": "note M10", "Chamfer": "1x45 note at the shaft end"}
+    assert c["confidence"] == "medium" and r["passes_ok"] == 3
+
+
+def test_the_union_gets_what_only_the_checklist_found():
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION, "checklist": CHECKLIST}))
+    r = extract(with_checklist=True)
+    assert r["features"] == ["Hole", "Slot", "Thread", "Chamfer"]
+    assert r["sample_agreement"] == {"Hole": 3, "Slot": 1, "Thread": 2, "Chamfer": 1}
+    assert set(r["rejected_features"]) == {"Counter Bore"}
+    rows = {x["feature"]: x for x in ER.build_review(r)["rows"]}
+    assert rows["Chamfer"]["seen_by"] == ["checklist"] and rows["Chamfer"]["agreement"] == ER.ONE
+    assert rows["Thread"]["seen_by"] == ["annotation", "checklist"] and rows["Thread"]["agreement"] == ER.BOTH
+    assert rows["Chamfer"]["evidence_text"] == "checklist: 1x45 note at the shaft end"
+
+
+@pytest.mark.parametrize("answer, yes", [("yes", True), ("Yes: circle", True), ("YES - note", True), (True, True), ("y", True),
+                                         ("no", False), ("No", False), ("not visible", False), ("possible", False), ("", False),
+                                         (None, False), (False, False), (["yes"], False), ("yesterday", False)])
+def test_what_counts_as_a_yes(answer, yes):
+    assert ife._says_yes(answer) is yes
+
+
+def test_a_checklist_with_only_nos_is_a_working_pass_with_no_features():
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION,
+                                        "checklist": {"checklist": {"Hole": "no", "Slot": "no"}, "confidence": "low"}}))
+    r = extract(with_checklist=True)
+    assert r["passes"]["checklist"]["success"] and r["passes"]["checklist"]["features"] == [] and r["features"] == ["Hole", "Slot", "Thread"]
+
+
+def test_a_failed_checklist_call_leaves_the_two_passes_standing():
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION}, raises=("checklist",)))
+    r = extract(with_checklist=True)
+    assert r["success"] and r["passes_ok"] == 2 and r["features"] == ["Hole", "Slot", "Thread"]
+    assert r["passes"]["checklist"]["success"] is False and "boom" in r["passes"]["checklist"]["error"]
+
+
+def test_a_checklist_reply_that_is_not_json_is_a_failed_pass_not_a_list_of_every_feature():
+    """The checklist names every feature, so the keyword recovery of a broken reply would find all of them: it must not be used."""
+    broken = "Hole: yes\nSlot: no\nThread: no\nPocket: no\nBoss: no"
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION, "checklist": broken}))
+    r = extract(with_checklist=True)
+    assert r["passes"]["checklist"]["success"] is False and "could not be read" in r["passes"]["checklist"]["error"]
+    assert r["features"] == ["Hole", "Slot", "Thread"] and r["passes_ok"] == 2
+
+
+def test_a_model_that_answers_a_plain_list_to_the_checklist_prompt_is_still_understood():
+    llm_client.set_transport(transport({"geometry": GEOMETRY, "annotation": ANNOTATION,
+                                        "checklist": {"features": ["Chamfer", "Hole"], "confidence": "high"}}))
+    r = extract(with_checklist=True)
+    assert r["passes"]["checklist"]["features"] == ["Chamfer", "Hole"] and "Chamfer" in r["features"]
+
+
+def test_the_checklist_answers_helper_on_odd_input():
+    assert ife._checklist_answers({}) == (None, {})
+    assert ife._checklist_answers({"checklist": "yes"}) == (None, {})
+    assert ife._checklist_answers({"features": ["Hole"], "notes": "Recovered via keyword match — model response was not valid JSON"}) == (None, {})
+    assert ife._checklist_answers({"checklist": {}}) == ([], {})
+    assert ife._checklist_answers({"checklist": {"Hole": "yes"}}) == (["Hole"], {})
+
+
+def test_the_checklist_is_cached_like_the_other_passes():
+    t = transport({"geometry": GEOMETRY, "annotation": ANNOTATION, "checklist": CHECKLIST})
+    llm_client.set_transport(t)
+    extract(with_checklist=True)
+    assert len(t.seen) == 3
+    extract(with_checklist=True)
+    assert len(t.seen) == 3
+    extract()
+    assert len(t.seen) == 3                       # the plain call needs only the entries that are there already

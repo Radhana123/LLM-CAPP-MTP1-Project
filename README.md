@@ -73,7 +73,7 @@ Given a part's features, the system:
 └─────────┬─────────────┘
           ▼
    Interactive Dashboard (Streamlit)
-   Route flow · Time/Cost breakdown · Pareto front · Feature mapping
+   Route flow · Time/Cost breakdown · Feature mapping
 ```
 
 An **LLM Planner** (Qwen3.8-27B via Groq) runs alongside the Route Builder as an additional candidate-route source, generating a plan directly from tokenized features. Its output passes through the identical FSM validation and self-correction path as every rule-based candidate — it is never trusted without verification.
@@ -149,7 +149,7 @@ The selected route is checked against the shared precedence rule set used to con
 - **Color-coded route flow** — amber (Lathe), blue (Milling), purple (Shared), dark (Facing/Inspection), dashed amber (Machine Changeover).
 - **Time Breakdown** — five metrics (Machining, Tool Change, Position Change, Changeover, Total) with a bar chart.
 - **"Where changes occurred"** — an expandable, line-by-line trace of every tool change and position change and its cause.
-- **Pareto Front** — interactive 3D (Time × Cost × Energy) and 2D (Time vs Cost, bubble = Energy) charts, with the selected route highlighted.
+- **All valid routes** — an expandable list of every valid route of the search with its time (the Pareto front graphs of Step 48 were taken out of the app in Step 57).
 - **Completeness verification** — explicit confirmation that every requested feature is covered.
 - **Feature → Operation mapping** — which operation(s) satisfy each requested feature, and on which machine.
 
@@ -236,7 +236,7 @@ INTERN-PROJECT/
 ├── week1/                       Feature Vocabulary, Tokenization, Dynamic Route Builder
 │   ├── feature_vocab.py         36 features, Feature→Operations mapping
 │   ├── image_feature_extractor.py  VLM-based feature extraction from 2D drawings
-│   ├── material_tokens.py       7 materials, tolerance & batch categories
+│   ├── material_tokens.py       19 materials (7 + 12 of Step 55), tolerance & batch categories
 │   ├── token_map.json           Token ID mapping (features, materials, 41 operations)
 │   ├── parser.py                JSON input validator
 │   ├── tokenizer.py             Input → token sequence
@@ -335,9 +335,9 @@ cd week1 && python -m pytest tests/ -v
 | Precedence rules enforced      | 44, cycle-checked                                    |
 | Dataset                        | 200 parts across 22 realistic manufacturing archetypes |
 | Optimization objectives        | 3 — Time, Cost, Energy                               |
-| Currency                       | INR (1 USD = ₹95.595)                                |
+| Currency                       | INR (1 USD = ₹96.095)                                |
 | LLM / VLM                      | Qwen3.8-27B via Groq (~1–3s response time)           |
-| Interface                      | Interactive Streamlit dashboard with Pareto visualization |
+| Interface                      | Interactive Streamlit dashboard                      |
 
 ---
 

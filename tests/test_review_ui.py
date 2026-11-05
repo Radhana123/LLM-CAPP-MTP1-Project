@@ -29,6 +29,14 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("CAPP_CORRECTIONS_LOG", str(tmp_path / "log" / "corrections.jsonl"))
 
 
+@pytest.fixture
+def strict(monkeypatch):
+    """Strict mode (the behaviour before Step 49, for the study of RQ6): a feature seen by one pass only waits for Accept / Reject.
+    The app reads the setting from capp.extraction_review, the module this test patches."""
+    from capp import extraction_review as ER
+    monkeypatch.setattr(ER, "CONFIRM_FLAGGED", True)
+
+
 def log_lines(tmp_path):
     path = tmp_path / "log" / "corrections.jsonl"
     return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
@@ -72,7 +80,8 @@ def start(ex, confirmed=None, image=None, name="part.png"):
 
 
 def started_review(**kw):
-    """The extraction as the app starts it after the Extract button: only what both passes saw is in the list."""
+    """The extraction as the app starts it after the Extract button (Step 49): the list starts with every feature found. In strict mode
+    (the `strict` fixture) it starts with what two passes saw."""
     ex = extraction(**kw)
     from capp import extraction_review as ER
     return start(ex, confirmed=ER.initial_features(ER.build_review(ex)))
@@ -110,6 +119,7 @@ def table(at):
 
 
 # ---------------------------------------------------------------- Generate is held back until the highlighted features are decided
+@pytest.mark.usefixtures("strict")
 def test_generate_is_disabled_while_highlighted_features_are_undecided():
     at = started_review()
     assert at.session_state["confirmed_features"] == ["Hole"]
@@ -119,12 +129,14 @@ def test_generate_is_disabled_while_highlighted_features_are_undecided():
     assert any("Generate stays off" in c.value for c in at.caption)
 
 
+@pytest.mark.usefixtures("strict")
 def test_each_highlighted_feature_has_accept_and_reject_and_a_preaccepted_one_has_none():
     at = started_review()
     assert keys(at) >= {"acc_Slot", "rej_Slot", "acc_Thread", "rej_Thread"}
     assert not keys(at) & {"acc_Hole", "rej_Hole"}
 
 
+@pytest.mark.usefixtures("strict")
 def test_the_table_shows_seen_by_confidence_and_status():
     rows = {r["Feature"]: r for r in table(started_review())}
     assert rows["Hole"]["Seen by"] == "both passes" and rows["Hole"]["Confidence"] == "high" and rows["Hole"]["Status"] == "pre-accepted"
@@ -133,6 +145,7 @@ def test_the_table_shows_seen_by_confidence_and_status():
     assert rows["Thread"]["Seen by"] == "annotation only"
 
 
+@pytest.mark.usefixtures("strict")
 def test_accepting_puts_the_feature_in_the_list_and_deciding_all_enables_generate():
     at = started_review()
     click(at, "acc_Slot")
@@ -145,6 +158,7 @@ def test_accepting_puts_the_feature_in_the_list_and_deciding_all_enables_generat
     assert {r["Feature"]: r["Status"] for r in table(at)} == {"Hole": "pre-accepted", "Slot": "accepted", "Thread": "rejected"}
 
 
+@pytest.mark.usefixtures("strict")
 def test_a_decision_can_be_changed():
     at = started_review()
     click(at, "acc_Slot")
@@ -155,12 +169,14 @@ def test_a_decision_can_be_changed():
     assert "Slot" in at.session_state["confirmed_features"]
 
 
+@pytest.mark.usefixtures("strict")
 def test_adding_a_highlighted_feature_in_the_list_counts_as_accepting_it():
     at = started_review()
     [m for m in at.multiselect if m.key == "confirmed_features"][0].set_value(["Hole", "Slot", "Thread"]).run()
     assert not at.exception and not generate_button(at).disabled
 
 
+@pytest.mark.usefixtures("strict")
 def test_generate_runs_the_plan_once_everything_is_decided():
     at = started_review()
     click(at, "acc_Slot")
@@ -174,11 +190,12 @@ def test_a_result_without_per_pass_data_is_not_held_back():
     assert not generate_button(at).disabled and not at.warning
     assert not [k for k in keys(at) if k.startswith(("acc_", "rej_"))]
     assert any("no per-pass data" in c.value for c in at.caption)
-    assert {r["Status"] for r in table(at)} == {"pre-accepted"}
+    assert {r["Status"] for r in table(at)} == {"included"}
     generate(at)
     assert any("STEP 5" in h for h in headers(at))
 
 
+@pytest.mark.usefixtures("strict")
 def test_when_only_one_pass_worked_every_feature_is_highlighted():
     ex = extraction()
     ex["passes"]["annotation"] = {"success": False, "error": "timeout"}
@@ -198,6 +215,7 @@ def test_an_extraction_without_a_single_feature_cannot_be_generated():
 
 
 # ---------------------------------------------------------------- evidence
+@pytest.mark.usefixtures("strict")
 def test_the_evidence_is_shown_with_the_feature():
     at = started_review(g_ev={"Hole": "circle in front view", "Slot": "long rectangle"}, a_ev={"Hole": "dia 8 callout", "Thread": "note M10"})
     rows = {r["Feature"]: r for r in table(at)}
@@ -215,6 +233,7 @@ def test_without_evidence_the_notes_of_the_passes_are_shown_instead():
 
 
 # ---------------------------------------------------------------- unrecognised names
+@pytest.mark.usefixtures("strict")
 def test_an_unrecognised_name_can_be_mapped_to_its_nearest_feature():
     at = started_review(rejected=["Counter Bore"])
     assert "map_Counter Bore" in keys(at) and at.button(key="map_Counter Bore").label == "Use Counterbore"
@@ -273,6 +292,7 @@ def test_a_failed_extraction_shows_the_error_and_no_panel():
 
 
 # ---------------------------------------------------------------- the corrections log
+@pytest.mark.usefixtures("strict")
 def test_generate_writes_one_line_with_the_decisions_and_corrections(tmp_path):
     at = started_review(rejected=["Counter Bore"])
     click(at, "acc_Slot")
@@ -287,6 +307,7 @@ def test_generate_writes_one_line_with_the_decisions_and_corrections(tmp_path):
     assert e["model_output"]["unrecognised"] == ["Counter Bore"]
 
 
+@pytest.mark.usefixtures("strict")
 def test_a_removed_preaccepted_feature_and_an_added_one_are_logged_as_corrections(tmp_path):
     at = started_review()
     click(at, "acc_Slot")
@@ -309,6 +330,7 @@ def test_the_drawing_is_logged_by_name_and_hash_not_stored(tmp_path):
     assert e["n_corrections"] == 0 and e["n_highlighted"] == 0
 
 
+@pytest.mark.usefixtures("strict")
 def test_generating_again_in_the_same_state_does_not_log_the_drawing_twice(tmp_path):
     at = started_review()
     click(at, "acc_Slot")
@@ -318,6 +340,7 @@ def test_generating_again_in_the_same_state_does_not_log_the_drawing_twice(tmp_p
     assert len(log_lines(tmp_path)) == 1
 
 
+@pytest.mark.usefixtures("strict")
 def test_generating_again_after_a_change_is_a_new_line(tmp_path):
     at = started_review()
     click(at, "acc_Slot")
@@ -338,6 +361,7 @@ def test_a_legacy_result_is_logged_as_having_no_agreement_info(tmp_path):
     assert [(x["type"], x["feature"]) for x in e["events"]] == [("added", "Slot")]
 
 
+@pytest.mark.usefixtures("strict")
 def test_a_log_that_cannot_be_written_does_not_stop_the_page(tmp_path, monkeypatch):
     blocker = tmp_path / "blocker"
     blocker.write_text("a file where a folder is needed", encoding="utf-8")
@@ -349,6 +373,7 @@ def test_a_log_that_cannot_be_written_does_not_stop_the_page(tmp_path, monkeypat
     assert any("STEP 5" in h for h in headers(at)) and any("corrections log could not be written" in c.value for c in at.caption)
 
 
+@pytest.mark.usefixtures("strict")
 def test_a_failed_write_is_tried_again_at_the_next_generate(tmp_path, monkeypatch):
     blocker = tmp_path / "blocker"
     blocker.write_text("x", encoding="utf-8")
@@ -370,8 +395,9 @@ def fake_extractor(monkeypatch):
     import image_feature_extractor as ife
     calls = []
 
-    def fake(image_bytes, image_format="png", with_dimensions=False, with_evidence=False):
-        calls.append({"format": image_format, "with_dimensions": with_dimensions, "with_evidence": with_evidence})
+    def fake(image_bytes, image_format="png", with_dimensions=False, with_evidence=False, with_checklist=False, with_part_dimensions=False):
+        calls.append({"format": image_format, "with_dimensions": with_dimensions, "with_evidence": with_evidence,
+                      "with_checklist": with_checklist, "with_part_dimensions": with_part_dimensions})
         return extraction(g_ev={"Hole": "circle"} if with_evidence else None)
     monkeypatch.setattr(ife, "extract_features_from_image", fake)
     return calls
@@ -395,9 +421,12 @@ def test_the_evidence_option_is_off_by_default_and_is_passed_on_when_ticked(fake
     extract_through_the_ui(evidence=False)
     extract_through_the_ui(evidence=True)
     assert [c["with_evidence"] for c in fake_extractor] == [False, True] and all(c["with_dimensions"] for c in fake_extractor)
+    assert all(c["with_checklist"] for c in fake_extractor)                  # Step 49: the app always asks for the checklist pass
+    assert all(c["with_part_dimensions"] for c in fake_extractor)            # Step 50: and for the dimensions of the whole part
 
 
 @needs_uploader
+@pytest.mark.usefixtures("strict")
 def test_extracting_starts_a_fresh_review(fake_extractor):
     at = extract_through_the_ui(evidence=False)
     assert at.session_state["confirmed_features"] == ["Hole"]                 # only what both passes saw
@@ -407,3 +436,77 @@ def test_extracting_starts_a_fresh_review(fake_extractor):
     assert at.session_state["feature_decisions"] == {"Slot": "accept"}
     [b for b in at.button if "Extract Features" in b.label][0].click().run()          # extracting again forgets the old decisions
     assert at.session_state["feature_decisions"] == {} and at.session_state["confirmed_features"] == ["Hole"]
+
+
+# ---------------------------------------------------------------- Step 49: no Accept / Reject, every extracted feature is included
+def test_every_extracted_feature_is_in_the_list_and_generate_is_not_held_back():
+    at = started_review()
+    assert at.session_state["confirmed_features"] == ["Hole", "Slot", "Thread"]
+    assert not generate_button(at).disabled
+    assert not [k for k in keys(at) if k.startswith(("acc_", "rej_"))]
+    assert not any("seen by one pass only" in w.value for w in at.warning)
+    assert not any("Generate stays off" in c.value for c in at.caption)
+
+
+def test_the_table_still_says_which_pass_saw_a_feature_and_how_sure_it_is():
+    rows = {r["Feature"]: r for r in table(started_review())}
+    assert rows["Hole"]["Seen by"] == "both passes" and rows["Hole"]["Confidence"] == "high"
+    assert rows["Slot"]["Seen by"] == "geometry only" and rows["Slot"]["Confidence"] == "medium"
+    assert rows["Thread"]["Seen by"] == "annotation only"
+    assert {r["Status"] for r in rows.values()} == {"included"}
+    assert any("Every feature the AI found is already in your list" in c.value for c in started_review().caption)
+
+
+def test_generate_runs_the_plan_at_once_with_all_the_features():
+    at = generate(started_review())
+    assert any("STEP 5" in h for h in headers(at)) and at.session_state["confirmed_features"] == ["Hole", "Slot", "Thread"]
+
+
+def test_taking_a_feature_out_of_the_list_shows_removed_and_is_logged_as_a_correction(tmp_path):
+    at = started_review()
+    [m for m in at.multiselect if m.key == "confirmed_features"][0].set_value(["Hole", "Thread"]).run()          # Slot (one pass) out
+    assert {r["Feature"]: r["Status"] for r in table(at)} == {"Hole": "included", "Slot": "removed", "Thread": "included"}
+    generate(at)
+    [e] = log_lines(tmp_path)
+    assert e["final_features"] == ["Hole", "Thread"] and e["confirm_flagged"] is False
+    assert [(x["type"], x["feature"], x["was"], x["correction"]) for x in e["events"]] == [("removed", "Slot", "one-pass", True)]
+    assert e["n_corrections"] == 1 and e["n_decisions"] == 0 and e["n_highlighted"] == 2
+
+
+def test_adding_a_missed_feature_is_still_a_correction(tmp_path):
+    at = started_review()
+    [m for m in at.multiselect if m.key == "confirmed_features"][0].set_value(["Hole", "Slot", "Thread", "Pocket"]).run()
+    generate(at)
+    [e] = log_lines(tmp_path)
+    assert [(x["type"], x["feature"]) for x in e["events"]] == [("added", "Pocket")] and e["n_corrections"] == 1
+
+
+def test_when_only_one_pass_worked_the_features_are_still_included_with_a_warning():
+    ex = extraction()
+    ex["passes"]["annotation"] = {"success": False, "error": "timeout"}
+    ex["features"], ex["sample_agreement"], ex["passes_ok"] = ["Hole", "Slot"], {"Hole": 1, "Slot": 1}, 1
+    from capp import extraction_review as ER
+    at = start(ex, confirmed=ER.initial_features(ER.build_review(ex)))
+    assert at.session_state["confirmed_features"] == ["Hole", "Slot"] and not generate_button(at).disabled
+    assert any("Only 1 of the 2 passes worked" in w.value for w in at.warning)
+
+
+def test_a_third_pass_shows_in_the_table():
+    ex = extraction()
+    ex["passes"]["checklist"] = report(["Hole", "Pocket"], evidence={"Pocket": "rectangular recess in the top view"})
+    ex["features"] = ["Hole", "Slot", "Thread", "Pocket"]
+    ex["sample_agreement"] = {"Hole": 3, "Slot": 1, "Thread": 1, "Pocket": 1}
+    ex["passes_ok"] = 3
+    from capp import extraction_review as ER
+    at = start(ex, confirmed=ER.initial_features(ER.build_review(ex)))
+    rows = {r["Feature"]: r for r in table(at)}
+    assert at.session_state["confirmed_features"] == ["Hole", "Slot", "Thread", "Pocket"]
+    assert rows["Pocket"]["Seen by"] == "checklist only" and rows["Pocket"]["Evidence"] == "checklist: rectangular recess in the top view"
+    assert rows["Hole"]["Confidence"] == "high"
+
+
+@needs_uploader
+def test_extracting_puts_every_feature_in_the_list(fake_extractor):
+    at = extract_through_the_ui(evidence=False)
+    assert at.session_state["confirmed_features"] == ["Hole", "Slot", "Thread"]
+    assert at.session_state["feature_decisions"] == {} and not generate_button(at).disabled and len(at.get("image")) == 1

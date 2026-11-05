@@ -10,6 +10,19 @@ MATERIALS = {
     "Titanium":   "Very hard, aerospace grade, slow machining",
     "Plastic":    "ABS/POM, low-speed machining",
     "Cast Iron":  "Brittle, abrasive, needs special tools",
+    # Step 55
+    "Mild Steel":                  "Low-carbon steel, easy to machine, the most forgiving steel",
+    "Alloy Steel":                 "Chromium / molybdenum steel (4140 type), tough, needs carbide",
+    "Tool Steel":                  "High-alloy steel (A2 / D2 / O1), abrasive, slow machining",
+    "Hardened Steel":              "Hardened above ~45 HRC, needs CBN / ceramic or light carbide cuts",
+    "Austenitic Stainless Steel":  "304 / 316 type, work-hardens, gummy, needs sharp tools and coolant",
+    "Martensitic Stainless Steel": "410 / 420 / 17-4PH type, harder than 304, moderate machinability",
+    "Nodular Cast Iron":           "Ductile iron, tougher than grey iron, abrasive",
+    "Bronze":                      "Copper-tin alloy, stringy chips, moderate speeds",
+    "Hardened Aluminum Alloy":     "7075 / 2024 type, strong, still fast to machine",
+    "Inconel":                     "Nickel super alloy, very slow machining, work-hardens, heat resistant",
+    "Pure Titanium":               "Commercially pure titanium, easier than Ti-6Al-4V, still slow",
+    "Magnesium":                   "Lightest structural metal, very fast to machine, chips are a fire risk",
 }
 
 TOLERANCE_CATEGORIES = {

@@ -47,6 +47,23 @@ _CUTTING_PARAMS = {
     "Titanium":  (60,     0.10,   20,       0.06,    40,      0.04),
     "Plastic":   (400,    0.30,   150,      0.25,    300,     0.12),
     "Cast Iron": (100,    0.20,   35,       0.12,    70,      0.06),
+    # Step 55: more materials (the rows above did not change). Speeds = a v1 row x a ratio (rounded), feeds = typical practice (ASSUMED):
+    #   Mild Steel 78/59 of Steel, Tool Steel 42/59, Austenitic Stainless 45/59, Martensitic Stainless 54/59 (machinability ratings,
+    #   Engineering ToolBox, 1112 = 100%, 1045 taken as 59%); Alloy Steel 0.70, Hardened Steel 0.40, Inconel 0.25 of Steel (carbide speed ranges of
+    #   cnc-optimizations.pages.dev against 304); Nodular Cast Iron 0.80 of Cast Iron (same page, ductile vs grey iron); Bronze 0.75 of Brass,
+    #   Hardened Aluminum Alloy 0.85 of Aluminum, Pure Titanium 1.25 of Titanium (ASSUMED); Magnesium 480/360 of Aluminum (ratings).
+    "Mild Steel":                  (158,   0.18,   53,       0.12,    106,     0.07),
+    "Alloy Steel":                 (84,    0.14,   28,       0.09,    56,      0.05),
+    "Tool Steel":                  (85,    0.12,   28,       0.08,    57,      0.05),
+    "Hardened Steel":              (48,    0.08,   16,       0.05,    32,      0.03),
+    "Austenitic Stainless Steel":  (92,    0.12,   31,       0.08,    61,      0.05),
+    "Martensitic Stainless Steel": (110,   0.14,   37,       0.09,    74,      0.05),
+    "Nodular Cast Iron":           (80,    0.18,   28,       0.11,    56,      0.06),
+    "Bronze":                      (150,   0.18,   60,       0.12,    113,     0.07),
+    "Hardened Aluminum Alloy":     (255,   0.22,   102,      0.18,    213,     0.09),
+    "Inconel":                     (30,    0.08,   10,       0.05,    20,      0.03),
+    "Pure Titanium":               (75,    0.12,   25,       0.07,    50,      0.04),
+    "Magnesium":                   (400,   0.30,   160,      0.22,    333,     0.12),
 }
 
 # Thread pitch (mm) per operation type
@@ -141,6 +158,27 @@ def _num_passes(op: str, depth: float) -> int:
 # DIMENSION-BASED MACHINING TIME (min) PER OPERATION
 # ═══════════════════════════════════════════════════
 
+# Step 51: an operation may have dimensions of its own (the Ø of ITS hole, the length of ITS slot). They sit in dims["per_op"] as
+# {operation: {"diameter": mm, "length": mm, "depth": mm, "width": mm}}; a key an operation does not list is taken from the part's dims.
+# Without "per_op" in dims nothing changes: op_dims returns the dims it was given, so every existing input gives the same time.
+PER_OP = "per_op"
+HOLE_OPS = ("Drilling", "Counterboring", "Countersinking", "Spotfacing", "Boring", "Reaming", "Tapping")   # = physics.HOLE_DIAMETER_OPS
+
+
+def op_dims(op: str, dims: dict) -> dict:
+    """The dims one operation works with: the part's dims, with the operation's own values (dims["per_op"][op]) laid over them.
+    For a hole operation the own "diameter" is the diameter of its hole, so it is also set as "hole_diameter" (the physics model and the
+    process plan read that key). dims without "per_op" (or None) are returned as they are, the same object."""
+    if not dims or PER_OP not in dims:
+        return dims
+    mine = (dims[PER_OP] or {}).get(op) or {}
+    d = {k: v for k, v in dims.items() if k != PER_OP}
+    d.update({k: v for k, v in mine.items() if v is not None})
+    if op in HOLE_OPS and mine.get("diameter") is not None:
+        d["hole_diameter"] = mine["diameter"]
+    return d
+
+
 def _op_time(op: str, material: str, dims: dict) -> float:
     """
     Calculate machining time for one operation using standard formulas
@@ -152,7 +190,9 @@ def _op_time(op: str, material: str, dims: dict) -> float:
         "depth": mm,      # total depth to achieve (split into multiple passes)
         "width": mm,      # milling width of cut
     }
+    (optionally dims["per_op"][op] = the same keys for this operation alone: see op_dims)
     """
+    dims = op_dims(op, dims)
     p = _CUTTING_PARAMS.get(material, _CUTTING_PARAMS["Steel"])
     Vc_t, f_t, Vc_d, f_d, Vc_m, fz_m = p
 
@@ -340,10 +380,16 @@ _BASE_ENERGY = {
 _MATERIAL_COST_FACTOR = {
     "Aluminum": 1.0, "Steel": 1.5, "Brass": 1.2, "Copper": 1.3,
     "Titanium": 2.5, "Plastic": 0.6, "Cast Iron": 1.4,
+    # Step 55 (ASSUMED relative to the factors above: harder or dearer material, dearer tooling)
+    "Mild Steel": 1.3, "Alloy Steel": 1.8, "Tool Steel": 2.0, "Hardened Steel": 2.4, "Austenitic Stainless Steel": 2.0,
+    "Martensitic Stainless Steel": 1.8, "Nodular Cast Iron": 1.5, "Bronze": 1.4, "Hardened Aluminum Alloy": 1.2, "Inconel": 3.0,
+    "Pure Titanium": 2.0, "Magnesium": 0.9,
 }
 _MATERIAL_ENERGY_FACTOR = {
     "Aluminum": 1.0, "Steel": 1.6, "Brass": 1.1, "Copper": 0.95,
     "Titanium": 2.2, "Plastic": 0.5, "Cast Iron": 1.5,
+    # Step 55: interpolated (extrapolated outside 700..2110) from the factors above against kc1_1 (capp/materials.py); ASSUMED, not measured
+    "Mild Steel": 1.56, "Alloy Steel": 1.82, "Tool Steel": 2.53, "Hardened Steel": 4.65, "Austenitic Stainless Steel": 2.24, "Martensitic Stainless Steel": 1.97, "Nodular Cast Iron": 1.52, "Bronze": 1.0, "Hardened Aluminum Alloy": 1.11, "Inconel": 3.37, "Pure Titanium": 1.8, "Magnesium": 0.72,
 }
 
 

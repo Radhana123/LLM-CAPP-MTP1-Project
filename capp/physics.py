@@ -141,7 +141,7 @@ def analyse_op(op: str, material: str, dims: dict = None, vc_factor: float = 1.0
         raise KeyError(f"unknown material {material!r}")
     if vc_factor <= 0:
         raise ValueError("vc_factor must be > 0")
-    d = _dims(dims)
+    d = _dims(agents.op_dims(op, dims))                        # Step 51: this operation's own dimensions, where the part gives any
     process = op_process(op)
     hole_d = d.get("hole_diameter") or d["diameter"]
     time_dims = dict(d, diameter=hole_d) if op in HOLE_DIAMETER_OPS else d

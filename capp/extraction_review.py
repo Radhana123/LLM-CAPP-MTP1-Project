@@ -13,6 +13,12 @@ Report 6.5: a feature reported by BOTH passes (geometry and annotation) is pre-a
 ONE pass only is highlighted, and the route cannot be generated until each highlighted feature has been accepted, edited or rejected.
 Names outside the 36-feature vocabulary are listed as unrecognised (with the nearest vocabulary item) instead of being dropped in silence.
 
+Step 49: that confirmation step is OFF by default (CONFIRM_FLAGGED = False). Every feature the extraction found goes into the list at once,
+and Generate is never held back; "seen by one pass only" stays as information (the Seen by and Confidence columns, the corrections log).
+The user's edit of the list is then the only review, and removing a feature that only one pass saw is logged as a correction, like removing
+any other feature. The strict behaviour above is kept for the study of RQ6 (set CAPP_CONFIRM_FLAGGED=1, or pass confirm=True to the
+functions below). A third pass (the checklist pass of Step 49) counts as a pass: a feature seen by at least TWO passes is "agreed".
+
 What a "correction" is (the corrections log, and the number M9 reports per drawing): a feature the user ADDS (the model did not give it),
 a PRE-ACCEPTED feature the user REMOVES, or an unrecognised name the user MAPS to a vocabulary feature. Accepting or rejecting a
 HIGHLIGHTED feature is a DECISION, not a correction: the interface asked for it. The two are counted apart, because RQ6 asks whether the
@@ -33,7 +39,11 @@ from collections import Counter
 from capp import legacy  # noqa: F401
 import feature_vocab as fv
 
-PASSES = ("geometry", "annotation")
+PASSES = ("geometry", "annotation")           # the two core passes (capp/extraction_eval.py scores these)
+EXTRA_PASSES = ("checklist",)                 # Step 49: the optional third pass
+ALL_PASSES = PASSES + EXTRA_PASSES
+AGREE_AT = 2                                  # a feature seen by this many passes is "agreed" (both of two; two of three)
+CONFIRM_FLAGGED = os.environ.get("CAPP_CONFIRM_FLAGGED", "").strip().lower() in ("1", "true", "yes")
 BOTH, ONE, UNKNOWN = "both", "one", "unknown"
 ACCEPT, REJECT = "accept", "reject"
 CONF_RANK = {"high": 3, "medium": 2, "low": 1}
@@ -43,6 +53,12 @@ SUGGEST_CUTOFF = 0.72
 
 class ExtractionReviewError(ValueError):
     pass
+
+
+def confirm_mode(confirm=None) -> bool:
+    """True when features seen by one pass only must be accepted or rejected (strict, the behaviour before Step 49); False (default):
+    every extracted feature is included at once. `confirm=None` means the module setting CONFIRM_FLAGGED."""
+    return CONFIRM_FLAGGED if confirm is None else bool(confirm)
 
 
 # ---------------------------------------------------------------- unrecognised names
@@ -81,7 +97,7 @@ def build_review(extraction: dict) -> dict:
     reports = extraction.get("passes") if isinstance(extraction.get("passes"), dict) else {}
     counts = extraction.get("sample_agreement") if isinstance(extraction.get("sample_agreement"), dict) else None
     ok = {n: r for n, r in reports.items() if isinstance(r, dict) and r.get("success")}
-    n_passes = len(PASSES)
+    n_passes = len(reports) if reports else len(PASSES)          # the passes that were run (two, or three with the checklist pass)
     notes = []
     if reports:
         has_agreement, passes_ok = True, len(ok)
@@ -90,16 +106,21 @@ def build_review(extraction: dict) -> dict:
     else:
         has_agreement, passes_ok = False, None
     if has_agreement and passes_ok is not None and passes_ok < n_passes:
-        notes.append(f"Only {passes_ok} of the {n_passes} passes worked, so no feature was seen by both: every feature needs your confirmation.")
+        if passes_ok < AGREE_AT:
+            notes.append(f"Only {passes_ok} of the {n_passes} passes worked, so no feature was seen by two passes: "
+                         "check every feature against the drawing.")
+        else:
+            notes.append(f"{n_passes - passes_ok} of the {n_passes} passes failed; the features of the other passes are used. "
+                         "Check the list against the drawing.")
     rows = []
     for f in union:
-        seen = [n for n in PASSES if n in ok and f in (ok[n].get("features") or [])] if reports else []
+        seen = [n for n in ALL_PASSES if n in ok and f in (ok[n].get("features") or [])] if reports else []
         if not has_agreement:
             agreement = UNKNOWN
         elif reports:
-            agreement = BOTH if len(seen) == n_passes else ONE
+            agreement = BOTH if len(seen) >= AGREE_AT else ONE
         else:
-            agreement = BOTH if counts.get(f, 0) >= n_passes and passes_ok >= n_passes else ONE
+            agreement = BOTH if counts.get(f, 0) >= AGREE_AT and passes_ok >= AGREE_AT else ONE
         if agreement == BOTH:
             conf = "high"
         elif agreement == ONE and seen:
@@ -114,7 +135,7 @@ def build_review(extraction: dict) -> dict:
     for r in ok.values():
         names += [x for x in (r.get("rejected_features") or []) if x not in names]
     for name in dict.fromkeys(names):
-        unrec.append({"name": name, "seen_by": [n for n in PASSES if n in ok and name in (ok[n].get("rejected_features") or [])],
+        unrec.append({"name": name, "seen_by": [n for n in ALL_PASSES if n in ok and name in (ok[n].get("rejected_features") or [])],
                       "suggestion": nearest_vocabulary(name)})
     return {"rows": rows, "flagged": [r["feature"] for r in rows if r["needs_confirmation"]],
             "preaccepted": [r["feature"] for r in rows if not r["needs_confirmation"]], "unrecognised": unrec,
@@ -128,21 +149,26 @@ def pass_notes(extraction: dict) -> dict:
 
 
 # ---------------------------------------------------------------- confirmation state
-def initial_features(review: dict) -> list:
-    """The editable list at the start: the pre-accepted features (everything when there is no agreement information)."""
-    return list(review["preaccepted"])
+def initial_features(review: dict, confirm=None) -> list:
+    """The editable list at the start. Default (Step 49): every feature the extraction found. Strict mode (confirm=True): only the
+    pre-accepted features (everything when there is no agreement information); the others wait for Accept / Reject."""
+    if confirm_mode(confirm):
+        return list(review["preaccepted"])
+    return [r["feature"] for r in review["rows"]]
 
 
-def pending(review: dict, decisions: dict, features) -> list:
+def pending(review: dict, decisions: dict, features, confirm=None) -> list:
     """Highlighted features still without a decision. One counts as reviewed when it was accepted or rejected, or when the user put it
-    in the list by editing it (that is an acceptance)."""
+    in the list by editing it (that is an acceptance). Default (Step 49): nothing is ever pending, no feature waits for a decision."""
+    if not confirm_mode(confirm):
+        return []
     decisions, have = decisions or {}, set(features or [])
     return [f for f in review["flagged"] if decisions.get(f) not in (ACCEPT, REJECT) and f not in have]
 
 
-def can_generate(review: dict, decisions: dict, features) -> bool:
+def can_generate(review: dict, decisions: dict, features, confirm=None) -> bool:
     """Generate Route stays disabled until nothing is pending (and there is at least one feature)."""
-    return bool(features) and not pending(review, decisions, features)
+    return bool(features) and not pending(review, decisions, features, confirm)
 
 
 def decide(features, decisions, feature: str, decision: str):
@@ -170,10 +196,13 @@ def map_unrecognised(features, mappings, name: str, feature: str):
     return feats, mp
 
 
-def status(review: dict, decisions: dict, features) -> dict:
-    """{feature: label} for the table: pre-accepted | needs confirmation | accepted | rejected."""
+def status(review: dict, decisions: dict, features, confirm=None) -> dict:
+    """{feature: label} for the table. Default (Step 49): included | removed (the user took it out of the list).
+    Strict mode: pre-accepted | needs confirmation | accepted | rejected."""
     decisions, have = decisions or {}, set(features or [])
     out = {}
+    if not confirm_mode(confirm):
+        return {r["feature"]: "included" if r["feature"] in have else "removed" for r in review["rows"]}
     for r in review["rows"]:
         f = r["feature"]
         if not r["needs_confirmation"]:
@@ -193,10 +222,13 @@ def _now():
 
 
 def build_log_entry(extraction: dict, features, decisions: dict = None, mappings: dict = None, drawing_id: str = "",
-                    image_bytes: bytes = None, now: str = None, review: dict = None) -> dict:
+                    image_bytes: bytes = None, now: str = None, review: dict = None, confirm=None) -> dict:
     """One line of the corrections log: the model's original output, the user's final list and the edits between them (report 6.5).
-    The drawing itself is not stored: only a short hash of it, so the same drawing can be recognised."""
+    The drawing itself is not stored: only a short hash of it, so the same drawing can be recognised.
+    Default (Step 49): every extracted feature was in the list from the start, so a feature the user takes out is a correction, whether one
+    pass or both saw it, and there are no decisions. Strict mode (confirm=True): accepting or rejecting a highlighted feature is a decision."""
     review = review or build_review(extraction)
+    strict = confirm_mode(confirm)
     decisions, mappings = decisions or {}, mappings or {}
     final = list(dict.fromkeys(features or []))
     union = [r["feature"] for r in review["rows"]]
@@ -206,7 +238,10 @@ def build_log_entry(extraction: dict, features, decisions: dict = None, mappings
         if f in pre and f not in final:
             events.append({"type": "removed", "feature": f, "was": "pre-accepted", "correction": True})
         if f in flagged:
-            events.append({"type": "accepted" if f in final else "rejected", "feature": f, "was": "highlighted", "correction": False})
+            if strict:
+                events.append({"type": "accepted" if f in final else "rejected", "feature": f, "was": "highlighted", "correction": False})
+            elif f not in final:
+                events.append({"type": "removed", "feature": f, "was": "one-pass", "correction": True})
     mapped_to = set()
     for name, f in mappings.items():
         if f in final and f not in union:
@@ -222,7 +257,7 @@ def build_log_entry(extraction: dict, features, decisions: dict = None, mappings
                              "highlighted": list(review["flagged"]), "rejected_features": list(extraction.get("rejected_features") or []),
                              "unrecognised": [u["name"] for u in review["unrecognised"]],
                              "passes_ok": review["passes_ok"], "has_agreement": review["has_agreement"]},
-            "final_features": final, "events": events,
+            "final_features": final, "events": events, "confirm_flagged": strict,
             "n_corrections": sum(e["correction"] for e in events),
             "n_decisions": sum(e["type"] in ("accepted", "rejected") for e in events), "n_highlighted": len(flagged)}
 
@@ -304,7 +339,7 @@ def format_log_report(s: dict, path: str = "", bad: int = 0) -> str:
     c, m = s["corrections"], s["model_vs_final"]
     L = [f"Corrections log{': ' + path if path else ''}: {s['n_drawings']} drawing(s)" + (f", {bad} unreadable line(s) skipped" if bad else ""),
          f"  corrections per drawing: mean {c['mean']:.2f}, median {c['median']:g}, max {c['max']}; drawings needing none: {c['share_zero'] * 100:.0f}%",
-         f"  decisions on highlighted features per drawing: {s['decisions_mean']:.2f} (of {s['highlighted_mean']:.2f} highlighted)",
+         f"  decisions asked on features seen by one pass only, per drawing: {s['decisions_mean']:.2f} (of {s['highlighted_mean']:.2f} seen by one pass only)",
          f"  model output vs the user's final list: precision {_fmt(m['precision'])}, recall {_fmt(m['recall'])}, F1 {_fmt(m['f1'])}; "
          f"identical on {s['exact_share'] * 100:.0f}% of drawings",
          "  most often MISSED (the user added): " + (", ".join(f"{f} x{k}" for f, k in s["most_missed"][:8]) or "none"),

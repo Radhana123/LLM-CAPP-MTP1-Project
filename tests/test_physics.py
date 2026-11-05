@@ -325,7 +325,9 @@ def test_every_dev_part_and_material_runs_through_the_route_builder_route(parts)
         assert t["cutting_energy_kwh"] > 0 and t["wear_cost_inr"] > 0 and t["kc_mean_n_mm2"] > 0
         assert not any("unknown" in f for f in t["flags"])
         assert t["ra"]["risk"] in ("low", "medium", "high", "unknown")
-    assert seen == set(MATERIALS)
+    # the dataset (and so the dev parts) still uses the seven materials of Step 50; Step 55 added 12 more to MATERIAL_PROPS
+    assert seen == {"Aluminum", "Steel", "Brass", "Copper", "Titanium", "Plastic", "Cast Iron"}
+    assert seen < set(MATERIALS)
 
 
 # ---- harness, summary, compare ---------------------------------------------------------------------------------------

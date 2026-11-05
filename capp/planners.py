@@ -32,7 +32,12 @@ from capp.plannerspec import PlannerSpec
 import llm_planner
 
 MATERIAL_CLASS = {"Steel": "ferrous", "Cast Iron": "ferrous", "Aluminum": "non-ferrous", "Brass": "non-ferrous",
-                  "Copper": "non-ferrous", "Titanium": "titanium", "Plastic": "polymer"}
+                  "Copper": "non-ferrous", "Titanium": "titanium", "Plastic": "polymer",
+                  # Step 55
+                  "Mild Steel": "ferrous", "Alloy Steel": "ferrous", "Tool Steel": "ferrous", "Hardened Steel": "ferrous",
+                  "Austenitic Stainless Steel": "ferrous", "Martensitic Stainless Steel": "ferrous", "Nodular Cast Iron": "ferrous",
+                  "Bronze": "non-ferrous", "Hardened Aluminum Alloy": "non-ferrous", "Magnesium": "non-ferrous",
+                  "Inconel": "nickel alloy", "Pure Titanium": "titanium"}
 
 HINT_TEXT = ("A rule-based planner proposes this route:\n{route}\n"
              "Keep it where it is sound and change it where you see a better plan.\n\n")

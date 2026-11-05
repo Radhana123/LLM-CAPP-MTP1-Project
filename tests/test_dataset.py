@@ -83,7 +83,7 @@ def test_dev_set_composition(dev):
     s = D.summarize(dev)
     assert s["n_parts"] == 200 and s["archetypes"] == 36
     assert s["feature_coverage"] == "36/36" and s["missing_features"] == []
-    assert set(s["materials"]) == set(MATERIALS)
+    assert set(s["materials"]) == {"Aluminum", "Steel", "Brass", "Copper", "Titanium", "Plastic", "Cast Iron"}      # the dataset uses the seven of Step 50 (Step 55 added more)
     assert set(s["tolerances"]) == set(TOLERANCE_CATEGORIES)
     assert set(s["batch_categories"]) == {"prototype", "small_batch", "medium_batch", "mass_production"}
     assert set(s["machine_profiles"]) == {"lathe", "milling", "mixed", "flexible"}

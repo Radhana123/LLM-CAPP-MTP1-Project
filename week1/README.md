@@ -10,7 +10,7 @@ process planning ke liye use kar sake.
 | File | Description |
 |------|-------------|
 | `feature_vocab.py` | 10 geometry features ki vocabulary |
-| `material_tokens.py` | 7 materials + tolerance + batch categories |
+| `material_tokens.py` | 19 materials (7 + 12 of Step 55) + tolerance + batch categories |
 | `token_map.json` | Master Token ID mapping |
 | `parser.py` | JSON input validator with error handling |
 | `tokenizer.py` | Main: input → token sequence |

@@ -36,6 +36,12 @@ def rows_by_feature(review):
     return {r["feature"]: r for r in review["rows"]}
 
 
+@pytest.fixture
+def strict(monkeypatch):
+    """The behaviour before Step 49 (and the setting for the study of RQ6): a feature seen by one pass only waits for Accept / Reject."""
+    monkeypatch.setattr(ER, "CONFIRM_FLAGGED", True)
+
+
 # ---------------------------------------------------------------- build_review: the agreement rule
 def test_a_feature_seen_by_both_passes_is_preaccepted_and_high_confidence():
     rv = ER.build_review(extraction(["Hole", "Slot"], ["Hole", "Thread"]))
@@ -180,10 +186,12 @@ def rv():
     return ER.build_review(extraction(["Hole", "Slot"], ["Hole", "Thread"]))
 
 
+@pytest.mark.usefixtures("strict")
 def test_the_list_starts_with_the_preaccepted_features(rv):
     assert ER.initial_features(rv) == ["Hole"]
 
 
+@pytest.mark.usefixtures("strict")
 def test_both_highlighted_features_are_pending_at_first(rv):
     assert ER.pending(rv, {}, ["Hole"]) == ["Slot", "Thread"]
     assert not ER.can_generate(rv, {}, ["Hole"])
@@ -222,17 +230,20 @@ def test_decide_refuses_a_decision_it_does_not_know():
         ER.decide([], {}, "Slot", "maybe")
 
 
+@pytest.mark.usefixtures("strict")
 def test_editing_the_list_counts_as_accepting(rv):
     """The user adds a highlighted feature in the multiselect instead of pressing Accept: that is a review of it."""
     assert ER.pending(rv, {}, ["Hole", "Slot"]) == ["Thread"]
 
 
+@pytest.mark.usefixtures("strict")
 def test_removing_a_feature_in_the_list_is_not_a_review_of_a_highlighted_one(rv):
     feats, dec = ER.decide(["Hole"], {}, "Slot", ER.ACCEPT)
     feats = [f for f in feats if f != "Slot"]                       # the user then deletes it in the multiselect
     assert ER.pending(rv, dec, feats) == ["Thread"]                 # Slot still counts as decided (accepted, then removed)
 
 
+@pytest.mark.usefixtures("strict")
 def test_the_status_labels(rv):
     assert ER.status(rv, {}, ["Hole"]) == {"Hole": "pre-accepted", "Slot": "needs confirmation", "Thread": "needs confirmation"}
     feats, dec = ER.decide(["Hole"], {}, "Slot", ER.ACCEPT)
@@ -241,6 +252,7 @@ def test_the_status_labels(rv):
     assert ER.status(rv, dec, ["Slot"])["Hole"] == "removed"        # a pre-accepted feature the user took out
 
 
+@pytest.mark.usefixtures("strict")
 def test_a_highlighted_feature_added_in_the_list_shows_as_accepted(rv):
     assert ER.status(rv, {}, ["Hole", "Slot"])["Slot"] == "accepted"
 
@@ -263,6 +275,7 @@ def test_without_highlighted_features_generate_is_allowed_with_a_feature():
 
 
 # ---------------------------------------------------------------- the corrections log entry
+@pytest.mark.usefixtures("strict")
 def test_a_clean_review_has_no_corrections_but_decisions():
     ex = extraction(["Hole", "Slot"], ["Hole", "Thread"])
     rv = ER.build_review(ex)
@@ -275,6 +288,7 @@ def test_a_clean_review_has_no_corrections_but_decisions():
     assert e["final_features"] == ["Hole", "Slot"] and e["drawing_id"] == "d1" and e["timestamp"] == "2026-10-28T00:00:00Z"
 
 
+@pytest.mark.usefixtures("strict")
 def test_removing_a_preaccepted_feature_and_adding_a_missed_one_are_corrections():
     ex = extraction(["Hole", "Slot"], ["Hole", "Thread"])
     feats, dec = ER.decide(["Hole"], {}, "Slot", ER.REJECT)
@@ -404,6 +418,7 @@ def test_summary_of_an_empty_log():
     assert "empty" in ER.format_log_report({"n_drawings": 0}, "x.jsonl")
 
 
+@pytest.mark.usefixtures("strict")
 def test_summary_numbers():
     s = ER.summarize_log(entries_for_summary())
     assert s["n_drawings"] == 4
@@ -426,6 +441,7 @@ def test_summary_counts_what_the_model_missed_and_invented():
     assert s["unrecognised"] == [("Counter Bore", 1)] and s["mapped"] == [("Counter Bore", "Counterbore", 1)]
 
 
+@pytest.mark.usefixtures("strict")
 def test_the_report_is_readable_and_says_what_the_log_is_not():
     s = ER.summarize_log(entries_for_summary())
     text = ER.format_log_report(s, "results/corrections_log.jsonl", bad=2)
@@ -441,3 +457,99 @@ def test_the_report_has_no_mapping_lines_when_nothing_was_mapped():
     text = ER.format_log_report(s)
     assert "mapped by the user" not in text and "unrecognised names" not in text and "without per-pass data" not in text
     assert "drawings needing none: 100%" in text
+
+
+# ---------------------------------------------------------------- Step 49: nothing waits for a decision (the default)
+def test_by_default_the_list_starts_with_every_extracted_feature(rv):
+    assert ER.CONFIRM_FLAGGED is False and not ER.confirm_mode()
+    assert ER.initial_features(rv) == ["Hole", "Slot", "Thread"]
+    assert ER.initial_features(rv, confirm=True) == ["Hole"]                    # the strict list is still there
+
+
+def test_by_default_nothing_is_pending_and_generate_needs_only_a_feature(rv):
+    assert ER.pending(rv, {}, ["Hole"]) == [] and ER.pending(rv, None, None) == []
+    assert ER.can_generate(rv, {}, ["Hole"]) and not ER.can_generate(rv, {}, [])
+    assert ER.pending(rv, {}, ["Hole"], confirm=True) == ["Slot", "Thread"]      # strict, on request
+    assert not ER.can_generate(rv, {}, ["Hole"], confirm=True)
+
+
+def test_by_default_the_status_is_included_or_removed(rv):
+    assert ER.status(rv, {}, ["Hole", "Slot", "Thread"]) == {"Hole": "included", "Slot": "included", "Thread": "included"}
+    assert ER.status(rv, {}, ["Hole"]) == {"Hole": "included", "Slot": "removed", "Thread": "removed"}
+
+
+@pytest.mark.parametrize("value, expected", [("1", "True"), ("true", "True"), ("YES", "True"), ("0", "False"), ("", "False"), ("no", "False")])
+def test_the_environment_variable_switches_the_strict_mode_on(value, expected):
+    """CONFIRM_FLAGGED is read when the module is imported, so it is checked in a fresh interpreter (no reload of the module in this one)."""
+    import subprocess
+    r = subprocess.run([sys.executable, "-c", "from capp import extraction_review as ER; print(ER.CONFIRM_FLAGGED)"], cwd=ROOT,
+                       env=dict(os.environ, CAPP_CONFIRM_FLAGGED=value), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and r.stdout.strip() == expected, r.stderr
+
+
+def test_by_default_taking_out_a_one_pass_feature_is_a_correction_and_there_are_no_decisions():
+    ex = extraction(["Hole", "Slot"], ["Hole", "Thread"])
+    e = ER.build_log_entry(ex, ["Hole", "Thread"])                       # Slot (geometry only) taken out
+    assert [(x["type"], x["feature"], x["was"], x["correction"]) for x in e["events"]] == [("removed", "Slot", "one-pass", True)]
+    assert e["n_corrections"] == 1 and e["n_decisions"] == 0 and e["n_highlighted"] == 2 and e["confirm_flagged"] is False
+    assert ER.build_log_entry(ex, ["Hole", "Slot", "Thread"])["n_corrections"] == 0         # keeping everything: nothing to correct
+
+
+def test_the_strict_log_entry_says_so():
+    ex = extraction(["Hole", "Slot"], ["Hole", "Thread"])
+    e = ER.build_log_entry(ex, ["Hole", "Slot"], {"Slot": "accept", "Thread": "reject"}, confirm=True)
+    assert e["confirm_flagged"] is True and e["n_decisions"] == 2 and e["n_corrections"] == 0
+
+
+def test_the_default_summary_counts_the_removals_as_corrections():
+    ex = extraction(["Hole", "Slot"], ["Hole", "Thread"])
+    s = ER.summarize_log([ER.build_log_entry(ex, ["Hole"]), ER.build_log_entry(ex, ["Hole", "Slot", "Thread"])])
+    assert s["corrections"]["mean"] == pytest.approx(1.0) and s["decisions_mean"] == 0 and s["corrections"]["share_zero"] == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------- Step 49: a third pass
+def three(g, a, c, **kw):
+    ex = extraction(g, a, **kw)
+    c_feats = c.get("features", []) if isinstance(c, dict) else list(c)
+    ex["passes"]["checklist"] = c if isinstance(c, dict) else report(c_feats)
+    ex["features"] = list(dict.fromkeys(ex["features"] + c_feats))
+    ex["sample_agreement"] = {f: sum(f in (ex["passes"][n].get("features") or []) for n in ex["passes"]) for f in ex["features"]}
+    ex["passes_ok"] = sum(bool(r.get("success")) for r in ex["passes"].values())
+    return ex
+
+
+def test_two_of_three_passes_count_as_agreed():
+    rv3 = ER.build_review(three(["Hole", "Slot"], ["Hole", "Thread"], ["Slot", "Pocket"]))
+    rows = rows_by_feature(rv3)
+    assert rows["Hole"]["agreement"] == ER.BOTH and rows["Hole"]["seen_by"] == ["geometry", "annotation"]
+    assert rows["Slot"]["agreement"] == ER.BOTH and rows["Slot"]["seen_by"] == ["geometry", "checklist"] and rows["Slot"]["confidence"] == "high"
+    assert rows["Thread"]["agreement"] == ER.ONE and rows["Pocket"]["agreement"] == ER.ONE and rows["Pocket"]["seen_by"] == ["checklist"]
+    assert rv3["preaccepted"] == ["Hole", "Slot"] and rv3["flagged"] == ["Thread", "Pocket"] and rv3["notes"] == []
+
+
+def test_the_checklist_evidence_is_shown_with_the_other_passes():
+    c = report(["Hole"], evidence={"Hole": "circle dia 8 in the end view"})
+    rows = rows_by_feature(ER.build_review(three(["Hole"], ["Hole"], c)))
+    assert rows["Hole"]["evidence_text"] == "checklist: circle dia 8 in the end view"
+
+
+def test_a_failed_third_pass_is_reported_and_the_two_others_still_agree():
+    rv3 = ER.build_review(three(["Hole", "Slot"], ["Hole"], {"success": False, "error": "timeout"}))
+    assert rv3["passes_ok"] == 2 and rv3["preaccepted"] == ["Hole"] and rv3["flagged"] == ["Slot"]
+    assert len(rv3["notes"]) == 1 and "1 of the 3 passes failed" in rv3["notes"][0]
+
+
+def test_with_three_passes_and_only_one_working_nothing_is_agreed():
+    ex = three(["Hole"], {"success": False, "error": "x"}, {"success": False, "error": "y"})
+    rv3 = ER.build_review(ex)
+    assert rv3["passes_ok"] == 1 and rv3["preaccepted"] == [] and "Only 1 of the 3 passes worked" in rv3["notes"][0]
+
+
+def test_an_unrecognised_name_from_the_third_pass_is_listed_with_its_pass():
+    c = report(["Hole"], rejected=["Counter Bore"])
+    rv3 = ER.build_review(three(["Hole"], ["Hole"], c))
+    assert [(u["name"], u["seen_by"]) for u in rv3["unrecognised"]] == [("Counter Bore", ["checklist"])]
+
+
+def test_the_core_passes_stay_the_two_the_evaluation_scores():
+    assert ER.PASSES == ("geometry", "annotation") and ER.ALL_PASSES == ("geometry", "annotation", "checklist")

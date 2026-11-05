@@ -245,19 +245,24 @@ def build_plan(steps: list, part: dict, machine: F.Machine = F.DEFAULT_MACHINE, 
         else:
             info = PT.operation(step)
             tool = PT.tool_for(step, material, mach)
-            size, size_assumed = _tool_size(step, dims, hole_given)
+            odims = agents.op_dims(step, dims)                        # Step 51: this operation's own dimensions, where the part gives any
+            own = (dims.get(agents.PER_OP) or {}).get(step) or {}
+            if own:
+                entry["own_dims"] = dict(own)
+                entry["flags"].append("own dimensions for this operation: " + ", ".join(f"{k} {v:g} mm" for k, v in own.items()))
+            size, size_assumed = _tool_size(step, odims, hole_given)
             entry.update({"description": info["description"], "tool": dict(tool, size=size, size_assumed=size_assumed)})
             if tool["machine_override"]:
                 entry["flags"].append(f"on the {mach} machine this is done with a {tool['type']}; speed and feed shown are the v1 model's "
                                       "(turning-type) values: set the milling feed per tooth at the machine")
-            n, feed_used, vf, unit, dia = _spindle(step, prow, dims)
+            n, feed_used, vf, unit, dia = _spindle(step, prow, odims)
             if prow["vc_m_min"] is None:
                 entry["params"] = None
                 entry["range_check"] = None
                 if prow["notes"]:
                     entry["flags"].extend(prow["notes"])
             else:
-                passes = agents._num_passes(step, dims["depth"])
+                passes = agents._num_passes(step, odims["depth"])
                 entry["params"] = {"vc_m_min": prow["vc_m_min"], "rpm": n, "feed": feed_used, "feed_unit": unit, "feed_rate_mm_min": vf,
                                    "ap_mm": prow["ap_mm"], "ae_mm": prow["ae_mm"], "passes": passes, "diameter_mm": dia,
                                    "mrr_cm3_min": prow["mrr_cm3_min"], "power_kw": prow["power_kw"], "spindle_kw": prow["spindle_kw"],
@@ -343,6 +348,10 @@ def assumptions(dims, reference, hole_given, part, machine) -> list:
         L.append("No hole diameter was given: hole operations (drilling, boring, reaming, tapping, counterboring, countersinking) use the part "
                  "diameter, marked * in the tool column.")
     L.append("The stock is taken as a bar of the part's diameter; milling cutters are the v1 model's standard diameters and tooth numbers.")
+    own = [op for op, v in (dims.get(agents.PER_OP) or {}).items() if v]
+    if own:
+        L.append(f"{len(own)} operation(s) use dimensions of their own (read from the drawing or typed by the user, listed in the Notes column); "
+                 "every other operation uses the part's dimensions.")
     return L
 
 
